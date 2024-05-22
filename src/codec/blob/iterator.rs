@@ -5,9 +5,12 @@ use std::fs::File;
 use std::io;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::path::PathBuf;
+use log::warn;
 use prost::Message;
 use crate::blob::item::BlobItem;
 use crate::osm::BlobHeader;
+
+const HEADER_LEN_SIZE: usize = 4;
 
 pub(crate) struct BlobIterator {
     #[cfg(not(feature = "mmap"))]
@@ -25,6 +28,11 @@ impl BlobIterator {
         #[cfg(feature = "mmap")]
         let map = unsafe { memmap2::Mmap::map(&file)? };
 
+        #[cfg(feature = "mmap")]
+        if let Err(err) = map.advise(memmap2::Advice::Sequential) {
+            warn!("Could not advise memory. Encountered: {}", err);
+        }
+
         Ok(BlobIterator {
             #[cfg(not(feature = "mmap"))]
             file,
@@ -39,33 +47,52 @@ impl BlobIterator {
 impl Iterator for BlobIterator {
     type Item = BlobItem;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        #[cfg(feature = "mmap")]
-        self.map.advise(memmap2::Advice::Sequential)?;
 
+    #[cfg(feature = "mmap")]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.map.len() < self.offset as usize + HEADER_LEN_SIZE {
+            return None;
+        }
+
+        let header_len_buffer = &self.map[self.offset as usize..self.offset as usize + HEADER_LEN_SIZE];
+        self.offset += HEADER_LEN_SIZE as u64;
+
+        // Translate to i32 (Big Endian)
+        let blob_header_length = i32::from_be_bytes(header_len_buffer.try_into().unwrap()) as usize;
+
+        if self.map.len() < self.offset as usize + blob_header_length {
+            return None;
+        }
+
+        let blob_header_buffer = &self.map[self.offset as usize..self.offset as usize + blob_header_length];
+        self.offset += blob_header_length as u64;
+
+        let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
+        self.offset += header.datasize as u64;
+
+        let blob = BlobItem::new(self.index, self.offset, header);
+        self.index += 1;
+
+        Some(blob)
+    }
+
+    #[cfg(not(feature = "mmap"))]
+    fn next(&mut self) -> Option<Self::Item> {
         // Move to the location of the item
-        #[cfg(not(feature = "mmap"))]
         self.file.seek(SeekFrom::Start(self.offset)).ok()?;
 
         // Create a `Header` length buffer
-        #[cfg(not(feature = "mmap"))]
         let mut header_len_buffer = [0_u8; 4];
-        #[cfg(not(feature = "mmap"))]
         self.file.read_exact(&mut header_len_buffer).ok()?;
-        #[cfg(feature = "mmap")]
-        let mut header_len_buffer = self.map[self.offset..4];
         self.offset += 4;
 
         // Translate to i32 (Big Endian)
         let blob_header_length = i32::from_be_bytes(header_len_buffer);
 
         // Create the actual header buffer
-        #[cfg(not(feature = "mmap"))]
         let mut blob_header_buffer = vec![0; blob_header_length as usize];
-        #[cfg(not(feature = "mmap"))]
         self.file.read_exact(&mut blob_header_buffer).ok()?;
-        #[cfg(feature = "mmap")]
-        let mut blob_header_buffer = self.map[self.offset..(blob_header_length as u64)];
+
         self.offset += blob_header_length as u64;
 
         let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;

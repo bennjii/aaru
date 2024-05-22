@@ -9,7 +9,7 @@ const AUSTRALIA: &str = "./resources/australia-latest.osm.pbf";
 
 #[test_log::test]
 fn iterate_each() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = PathBuf::from(AUSTRALIA);
     let iterator = BlobIterator::new(path.clone());
 
     match iterator {
