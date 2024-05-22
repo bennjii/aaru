@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::path::PathBuf;
-use log::warn;
+use log::{trace, warn};
 use prost::Message;
 use crate::blob::item::BlobItem;
 use crate::osm::BlobHeader;
@@ -17,8 +17,9 @@ pub(crate) struct BlobIterator {
     pub(crate) file: File,
     #[cfg(feature = "mmap")]
     pub(crate) map: memmap2::Mmap,
+
+    pub(crate) index: u64,
     offset: u64,
-    index: u64,
 }
 
 impl BlobIterator {
@@ -94,10 +95,11 @@ impl Iterator for BlobIterator {
 
         self.offset += blob_header_length as u64;
 
+        let start = self.offset;
         let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
         self.offset += header.datasize as u64;
 
-        let blob = BlobItem::new(self.index, self.offset, header);
+        let blob = BlobItem::new(self.index, start, header);
         self.index += 1;
 
         Some(blob)

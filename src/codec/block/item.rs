@@ -21,13 +21,12 @@ impl FileBlock {
 
     #[cfg(not(feature = "mmap"))]
     pub(crate) fn from_blob_item(blob: BlobItem, file: &mut File) -> Option<Self> {
-        trace!("Decoding blob: {}", blob.item.r#type);
         let block_data = blob.data(file)?;
         FileBlock::from_raw(block_data.as_slice(), blob)
     }
 
     fn from_raw(data: &[u8], blob_item: BlobItem) -> Option<Self> {
-        let blob = Blob::decode(data).ok()?;
+        let blob = Blob::decode(data).expect("Parse Failed");
 
         // Convert raw into actual. Handles ZLIB encoding.
         let data = FileBlock::from_blob(blob)?;

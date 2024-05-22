@@ -9,7 +9,7 @@ const DISTRICT_OF_COLUMBIA: &str = "./resources/district-of-columbia.osm.pbf";
 const BADEN_WUERTTEMBERG: &str = "./resources/baden-wuerttemberg-latest.osm.pbf";
 const AUSTRALIA: &str = "./resources/australia-latest.osm.pbf";
 
-#[test]
+#[test_log::test]
 fn iterate_blobs_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iterator = BlobIterator::new(path.clone());
@@ -33,16 +33,15 @@ fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iterator = BlockIterator::new(path.clone());
 
+    let mut primitive_blocks = 0;
+    let mut header_blocks = 0;
+
     match iterator {
         Ok(iter) => {
             for block in iter {
                 match block {
-                    FileBlock::HeaderBlock(header) => {
-                        info!("Header Block: {:?}", header.source);
-                    },
-                    FileBlock::PrimitiveBlock(primitive) => {
-                        info!("Primitive Block: {:?}", primitive);
-                    }
+                    FileBlock::HeaderBlock(header) => header_blocks += 1,
+                    FileBlock::PrimitiveBlock(primitive) => primitive_blocks += 1
                 }
             }
         },
@@ -51,5 +50,6 @@ fn iterate_blocks_each() {
         }
     }
 
-    info!("Test Complete.");
+    assert_eq!(header_blocks, 1);
+    assert_eq!(primitive_blocks, 237);
 }

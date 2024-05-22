@@ -6,7 +6,7 @@ use crate::osm::BlobHeader;
 
 pub(crate) struct BlobItem {
     index: u64,
-    start: u64,
+    pub(crate) start: u64,
     pub item: BlobHeader,
 }
 
@@ -28,7 +28,7 @@ impl BlobItem {
     }
 
     #[cfg(feature = "mmap")]
-    pub(crate) fn data(&self, map: &mut memmap2::Mmap) -> Option<&[u8]> {
+    pub(crate) fn data<'a>(&self, map: &'a mut memmap2::Mmap) -> Option<&'a [u8]> {
         let blob_buffer = &map[
             self.start as usize..self.start as usize + self.item.datasize as usize
         ];
