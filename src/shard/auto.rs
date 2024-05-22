@@ -5,7 +5,7 @@ use std::vec::IntoIter;
 use geo::Coord;
 use osmpbf::{Element, ElementReader, IndexedReader};
 use scc::HashIndex;
-use crate::sharder::error::ShardError;
+use crate::shard::error::ShardError;
 
 /// `Shard<T>
 ///
