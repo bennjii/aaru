@@ -14,9 +14,9 @@ const HEADER_LEN_SIZE: usize = 4;
 
 pub(crate) struct BlobIterator {
     #[cfg(not(feature = "mmap"))]
-    file: File,
+    pub(crate) file: File,
     #[cfg(feature = "mmap")]
-    map: memmap2::Mmap,
+    pub(crate) map: memmap2::Mmap,
     offset: u64,
     index: u64,
 }
@@ -46,7 +46,6 @@ impl BlobIterator {
 
 impl Iterator for BlobIterator {
     type Item = BlobItem;
-
 
     #[cfg(feature = "mmap")]
     fn next(&mut self) -> Option<Self::Item> {
