@@ -60,7 +60,7 @@ fn iterate_blocks_each() {
     assert_eq!(primitive_blocks, 237);
 }
 
-#[test]
+#[test_log::test]
 fn iterate_blocks_each_parallel() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
