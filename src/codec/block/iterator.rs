@@ -4,33 +4,60 @@ use std::fs::File;
 use std::io;
 use std::path::PathBuf;
 use log::warn;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use crate::codec::blob::item::BlobItem;
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::item::FileBlock;
 
 pub struct BlockIterator {
-    blob_iterator: BlobIterator,
+    blobs: Vec<BlobItem>,
+    index: usize,
     #[cfg(feature = "mmap")]
-    map: memmap2::Mmap
+    map: memmap2::Mmap,
+    file: File
 }
 
 impl BlockIterator {
     pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
         let iter = BlobIterator::new(path)?;
 
-        #[cfg(feature = "mmap")]
-        let map = unsafe { memmap2::Mmap::map(&iter.file)? };
+        let file = iter.file.try_clone().expect("");
 
         #[cfg(feature = "mmap")]
-        if let Err(err) = map.advise(memmap2::Advice::Sequential) {
+        let map = unsafe { memmap2::Mmap::map(&file)? };
+
+        #[cfg(feature = "mmap")]
+        if let Err(err) = map.advise(memmap2::Advice::WillNeed) {
             warn!("Could not advise memory. Encountered: {}", err);
         }
 
+        #[cfg(feature = "mmap")]
+        if let Err(err) = map.advise(memmap2::Advice::Random) {
+            warn!("Could not advise memory. Encountered: {}", err);
+        }
+
+        let blobs: Vec<BlobItem> = iter.collect();
+
         Ok(BlockIterator {
-            blob_iterator: iter,
+            blobs,
+            index: 0,
             #[cfg(feature = "mmap")]
-            map
+            map,
+            file,
         })
+    }
+}
+
+impl BlockIterator {
+    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=Option<FileBlock>> + '_ {
+        self.blobs
+            .par_iter()
+            .map(|blob| {
+                #[cfg(feature = "mmap")]
+                return FileBlock::from_blob_item(blob, &self.map);
+                #[cfg(not(feature = "mmap"))]
+                return FileBlock::from_blob_item(blob, &self.file);
+            })
     }
 }
 
@@ -39,37 +66,15 @@ impl Iterator for BlockIterator {
 
     #[cfg(feature = "mmap")]
     fn next(&mut self) -> Option<Self::Item> {
-        let blob_desc = self.blob_iterator.next()?;
-        FileBlock::from_blob_item(&blob_desc, &self.map)
+        let blob_desc = &self.blobs[self.index];
+        self.index += 1;
+        FileBlock::from_blob_item(blob_desc, &self.map)
     }
 
     #[cfg(not(feature = "mmap"))]
     fn next(&mut self) -> Option<Self::Item> {
-        let blob_desc = self.blob_iterator.next()?;
-        FileBlock::from_blob_item(&blob_desc, &mut self.blob_iterator.file)
+        let blob_desc = self.blobs[self.index];
+        self.index += 1;
+        FileBlock::from_blob_item(&blob_desc, &mut self.file)
     }
 }
-
-
-// impl ParallelIterator for BlockIterator {
-//     type Item = FileBlock;
-//
-//     fn drive_unindexed<C>(self, consumer: C) -> C::Result
-//         where
-//             C: UnindexedConsumer<Self::Item>,
-//     {
-//         bridge_unindexed(BlockIterator {
-//             blob_iterator: self.blob_iterator,
-//         }, consumer)
-//     }
-// }
-
-// impl UnindexedConsumer<I> for BlockIterator {
-//     fn to_reducer(&self) -> Self::Reducer {
-//         todo!()
-//     }
-//
-//     fn split_off_left(&self) -> Self {
-//         todo!()
-//     }
-// }

@@ -64,23 +64,10 @@ fn iterate_blocks_each() {
 fn iterate_blocks_each_parallel() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
-    let blob_iter = BlobIterator::new(path.clone());
-    let blobs: Vec<BlobItem> = blob_iter.unwrap().collect();
+    let mut block_iter = BlockIterator::new(path).unwrap();
 
-    let file = File::open(path).expect("Couldn't open file");
-    let mut map = unsafe { memmap2::Mmap::map(&file).expect("Couldn't open file") };
-    if let Err(err) = map.advise(memmap2::Advice::WillNeed) {
-        warn!("Could not advise memory. Encountered: {}", err);
-    }
-
-    if let Err(err) = map.advise(memmap2::Advice::Random) {
-        warn!("Could not advise memory. Encountered: {}", err);
-    }
-
-    let elements = blobs.par_iter()
-        .map(|blob| {
-            let block = FileBlock::from_blob_item(&blob, &map);
-
+    let elements = block_iter.par_iter()
+        .map(|block| {
             match block {
                 Some(blk) => {
                     match blk {
