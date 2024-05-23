@@ -1,7 +1,9 @@
 //! Describes the `BlobItem`, which holds the file reference for an `Element`
 
+use std::cmp::min;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+use log::trace;
 use crate::osm::BlobHeader;
 
 pub(crate) struct BlobItem {
@@ -28,10 +30,22 @@ impl BlobItem {
     }
 
     #[cfg(feature = "mmap")]
-    pub(crate) fn data<'a>(&self, map: &'a mut memmap2::Mmap) -> Option<&'a [u8]> {
-        let blob_buffer = &map[
-            self.start as usize..self.start as usize + self.item.datasize as usize
-        ];
+    pub(crate) fn data<'a>(&self, map: &'a memmap2::Mmap) -> Option<&'a [u8]> {
+        let start = self.start as usize;
+        let end = min(start + self.item.datasize as usize, map.len());
+
+        trace!("Obtaining range: {} to {}", start, end);
+        let blob_buffer = (*map).get(start..end)?;
+
+        trace!("Buffer {} to {}, reading {} bytes. First {:?} equals? Cutout: {:?} of total size {}",
+            start,
+            end,
+            blob_buffer.len(),
+            blob_buffer[0..13].to_vec(),
+            map[0..13].to_vec(),
+            map.len(),
+        );
+
         Some(blob_buffer)
     }
 }

@@ -13,7 +13,6 @@ use crate::osm::BlobHeader;
 const HEADER_LEN_SIZE: usize = 4;
 
 pub(crate) struct BlobIterator {
-    #[cfg(not(feature = "mmap"))]
     pub(crate) file: File,
     #[cfg(feature = "mmap")]
     pub(crate) map: memmap2::Mmap,
@@ -35,10 +34,9 @@ impl BlobIterator {
         }
 
         Ok(BlobIterator {
-            #[cfg(not(feature = "mmap"))]
-            file,
             #[cfg(feature = "mmap")]
             map,
+            file,
             offset: 0,
             index: 0,
         })
@@ -67,10 +65,11 @@ impl Iterator for BlobIterator {
         let blob_header_buffer = &self.map[self.offset as usize..self.offset as usize + blob_header_length];
         self.offset += blob_header_length as u64;
 
+        let start = self.offset;
         let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
         self.offset += header.datasize as u64;
 
-        let blob = BlobItem::new(self.index, self.offset, header);
+        let blob = BlobItem::new(self.index, start, header);
         self.index += 1;
 
         Some(blob)

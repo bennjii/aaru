@@ -14,18 +14,21 @@ pub enum FileBlock {
 
 impl FileBlock {
     #[cfg(feature = "mmap")]
-    pub(crate) fn from_blob_item(blob: BlobItem, mmap: &mut memmap2::Mmap) -> Option<Self> {
+    pub(crate) fn from_blob_item(blob: &BlobItem, mmap: &memmap2::Mmap) -> Option<Self> {
+        trace!("Decoding blob: {}. Size: {}", blob.start, blob.item.datasize);
         let block_data = blob.data(mmap)?;
-        FileBlock::from_raw(block_data, blob)
+        FileBlock::from_raw(block_data, &blob)
     }
 
     #[cfg(not(feature = "mmap"))]
-    pub(crate) fn from_blob_item(blob: BlobItem, file: &mut File) -> Option<Self> {
+    pub(crate) fn from_blob_item(blob: &BlobItem, file: &mut File) -> Option<Self> {
+        trace!("Decoding blob: {}. Size: {}", blob.start, blob.item.datasize);
         let block_data = blob.data(file)?;
-        FileBlock::from_raw(block_data.as_slice(), blob)
+        FileBlock::from_raw(block_data.as_slice(), &blob)
     }
 
-    fn from_raw(data: &[u8], blob_item: BlobItem) -> Option<Self> {
+    fn from_raw(data: &[u8], blob_item: &BlobItem) -> Option<Self> {
+        trace!("Partial Block: {:?}", data[0..5].to_vec());
         let blob = Blob::decode(data).expect("Parse Failed");
 
         // Convert raw into actual. Handles ZLIB encoding.
@@ -42,7 +45,7 @@ impl FileBlock {
         None
     }
 
-    fn from_data(data: &[u8], blob: BlobItem) -> Option<Self> {
+    fn from_data(data: &[u8], blob: &BlobItem) -> Option<Self> {
         match blob.item.r#type.as_str() {
             "OSMData" => Some(FileBlock::PrimitiveBlock(PrimitiveBlock::decode(data).ok()?)),
             "OSMHeader" => Some(FileBlock::HeaderBlock(HeaderBlock::decode(data).ok()?)),
