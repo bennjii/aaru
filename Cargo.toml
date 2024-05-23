@@ -38,5 +38,5 @@ tonic-build = { version = "0.11.0", features = ["prost"] }
 prost-build = { version = "0.12.6"}
 
 [features]
-default = []
+default = ["mmap"]
 mmap = ["memmap2"]

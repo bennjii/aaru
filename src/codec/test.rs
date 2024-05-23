@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::path::PathBuf;
 use log::{error, info, warn};
-use memmap2::Advice;
+
 use osmpbf::{BlobReader, BlobType};
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge};
 use rayon::iter::ParallelIterator;
@@ -61,7 +61,7 @@ fn iterate_blocks_each() {
 }
 
 #[test_log::test]
-fn iterate_blocks_each_parallel() {
+fn parallel_iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
     let mut block_iter = BlockIterator::new(path).unwrap();
@@ -83,8 +83,7 @@ fn iterate_blocks_each_parallel() {
             |a, b| (a.0 + b.0, a.1 + b.1)
         );
 
-    assert_eq!(elements.1, 1);
-    assert_eq!(elements.0, 237);
+    assert_eq!(elements, (237, 1));
 }
 
 #[test_log::test]

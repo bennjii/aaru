@@ -56,7 +56,7 @@ impl BlockIterator {
                 #[cfg(feature = "mmap")]
                 return FileBlock::from_blob_item(blob, &self.map);
                 #[cfg(not(feature = "mmap"))]
-                return FileBlock::from_blob_item(blob, &self.file);
+                return FileBlock::from_blob_item(blob, &mut self.file);
             })
     }
 }
@@ -66,6 +66,10 @@ impl Iterator for BlockIterator {
 
     #[cfg(feature = "mmap")]
     fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.blobs.len() {
+            return None;
+        }
+
         let blob_desc = &self.blobs[self.index];
         self.index += 1;
         FileBlock::from_blob_item(blob_desc, &self.map)

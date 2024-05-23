@@ -33,18 +33,7 @@ impl BlobItem {
     pub(crate) fn data<'a>(&self, map: &'a memmap2::Mmap) -> Option<&'a [u8]> {
         let start = self.start as usize;
         let end = min(start + self.item.datasize as usize, map.len());
-
-        trace!("Obtaining range: {} to {}", start, end);
         let blob_buffer = (*map).get(start..end)?;
-
-        trace!("Buffer {} to {}, reading {} bytes. First {:?} equals? Cutout: {:?} of total size {}",
-            start,
-            end,
-            blob_buffer.len(),
-            blob_buffer[0..13].to_vec(),
-            map[0..13].to_vec(),
-            map.len(),
-        );
 
         Some(blob_buffer)
     }
