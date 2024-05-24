@@ -1,29 +1,22 @@
 //! Iterator over all primitive entities in the structure
 //! ignoring header blocks
 
-use std::array::from_fn;
-use std::{io, iter};
-use std::marker::PhantomData;
+use std::{io};
+use std::convert::identity;
 use std::path::PathBuf;
-use std::slice::Iter;
-use either::Either;
-use log::{info, warn};
-use osmpbfreader::osmformat::PrimitiveGroup;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{Fold, ParallelIterator};
 
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
 
 pub struct ElementIterator {
     iter: BlockIterator,
-    index: i32
 }
 
 impl ElementIterator {
     pub fn new(path: PathBuf) -> Result<ElementIterator, io::Error> {
         Ok(ElementIterator {
             iter: BlockIterator::new(path)?,
-            index: 0,
         })
     }
 
@@ -34,6 +27,23 @@ impl ElementIterator {
         self.iter.par_iter().for_each(|mut block| {
             block.par_iter().for_each(&f);
         })
+    }
+
+    pub fn map_red<Map, Reduce, Identity, T>(mut self, map_op: Map, red_op: Reduce, ident: Identity) -> T
+        where
+            Map: for<'a> Fn(Element<'a>) -> T + Send + Sync,
+            Reduce: Fn(T, T) -> T + Send + Sync,
+            Identity: Fn() -> T + Send + Sync,
+            T: Send
+    {
+        self.iter
+            .par_iter().map(|mut block| {
+                block.par_iter().map(&map_op).reduce(&ident, &red_op)
+            })
+            .reduce(
+                &ident,
+                &red_op
+            )
     }
 }
 

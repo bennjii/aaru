@@ -70,6 +70,14 @@ impl BlockItem {
         Some(decoded)
     }
 
+    fn r#type(&self) -> &str {
+        match self {
+            BlockItem::HeaderBlock(_) => "HeaderBlock",
+            BlockItem::PrimitiveBlock(_) => "PrimitiveBlock"
+        }
+    }
+
+    #[inline]
     pub fn element_iter(&self) -> impl Iterator<Item=Element> {
          match self {
              BlockItem::PrimitiveBlock(primitive) => {
@@ -81,7 +89,10 @@ impl BlockItem {
          }
     }
 
+    #[inline]
     pub fn par_iter(&mut self) -> impl ParallelIterator<Item=Element> + '_ {
+        info!("Got self of type {}", self.r#type());
+
         match self {
             BlockItem::PrimitiveBlock(primitive) => {
                 Either::Left(primitive.primitivegroup
