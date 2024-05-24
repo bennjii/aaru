@@ -2,18 +2,17 @@ use std::fs::File;
 use std::path::PathBuf;
 use log::{error, info, warn};
 
-use osmpbf::{BlobReader, BlobType};
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge};
 use rayon::iter::ParallelIterator;
 
 use crate::blob::item::BlobItem;
 use crate::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
-use crate::codec::block::item::FileBlock;
+use crate::codec::block::item::BlockItem;
 
-const DISTRICT_OF_COLUMBIA: &str = "./resources/district-of-columbia.osm.pbf";
-const BADEN_WUERTTEMBERG: &str = "./resources/baden-wuerttemberg-latest.osm.pbf";
-const AUSTRALIA: &str = "./resources/australia-latest.osm.pbf";
+pub(crate) const DISTRICT_OF_COLUMBIA: &str = "./resources/district-of-columbia.osm.pbf";
+pub(crate) const BADEN_WUERTTEMBERG: &str = "./resources/baden-wuerttemberg-latest.osm.pbf";
+pub(crate) const AUSTRALIA: &str = "./resources/australia-latest.osm.pbf";
 
 #[test_log::test]
 fn iterate_blobs_each() {
@@ -46,8 +45,8 @@ fn iterate_blocks_each() {
         Ok(iter) => {
             for block in iter {
                 match block {
-                    FileBlock::HeaderBlock(header) => header_blocks += 1,
-                    FileBlock::PrimitiveBlock(primitive) => primitive_blocks += 1
+                    BlockItem::HeaderBlock(header) => header_blocks += 1,
+                    BlockItem::PrimitiveBlock(primitive) => primitive_blocks += 1
                 }
             }
         },
@@ -60,7 +59,7 @@ fn iterate_blocks_each() {
     assert_eq!(primitive_blocks, 237);
 }
 
-#[test_log::test]
+#[test]
 fn parallel_iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
@@ -69,13 +68,8 @@ fn parallel_iterate_blocks_each() {
     let elements = block_iter.par_iter()
         .map(|block| {
             match block {
-                Some(blk) => {
-                    match blk {
-                        FileBlock::HeaderBlock(_) => (0, 1),
-                        FileBlock::PrimitiveBlock(_) => (1, 0)
-                    }
-                }
-                None => (0, 0)
+                BlockItem::HeaderBlock(_) => (0, 1),
+                BlockItem::PrimitiveBlock(_) => (1, 0)
             }
         })
         .reduce(
@@ -88,6 +82,8 @@ fn parallel_iterate_blocks_each() {
 
 #[test_log::test]
 fn compare_to_osmpbf() {
+    use osmpbf::{BlobReader, BlobType};
+
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let reader = BlobReader::from_path(path).unwrap();
 

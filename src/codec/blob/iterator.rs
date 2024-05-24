@@ -14,6 +14,7 @@ const HEADER_LEN_SIZE: usize = 4;
 
 pub(crate) struct BlobIterator {
     pub(crate) file: File,
+
     #[cfg(feature = "mmap")]
     pub(crate) map: memmap2::Mmap,
 

@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-osmpbf = { version = "0.3.3", features = ["zlib-ng"], default-features = false }
 scc = "2.1.1"
 geo = "0.28.0"
 
@@ -32,10 +31,14 @@ tokio = { version = "1.37.0", features = ["rt", "rt-multi-thread", "macros"] }
 rayon = "1.10.0"
 memmap2 = { version = "0.9.4", optional = true }
 flate2 = { version = "1.0.30", features = ["zlib-ng"] }
+either = "1.11.0"
 
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }
 prost-build = { version = "0.12.6"}
+
+[dev-dependencies]
+osmpbf = { version = "0.3.3", features = ["zlib-ng"], default-features = false }
 
 [features]
 default = ["mmap"]

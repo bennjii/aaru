@@ -1,4 +1,4 @@
-//! Iterates over `FileBlock`s in the file
+//! Iterates over `BlockItem`s in the file
 
 use std::fs::File;
 use std::io;
@@ -7,7 +7,7 @@ use log::warn;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use crate::codec::blob::item::BlobItem;
 use crate::codec::blob::iterator::BlobIterator;
-use crate::codec::block::item::FileBlock;
+use crate::codec::block::item::BlockItem;
 
 pub struct BlockIterator {
     blobs: Vec<BlobItem>,
@@ -49,20 +49,22 @@ impl BlockIterator {
 }
 
 impl BlockIterator {
-    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=Option<FileBlock>> + '_ {
+    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=BlockItem> + '_ {
         self.blobs
             .par_iter()
             .map(|blob| {
                 #[cfg(feature = "mmap")]
-                return FileBlock::from_blob_item(blob, &self.map);
+                return BlockItem::from_blob_item(blob, &self.map);
                 #[cfg(not(feature = "mmap"))]
-                return FileBlock::from_blob_item(blob, &mut self.file);
+                return BlockItem::from_blob_item(blob, &mut self.file);
             })
+            .filter(|e| e.is_some())
+            .map(|e| e.unwrap())
     }
 }
 
 impl Iterator for BlockIterator {
-    type Item = FileBlock;
+    type Item = BlockItem;
 
     #[cfg(feature = "mmap")]
     fn next(&mut self) -> Option<Self::Item> {
@@ -72,13 +74,13 @@ impl Iterator for BlockIterator {
 
         let blob_desc = &self.blobs[self.index];
         self.index += 1;
-        FileBlock::from_blob_item(blob_desc, &self.map)
+        BlockItem::from_blob_item(blob_desc, &self.map)
     }
 
     #[cfg(not(feature = "mmap"))]
     fn next(&mut self) -> Option<Self::Item> {
         let blob_desc = self.blobs[self.index];
         self.index += 1;
-        FileBlock::from_blob_item(&blob_desc, &mut self.file)
+        BlockItem::from_blob_item(&blob_desc, &mut self.file)
     }
 }
