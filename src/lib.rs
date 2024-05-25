@@ -4,8 +4,19 @@ pub use route::*;
 pub use geo::*;
 pub use server::*;
 
+use crate::codec::error::CodecError;
+use crate::error::ShardError;
+use crate::shard::error::ShardError;
+
 pub mod shard;
 pub mod codec;
 pub mod route;
 pub mod geo;
 pub mod server;
+
+pub enum Error {
+    Shard(ShardError),
+    Codec(CodecError)
+}
+
+type Result<T> = std::result::Result<T, Error>;

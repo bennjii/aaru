@@ -18,5 +18,4 @@ impl LatLng {
     fn new(lat: i64, lng: i64) -> Self {
         LatLng { lat, lng }
     }
-
 }

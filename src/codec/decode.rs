@@ -1,7 +1,6 @@
 //! Decode the .osm.pbf into a graphical entity.
 
 use std::fs::File;
-use rayon::prelude::ParallelIterator;
 
 /// `OSM`
 /// This parses osm protobuf files.

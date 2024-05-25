@@ -2,9 +2,8 @@
 //! ignoring header blocks
 
 use std::{io};
-use std::convert::identity;
 use std::path::PathBuf;
-use rayon::iter::{Fold, ParallelIterator};
+use rayon::iter::{ParallelIterator};
 
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
@@ -14,7 +13,7 @@ pub struct ElementIterator {
 }
 
 impl ElementIterator {
-    pub fn new(path: PathBuf) -> Result<ElementIterator, io::Error> {
+    pub fn new(path: PathBuf) -> Result<ElementIterator, CodecError> {
         Ok(ElementIterator {
             iter: BlockIterator::new(path)?,
         })

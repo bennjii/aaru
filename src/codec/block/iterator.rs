@@ -14,6 +14,7 @@ pub struct BlockIterator {
     index: usize,
     #[cfg(feature = "mmap")]
     map: memmap2::Mmap,
+    #[allow(unused)]
     file: File
 }
 
