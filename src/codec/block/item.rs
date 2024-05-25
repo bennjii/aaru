@@ -1,3 +1,7 @@
+//! A block item, used to decode a `BlobItem` into a `BlockItem`,
+//! providing distinction for header and primitive elements, as well
+//! as decoding fully, to element level.
+
 use std::fs::File;
 use std::io::Read;
 use either::Either;
@@ -5,6 +9,7 @@ use flate2::read::ZlibDecoder;
 use log::{info, trace, warn};
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+
 use crate::codec::blob::item::BlobItem;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;

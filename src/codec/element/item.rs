@@ -1,3 +1,7 @@
+//! The `Element` item, provides distinction for
+//! Nodes, DenseNodes, ... by reference to their
+//! derived item, in the primitive entity.
+
 use log::info;
 use crate::coord::latlng::LatLng;
 use crate::osm;

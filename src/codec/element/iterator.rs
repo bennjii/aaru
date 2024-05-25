@@ -1,12 +1,12 @@
 //! Iterator over all primitive entities in the structure
 //! ignoring header blocks
 
-use std::{io};
 use std::path::PathBuf;
 use rayon::iter::{ParallelIterator};
 
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
+use crate::codec::error::CodecError;
 
 pub struct ElementIterator {
     iter: BlockIterator,
