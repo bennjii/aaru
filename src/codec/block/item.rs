@@ -13,6 +13,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use crate::codec::blob::item::BlobItem;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
+use crate::element::item::ProcessedElement;
 use crate::osm::{Blob, HeaderBlock, PrimitiveBlock};
 use crate::osm::blob::Data;
 
@@ -83,26 +84,54 @@ impl BlockItem {
     }
 
     #[inline]
-    pub fn element_iter(&self) -> impl Iterator<Item=Element> {
+    pub fn raw_element_iter(&self) -> impl Iterator<Item=Element> {
          match self {
              BlockItem::PrimitiveBlock(primitive) => {
                  Either::Left(primitive.primitivegroup
                      .iter()
-                     .flat_map(|group| Element::from_group(group, primitive)))
+                     .flat_map(|group| Element::from_group(group)))
              }
              BlockItem::HeaderBlock(_) => Either::Right(std::iter::empty())
          }
     }
 
     #[inline]
-    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=Element> + '_ {
+    pub fn element_iter(&self) -> impl Iterator<Item=ProcessedElement> + '_ {
+        match self {
+            BlockItem::PrimitiveBlock(primitive) => {
+                Either::Left(primitive.primitivegroup
+                    .iter()
+                    .flat_map(|group| Element::from_group(group))
+                    .flat_map(|element| ProcessedElement::from_raw(element, primitive)))
+            }
+            BlockItem::HeaderBlock(_) => Either::Right(std::iter::empty())
+        }
+    }
+
+    #[inline]
+    pub fn raw_par_iter(&mut self) -> impl ParallelIterator<Item=Element> + '_ {
         info!("Got self of type {}", self.r#type());
 
         match self {
             BlockItem::PrimitiveBlock(primitive) => {
                 Either::Left(primitive.primitivegroup
                     .par_iter()
-                    .flat_map(|group| Element::from_group(group, primitive)))
+                    .flat_map(|group| Element::from_group(group)))
+            }
+            BlockItem::HeaderBlock(_) => Either::Right(rayon::iter::empty())
+        }
+    }
+
+    #[inline]
+    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=ProcessedElement> + '_ {
+        info!("Got self of type {}", self.r#type());
+
+        match self {
+            BlockItem::PrimitiveBlock(primitive) => {
+                Either::Left(primitive.primitivegroup
+                    .par_iter()
+                    .flat_map(|group| Element::from_group(group))
+                    .flat_map(|element| ProcessedElement::from_raw(element, primitive)))
             }
             BlockItem::HeaderBlock(_) => Either::Right(rayon::iter::empty())
         }

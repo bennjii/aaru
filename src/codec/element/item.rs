@@ -2,36 +2,52 @@
 //! Nodes, DenseNodes, ... by reference to their
 //! derived item, in the primitive entity.
 
-use log::info;
-use crate::coord::latlng::LatLng;
+use std::vec;
 use crate::osm;
+use crate::element::variants::{Node, Way};
 use crate::osm::{PrimitiveBlock, PrimitiveGroup};
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub enum Element<'a> {
-    DenseNode(LatLng),
     Node(&'a osm::Node),
-    DenseNodes(&'a osm::DenseNodes),
     Way(&'a osm::Way),
+    DenseNodes(&'a osm::DenseNodes),
     Relation(&'a osm::Relation)
+}
+
+#[derive(Clone)]
+pub enum ProcessedElement {
+    Node(Node),
+    Way(Way)
+}
+
+impl ProcessedElement {
+    pub(crate) fn from_raw(element: Element, block: &PrimitiveBlock) -> Vec<ProcessedElement>{
+        match element {
+            Element::DenseNodes(dense_nodes) => {
+                Node::from_dense(dense_nodes, block)
+                    .map(|node| ProcessedElement::Node(node))
+                    .collect()
+            },
+            Element::Node(node) =>
+                vec![ProcessedElement::Node(Node::from(node))],
+            Element::Way(way) =>
+                vec![ProcessedElement::Way(Way::from(way))],
+            _ => vec![]
+        }
+    }
 }
 
 impl<'a> Element<'a> {
     #[inline]
-    pub(crate) fn from_group(group: &'a PrimitiveGroup, block: &'a PrimitiveBlock) -> Vec<Element<'a>> {
+    pub(crate) fn from_group(group: &'a PrimitiveGroup) -> Vec<Element<'a>> {
         let mut elements: Vec<Element<'a>> = Vec::new();
 
-        info!("{} Ways, {} Nodes, {} Dense Nodes, {} Relations", group.ways.len(), group.nodes.len(), group.dense.is_some(), group.relations.len());
-
         elements.extend(group.ways.iter().map(|way| Element::Way(way)));
-        elements.extend(group.nodes.iter().map(|node| Element::Node(node)));
+        elements.extend(group.nodes.iter().map(|node| Element::Node(node.into())));
         elements.extend(group.relations.iter().map(|relation| Element::Relation(relation)));
 
         if let Some(nodes) = &group.dense {
-            elements.extend(nodes.lon.iter()
-                .zip(nodes.lat.iter())
-                .map(|coord| Element::DenseNode(LatLng::from(coord).offset(block))));
-
             elements.push(Element::DenseNodes(nodes));
         }
 
@@ -40,7 +56,7 @@ impl<'a> Element<'a> {
 
     pub(crate) fn str_type(&self) -> &str {
         match self {
-            Element::Node(_) | Element::DenseNode(_) => "node",
+            Element::Node(_) => "node",
             Element::Way(_) => "way",
             Element::Relation(_) => "relation",
             Element::DenseNodes(_) => "node set",
