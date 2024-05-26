@@ -5,7 +5,7 @@
 use log::info;
 use crate::coord::latlng::LatLng;
 use crate::osm;
-use crate::osm::PrimitiveGroup;
+use crate::osm::{PrimitiveBlock, PrimitiveGroup};
 
 #[derive(Copy, Clone)]
 pub enum Element<'a> {
@@ -18,7 +18,7 @@ pub enum Element<'a> {
 
 impl<'a> Element<'a> {
     #[inline]
-    pub(crate) fn from_group(group: &'a PrimitiveGroup) -> Vec<Element<'a>> {
+    pub(crate) fn from_group(group: &'a PrimitiveGroup, block: &'a PrimitiveBlock) -> Vec<Element<'a>> {
         let mut elements: Vec<Element<'a>> = Vec::new();
 
         info!("{} Ways, {} Nodes, {} Dense Nodes, {} Relations", group.ways.len(), group.nodes.len(), group.dense.is_some(), group.relations.len());
@@ -30,7 +30,7 @@ impl<'a> Element<'a> {
         if let Some(nodes) = &group.dense {
             elements.extend(nodes.lon.iter()
                 .zip(nodes.lat.iter())
-                .map(|coord| Element::DenseNode(LatLng::from(coord))));
+                .map(|coord| Element::DenseNode(LatLng::from(coord).offset(block))));
 
             elements.push(Element::DenseNodes(nodes));
         }

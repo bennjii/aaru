@@ -44,6 +44,20 @@ impl ElementIterator {
                 &red_op
             )
     }
+
+    pub fn par_red<Reduce, Identity, Combine, T>(mut self, fold_op: Reduce, ident: Identity, combine: Combine) -> T
+        where
+            Reduce: Fn(T, Element) -> T + Send + Sync,
+            Identity: Fn() -> T + Send + Sync,
+            Combine: Fn(T, T) -> T + Send + Sync,
+            T: Send
+    {
+        self.iter
+            .par_iter().map(|mut block| {
+                block.par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
+            })
+            .reduce(&ident, &combine)
+    }
 }
 
 

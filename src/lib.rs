@@ -5,8 +5,8 @@ pub use geo::*;
 pub use server::*;
 
 use crate::codec::error::CodecError;
-use crate::error::ShardError;
 use crate::shard::error::ShardError;
+
 
 pub mod shard;
 pub mod codec;

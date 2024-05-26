@@ -88,7 +88,7 @@ impl BlockItem {
              BlockItem::PrimitiveBlock(primitive) => {
                  Either::Left(primitive.primitivegroup
                      .iter()
-                     .flat_map(|group| Element::from_group(group)))
+                     .flat_map(|group| Element::from_group(group, primitive)))
              }
              BlockItem::HeaderBlock(_) => Either::Right(std::iter::empty())
          }
@@ -102,7 +102,7 @@ impl BlockItem {
             BlockItem::PrimitiveBlock(primitive) => {
                 Either::Left(primitive.primitivegroup
                     .par_iter()
-                    .flat_map(|group| Element::from_group(group)))
+                    .flat_map(|group| Element::from_group(group, primitive)))
             }
             BlockItem::HeaderBlock(_) => Either::Right(rayon::iter::empty())
         }
