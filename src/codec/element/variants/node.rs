@@ -2,14 +2,43 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
+use rstar::{Point};
 use crate::coord::latlng::LatLng;
 use crate::osm;
 use crate::osm::{DenseNodes, PrimitiveBlock};
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Node {
     id: i64,
     position: LatLng
+}
+
+impl Point for Node {
+    type Scalar = i64;
+    const DIMENSIONS: usize = 2;
+
+    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
+        Node {
+            id: 0,
+            position: LatLng::new(generator(1), generator(0))
+        }
+    }
+
+    fn nth(&self, index: usize) -> Self::Scalar {
+        match index {
+            0 => self.position.lng,
+            1 => self.position.lng,
+            _ => unreachable!(),
+        }
+    }
+
+    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
+        match index {
+            0 => &mut self.position.lng,
+            1 => &mut self.position.lng,
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl Node {
@@ -19,6 +48,11 @@ impl Node {
             position,
             id: id.clone()
         }
+    }
+
+    /// Returns the identifier for the node
+    pub fn id(&self) -> i64 {
+        self.id
     }
 
     /// Takes an `osm::DenseNodes` structure and extracts `Node`s as an

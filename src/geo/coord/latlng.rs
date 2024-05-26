@@ -8,10 +8,10 @@ use crate::osm::{PrimitiveBlock};
 /// let latlng = LatLng::new(10, 10);
 /// println!("Position: {}", latlng);
 /// ```
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, PartialOrd, PartialEq)]
 pub struct LatLng {
-    lng: i64,
-    lat: i64,
+    pub lng: i64,
+    pub lat: i64,
 }
 
 impl From<(&i64, &i64)> for LatLng {

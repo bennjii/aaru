@@ -32,7 +32,7 @@ impl ProcessedElement {
             Element::Node(node) =>
                 vec![ProcessedElement::Node(Node::from(node))],
             Element::Way(way) =>
-                vec![ProcessedElement::Way(Way::from(way))],
+                vec![ProcessedElement::Way(Way::from_raw(way, block))],
             _ => vec![]
         }
     }
