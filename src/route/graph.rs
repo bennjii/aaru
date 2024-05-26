@@ -8,6 +8,7 @@
 // use rstar::{RTree};
 // use scc::HashMap;
 // use crate::coord::latlng::LatLng;
+// use crate::element::item::Element;
 // use crate::element::iterator::ElementIterator;
 //
 // pub struct Graph {
@@ -45,6 +46,12 @@
 //
 //         let graph: DiGraphMap<usize, f64> = reader.par_red(
 //             |graph, element| {
+//                 match element {
+//                     Element::Way(w) => {
+//                         w.refs.
+//                     },
+//                     _ => {}
+//                 }
 //                 graph.add_node(element);
 //                 graph
 //             },

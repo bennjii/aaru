@@ -70,7 +70,7 @@ impl Iterator for BlobIterator {
         let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
         self.offset += header.datasize as u64;
 
-        let blob = BlobItem::new(self.index, start, header);
+        let blob = BlobItem::new(start, header);
         self.index += 1;
 
         Some(blob)
