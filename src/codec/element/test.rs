@@ -1,16 +1,18 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 use log::info;
+use crate::codec::parallel::Parallel;
 use crate::codec::element::item::Element;
 use crate::codec::element::iterator::ElementIterator;
 use crate::element::item::ProcessedElement;
+use crate::element::processed_iterator::ProcessedElementIterator;
 
 #[test]
 fn try_into_iter() {
     let path = PathBuf::from(crate::codec::test::DISTRICT_OF_COLUMBIA);
     let mut iter = ElementIterator::new(path).expect("Could not create iterator");
 
-    iter.raw_for_each(|item| {
+    iter.for_each(|item| {
         info!("Element: {}", item.str_type());
     });
 }
@@ -20,7 +22,7 @@ fn iter_count() {
     let path = PathBuf::from(crate::codec::test::DISTRICT_OF_COLUMBIA);
     let mut iter = ElementIterator::new(path).expect("Could not create iterator");
 
-    let nodes = iter.raw_map_red(|item| {
+    let nodes = iter.map_red(|item| {
         match item {
             Element::Way(_) => 0,
             Element::Node(_) => 1,
@@ -35,7 +37,7 @@ fn iter_count() {
 #[test_log::test]
 fn iter_count_processed() {
     let path = PathBuf::from(crate::codec::test::DISTRICT_OF_COLUMBIA);
-    let mut iter = ElementIterator::new(path).expect("Could not create iterator");
+    let mut iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(|item| {
         match item {

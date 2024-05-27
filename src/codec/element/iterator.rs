@@ -7,7 +7,7 @@ use rayon::iter::{ParallelIterator};
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
 use crate::codec::error::CodecError;
-use crate::element::item::ProcessedElement;
+use crate::parallel::Parallel;
 
 pub struct ElementIterator {
     iter: BlockIterator,
@@ -19,8 +19,12 @@ impl ElementIterator {
             iter: BlockIterator::new(path)?,
         })
     }
+}
 
-    pub fn raw_for_each<F>(mut self, f: F) -> ()
+impl Parallel for ElementIterator {
+    type Item<'a> = Element<'a>;
+
+    fn for_each<F>(mut self, f: F) -> ()
         where
             F: for<'a> Fn(Element<'a>) + Send + Sync,
     {
@@ -29,16 +33,12 @@ impl ElementIterator {
         })
     }
 
-    pub fn for_each<F>(mut self, f: F) -> ()
-        where
-            F: Fn(ProcessedElement) + Send + Sync,
-    {
-        self.iter.par_iter().for_each(|mut block| {
-            block.par_iter().for_each(&f);
-        })
-    }
-
-    pub fn raw_map_red<Map, Reduce, Identity, T>(mut self, map_op: Map, red_op: Reduce, ident: Identity) -> T
+    fn map_red<Map, Reduce, Identity, T>(
+        mut self,
+        map_op: Map,
+        red_op: Reduce,
+        ident: Identity
+    ) -> T
         where
             Map: for<'a> Fn(Element<'a>) -> T + Send + Sync,
             Reduce: Fn(T, T) -> T + Send + Sync,
@@ -47,59 +47,30 @@ impl ElementIterator {
     {
         self.iter
             .par_iter().map(|mut block| {
-                block.raw_par_iter().map(&map_op).reduce(&ident, &red_op)
-            })
-            .reduce(
-                &ident,
-                &red_op
-            )
-    }
-
-    pub fn map_red<Map, Reduce, Identity, T>(mut self, map_op: Map, red_op: Reduce, ident: Identity) -> T
-        where
-            Map: Fn(ProcessedElement) -> T + Send + Sync,
-            Reduce: Fn(T, T) -> T + Send + Sync,
-            Identity: Fn() -> T + Send + Sync,
-            T: Send
-    {
-        self.iter
-            .par_iter().map(|mut block| {
-            block.par_iter().map(&map_op).reduce(&ident, &red_op)
+            block.raw_par_iter().map(&map_op).reduce(&ident, &red_op)
         })
             .reduce(
                 &ident,
-                &red_op
+                &red_op,
             )
     }
 
-    pub fn raw_par_red<Reduce, Identity, Combine, T>(mut self, fold_op: Reduce, ident: Identity, combine: Combine) -> T
+    fn par_red<Reduce, Identity, Combine, T>(
+        mut self,
+        fold_op: Reduce,
+        ident: Identity,
+        combine: Combine
+    ) -> T
         where
-            Reduce: Fn(T, Element) -> T + Send + Sync,
+            Reduce: for<'a> Fn(T, Element<'a>) -> T + Send + Sync,
             Identity: Fn() -> T + Send + Sync,
             Combine: Fn(T, T) -> T + Send + Sync,
             T: Send
     {
         self.iter
             .par_iter().map(|mut block| {
-                block.raw_par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
-            })
-            .reduce(&ident, &combine)
-    }
-
-    pub fn par_red<Reduce, Identity, Combine, T>(mut self, fold_op: Reduce, ident: Identity, combine: Combine) -> T
-        where
-            Reduce: Fn(T, ProcessedElement) -> T + Send + Sync,
-            Identity: Fn() -> T + Send + Sync,
-            Combine: Fn(T, T) -> T + Send + Sync,
-            T: Send
-    {
-        self.iter
-            .par_iter().map(|mut block| {
-            block.par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
+            block.raw_par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
         })
             .reduce(&ident, &combine)
     }
 }
-
-
-

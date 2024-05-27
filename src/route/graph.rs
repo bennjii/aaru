@@ -8,10 +8,13 @@ use petgraph::graphmap::{DiGraphMap, GraphMap};
 use petgraph::prelude::NodeIndex;
 use rstar::{RTree};
 use scc::HashMap;
+
 use crate::coord::latlng::LatLng;
 use crate::element::item::{Element, ProcessedElement};
 use crate::element::iterator::ElementIterator;
+use crate::element::processed_iterator::ProcessedElementIterator;
 use crate::element::variants::Node;
+use crate::parallel::Parallel;
 use crate::route::error::RouteError;
 
 const MAX_WEIGHT: i32 = 9e9 as i32;
@@ -45,13 +48,13 @@ impl Graph {
     pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
         let path = PathBuf::from(filename);
 
-        let mut reader = ElementIterator::new(path)?;
+        let mut reader = ProcessedElementIterator::new(path)?;
         let weights = Graph::weights()?;
 
         info!("Ingesting...");
 
         let (graph, index): (DiGraphMap<i64, i64>, RTree<Node>) = reader.par_red(
-            |(mut graph, mut tree): (DiGraphMap<i64, i64>, RTree<Node>), element| {
+            |(mut graph, mut tree): (DiGraphMap<i64, i64>, RTree<Node>), element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         // Get the weight from the weight table
@@ -98,7 +101,6 @@ impl Graph {
         self.index.nearest_neighbor(&node)
     }
 
-    //
     // pub fn route(&self, start: &[f64], finish: &[f64]) -> (i32, Vec<Vec<f64>>) {
     //     let start_node = self.nearest_node(start).unwrap();
     //     let finish_node = self.nearest_node(finish).unwrap();
