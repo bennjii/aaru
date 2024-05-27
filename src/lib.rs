@@ -15,6 +15,7 @@ pub mod route;
 pub mod geo;
 pub mod server;
 
+#[derive(Debug)]
 pub enum Error {
     Shard(ShardError),
     Codec(CodecError),

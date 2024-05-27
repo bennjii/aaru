@@ -10,7 +10,7 @@ use crate::osm::{DenseNodes, PrimitiveBlock};
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Node {
     id: i64,
-    position: LatLng
+    pub position: LatLng
 }
 
 impl Point for Node {

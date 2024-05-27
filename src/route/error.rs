@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum RouteError {
     HashMapInsertError(String, i32)
 }
