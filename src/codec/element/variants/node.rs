@@ -2,8 +2,9 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
+use log::info;
 use rstar::{Point};
-use crate::coord::latlng::LatLng;
+use crate::coord::latlng::{LatLng, NanoDegree};
 use crate::osm;
 use crate::osm::{DenseNodes, PrimitiveBlock};
 
@@ -14,13 +15,13 @@ pub struct Node {
 }
 
 impl Point for Node {
-    type Scalar = f64;
+    type Scalar = NanoDegree;
     const DIMENSIONS: usize = 2;
 
     fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
         Node {
             id: 0,
-            position: LatLng::new_raw(generator(1), generator(0))
+            position: LatLng::new(generator(1), generator(0))
         }
     }
 
@@ -71,11 +72,11 @@ impl Node {
     ///  }
     /// ```
     pub fn from_dense<'a>(value: &'a DenseNodes, block: &'a PrimitiveBlock) -> impl Iterator<Item=Self> + 'a {
-        value.lon.iter()
-            .zip(value.lat.iter())
+        value.lat.iter()
+            .zip(value.lon.iter())
             .zip(value.id.iter())
-            .fold(vec![], |mut a: Vec<Self>, ((lat, lng), id)| {
-                let new_node = match &a.last() {
+            .fold(vec![], |mut curr: Vec<Self>, ((lat, lng), id)| {
+                let new_node = match &curr.last() {
                     Some(prior_node) => {
                         Node::new(
                             LatLng::delta(lat, lng, prior_node.position),
@@ -85,8 +86,14 @@ impl Node {
                     None => Node::new(LatLng::from((lat, lng)), id)
                 };
 
-                a.push(new_node);
-                a
+                if new_node.position.lat.abs() < 5 || new_node.id == 1511122299 {
+                    info!("Got interesting node...");
+                    let mut k = 0;
+                    k += 1;
+                }
+
+                curr.push(new_node);
+                curr
             })
             .into_iter()
             // .map(|(coord, id)| Node::new(LatLng::from(coord).offset(block), id))
@@ -97,7 +104,7 @@ impl From<&osm::Node> for Node {
     fn from(value: &osm::Node) -> Self {
         Node {
             id: value.id,
-            position: LatLng::new_7(value.lat, value.lon)
+            position: LatLng::new(value.lat, value.lon)
         }
     }
 }

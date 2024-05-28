@@ -13,6 +13,7 @@ use crate::codec::block::item::BlockItem;
 pub(crate) const DISTRICT_OF_COLUMBIA: &str = "./resources/district-of-columbia.osm.pbf";
 pub(crate) const BADEN_WUERTTEMBERG: &str = "./resources/baden-wuerttemberg-latest.osm.pbf";
 pub(crate) const AUSTRALIA: &str = "./resources/australia-latest.osm.pbf";
+pub(crate) const SYDNEY: &str = "./resources/sydney.osm.pbf";
 
 #[test_log::test]
 fn iterate_blobs_each() {

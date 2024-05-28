@@ -119,6 +119,8 @@ impl Graph {
 
         let tree = RTree::bulk_load(filtered.clone());
 
+        println!("{:?}", hash.get(&1511122299));
+
         info!("Ingested {:?} nodes.", tree.size());
         Ok(Graph { graph, index: tree, hash })
     }
@@ -127,14 +129,9 @@ impl Graph {
         self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
     }
 
-    pub fn route(&self, start: LatLng, finish: LatLng) -> (u32, Vec<Node>) {
+    pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
         let start_node = self.nearest_node(start).unwrap();
         let finish_node = self.nearest_node(finish).unwrap();
-
-        // let start_index = start_node.index;
-        // let finish_index = finish_node.index;
-
-        // println!("Starting at {}, ending at {}.", start_index.index(), finish_index.index());
 
         let (score, path) = petgraph::algo::astar(
             &self.graph,
@@ -142,8 +139,7 @@ impl Graph {
             |finish| finish == finish_node.id,
             |e| *e.weight(),
             |_| 0,
-        )
-        .unwrap();
+        )?;
 
         let route = path
             .par_iter()
@@ -153,6 +149,6 @@ impl Graph {
             .cloned()
             .collect();
 
-        (score, route)
+        Some((score, route))
     }
 }

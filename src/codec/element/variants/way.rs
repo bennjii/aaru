@@ -12,7 +12,7 @@ use crate::osm::PrimitiveBlock;
 pub struct Way {
     id: i64,
     road_tag: Option<String>,
-    refs: Vec<i64>
+    refs: Vec<i64>,
 }
 
 impl Way {
@@ -35,7 +35,7 @@ impl Way {
                 prior.push(current + prior.last().unwrap_or(&0i64));
                 prior
             }),
-            road_tag: value.road_tag(block)
+            road_tag: value.road_tag(block),
         }
     }
 }
@@ -50,13 +50,28 @@ fn make_string(k: usize, block: &PrimitiveBlock) -> String {
     }
 }
 
+const VALID_ROADWAYS: [&str; 12] = [
+    "motorway",
+    "motorway_link",
+    "trunk",
+    "trunk_link",
+    "primary",
+    "primary_link",
+    "secondary",
+    "secondary_link",
+    "tertiary",
+    "tertiary_link",
+    "residential",
+    "living_street",
+];
+
 impl osm::Way {
     pub fn road_tag(&self, block: &PrimitiveBlock) -> Option<String> {
         self.keys
             .iter()
             .zip(self.vals.iter())
             .map(|(&k, &v)| (make_string(k as usize, block), make_string(v as usize, block)))
-            .find(|(key, value)| key == "highway")
+            .find(|(key, value)| key == "highway" && VALID_ROADWAYS.contains(&value.as_str()))
             .map(|(key, value)| value)
     }
 }
