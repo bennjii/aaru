@@ -32,11 +32,21 @@ impl LatLng {
 
     /// Offsets the `LatLng` from the given parent primitive.
     /// According to: https://arc.net/l/quote/ccrekhxu
-    pub fn offset(mut self, group: &PrimitiveBlock) -> Self {
-        self.lat = (1e-9f64 * (group.lon_offset.unwrap_or(0) as f64
-            + group.granularity.unwrap_or(1) as f64 * self.lat as f64)) as i64;
-        self.lng = (1e-9f64 * (group.lat_offset.unwrap_or(0) as f64
-            + group.granularity.unwrap_or(1) as f64 * self.lng as f64)) as i64;
+    pub fn offset(&mut self, group: &PrimitiveBlock) -> &mut Self {
+        let granularity = group.granularity.unwrap_or(1) as f64;
+        let nano_degree = 1e-9f64;
+
+        self.lat = (nano_degree * (group.lon_offset.unwrap_or(0) as f64 + (granularity * self.lat as f64))) as i64;
+        self.lng = (nano_degree * (group.lat_offset.unwrap_or(0) as f64 + (granularity * self.lng as f64))) as i64;
+
+        self
+    }
+
+    pub fn delta(mut self, prior: Self) -> Self {
+        // Delta encoding (difference only)
+        self.lat += prior.lat;
+        self.lng += prior.lng;
+
         self
     }
 }

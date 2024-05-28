@@ -27,7 +27,10 @@ impl Way {
     pub fn from_raw(value: &osm::Way, block: &PrimitiveBlock) -> Self {
         Way {
             id: value.id,
-            refs: value.refs.iter().map(|v| v.clone()).collect(),
+            refs: value.refs.iter().fold(vec![], |mut prior, current| {
+                prior.push(current + prior.last().unwrap_or(&0i64));
+                prior
+            }),
             road_tag: value.road_tag(block)
         }
     }

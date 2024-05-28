@@ -74,7 +74,19 @@ impl Node {
         value.lon.iter()
             .zip(value.lat.iter())
             .zip(value.id.iter())
-            .map(|(coord, id)| Node::new(LatLng::from(coord).offset(block), id))
+            .fold(vec![], |mut a: Vec<Self>, (coord, id)| {
+                let new_node = match &a.last() {
+                    Some(prior_node) => {
+                        Node::new(LatLng::from(coord).delta(prior_node.position), &(id + prior_node.id))
+                    },
+                    None => Node::new(LatLng::from(coord), id)
+                };
+
+                a.push(new_node);
+                a
+            })
+            .into_iter()
+            // .map(|(coord, id)| Node::new(LatLng::from(coord).offset(block), id))
     }
 }
 

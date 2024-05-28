@@ -87,9 +87,17 @@ impl Graph {
                 (graph, tree)
             },
             || (DiGraphMap::new(), RTree::new()),
-            |a, mut b| {
+            |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Correctly combine the graphs
-                a
+                for (start, end, weight) in b_graph.all_edges() {
+                    a_graph.add_edge(start, end, weight.clone());
+                }
+
+                for node in b_tree {
+                    a_tree.insert(node);
+                }
+
+                (a_graph, a_tree)
             },
         );
 
