@@ -5,9 +5,10 @@ use log::{debug, info};
 use petgraph::data::Build;
 use petgraph::Directed;
 use petgraph::graphmap::{DiGraphMap, GraphMap};
-use petgraph::prelude::NodeIndex;
+use petgraph::prelude::{EdgeRef, NodeIndex};
 use rstar::{RTree};
 use scc::HashMap;
+use tonic::codegen::Body;
 
 use crate::coord::latlng::LatLng;
 use crate::element::item::{Element, ProcessedElement};
@@ -101,43 +102,49 @@ impl Graph {
             },
         );
 
-        let tree = RTree::bulk_load(index);
+        let filtered = index
+            .iter()
+            .filter(|v| graph.contains_node(v.id))
+            .map(|v| v.clone())
+            .collect::<Vec<Node>>();
 
-        info!("Ingested. {:?} nodes.", tree);
+        let tree = RTree::bulk_load(filtered);
+
+        info!("Ingested {:?} nodes.", tree.size());
         Ok(Graph { graph, index: tree })
     }
 
-    pub fn nearest_node(&self, node: Node) -> Option<&Node> {
-        self.index.nearest_neighbor(&node)
+    pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
+        self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
     }
 
-    // pub fn route(&self, start: &[f64], finish: &[f64]) -> (i32, Vec<Vec<f64>>) {
-    //     let start_node = self.nearest_node(start).unwrap();
-    //     let finish_node = self.nearest_node(finish).unwrap();
-    //
-    //     // let start_index = start_node.index;
-    //     // let finish_index = finish_node.index;
-    //
-    //     // println!("Starting at {}, ending at {}.", start_index.index(), finish_index.index());
-    //
-    //     let graph = self.data.lock().unwrap();
-    //     let (score, path) = petgraph::algo::astar(
-    //         &self.data.lock().unwrap(),
-    //         start_node,
-    //         |finish| finish == finish_node,
-    //         |e| *e.weight(),
-    //         |_| 0,
-    //     )
-    //     .unwrap();
-    //
-    //     let mut route = vec![];
-    //     let nodes = self.data.raw_nodes();
-    //     for node_index in path {
-    //         let node = nodes.get(node_index.index()).unwrap();
-    //         let node_weight = &node.weight;
-    //         route.push(vec![node_weight.lon, node_weight.lat]);
-    //     }
-    //
-    //     (score, route)
-    // }
+    pub fn route(&self, start: LatLng, finish: LatLng) -> (i64, Vec<Vec<f64>>) {
+        let start_node = self.nearest_node(start).unwrap();
+        let finish_node = self.nearest_node(finish).unwrap();
+
+        // let start_index = start_node.index;
+        // let finish_index = finish_node.index;
+
+        // println!("Starting at {}, ending at {}.", start_index.index(), finish_index.index());
+
+        let (score, path) = petgraph::algo::astar(
+            &self.graph,
+            start_node.id,
+            |finish| finish == finish_node.id,
+            |e| *e.weight(),
+            |a, b| 0,
+        )
+        .unwrap();
+
+        let mut route = vec![];
+        // let nodes = self.graph.raw_nodes();
+        for node_index in path {
+            // let node = self.graph.nodes.get(&node_index).unwrap();
+            // let node = nodes.get(node_index.index()).unwrap();
+            // let node_weight = &node.weight;
+            // route.push(vec![node_weight.lon, node_weight.lat]);
+        }
+
+        (score, route)
+    }
 }

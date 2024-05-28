@@ -9,25 +9,25 @@ use crate::osm::{DenseNodes, PrimitiveBlock};
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Node {
-    id: i64,
+    pub id: i64,
     pub position: LatLng
 }
 
 impl Point for Node {
-    type Scalar = i64;
+    type Scalar = f64;
     const DIMENSIONS: usize = 2;
 
     fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
         Node {
             id: 0,
-            position: LatLng::new(generator(1), generator(0))
+            position: LatLng::new_raw(generator(1), generator(0))
         }
     }
 
     fn nth(&self, index: usize) -> Self::Scalar {
         match index {
             0 => self.position.lng,
-            1 => self.position.lng,
+            1 => self.position.lat,
             _ => unreachable!(),
         }
     }
@@ -35,7 +35,7 @@ impl Point for Node {
     fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
         match index {
             0 => &mut self.position.lng,
-            1 => &mut self.position.lng,
+            1 => &mut self.position.lat,
             _ => unreachable!(),
         }
     }
@@ -43,7 +43,7 @@ impl Point for Node {
 
 impl Node {
     /// Constructs a `Node` from a given `LatLng` and `id`.
-    fn new(position: LatLng, id: &i64) -> Self {
+    pub(crate) fn new(position: LatLng, id: &i64) -> Self {
         Node {
             position,
             id: id.clone()
@@ -94,7 +94,7 @@ impl From<&osm::Node> for Node {
     fn from(value: &osm::Node) -> Self {
         Node {
             id: value.id,
-            position: LatLng::new(value.lat, value.lon)
+            position: LatLng::new_7(value.lat, value.lon)
         }
     }
 }

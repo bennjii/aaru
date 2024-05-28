@@ -1,6 +1,7 @@
 use crate::Graph;
 use std::{fmt::format, path::Path, time::Instant};
 use crate::codec::test::{AUSTRALIA, BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA};
+use crate::coord::latlng::LatLng;
 
 #[test]
 fn columbia_mapping() -> crate::Result<()> {
@@ -14,44 +15,40 @@ fn columbia_mapping() -> crate::Result<()> {
     let time = Instant::now();
 
     // LON;LAT
-    let start = vec![-77.02343850496823, 38.91261500917026];
-    let end = vec![-77.03456230592386, 38.91772552535467];
+    // -771210058
+    let start = LatLng::new_raw(38.91261500917026, -77.02343850496823);
+    let end = LatLng::new_raw(38.91772552535467, -77.03456230592386);
+
+    let node = graph.nearest_node(start);
+    if let Some(node) = node {
+        println!(
+            "Nearest node to start is: {:?}",
+            node.position
+        );
+    }
+
+    let end_node = graph.nearest_node(end);
+    if let Some(node) = end_node {
+        println!(
+            "Nearest node to end is: {:?}",
+            node.position
+        );
+    }
+
+    let route = graph.route(start, end);
+    println!("Took: {:?}", time.elapsed());
+
+    let linestring = route
+        .1
+        .iter()
+        .map(|loc| format!("{} {}", loc[0], loc[1]))
+        .collect::<Vec<String>>()
+        .join(",");
+
+    println!("LINESTRING({})", linestring);
+    assert_eq!(route.0, 15, "Incorrect Route Weighting");
 
     Ok(())
-
-    // let node = graph.nearest_node(&start);
-    // if let Some(node) = node {
-    //     println!(
-    //         "Nearest node to start is: lat:{}, lon:{}",
-    //         node.position.lat, node.position.lon
-    //     );
-    // }
-
-    // let node = graph.nearest_node(&end);
-    // if let Some(node) = node {
-    //     println!(
-    //         "Nearest node to end is: lat:{}, lon:{}",
-    //         node.lat, node.lon
-    //     );
-    // }
-    //
-    // let route = graph.route(&start, &end);
-    // println!("Took: {:?}", time.elapsed());
-    //
-    // let linestring = route
-    //     .1
-    //     .iter()
-    //     .map(|loc| format!("{} {}", loc[0], loc[1]))
-    //     .collect::<Vec<String>>()
-    //     .join(",");
-    //
-    // println!("LINESTRING({})", linestring);
-    //
-    // for item in route.1 {
-    //     println!("{}:{}", item[0], item[1]);
-    // }
-    //
-    // assert_eq!(route.0, 15, "Incorrect Route Weighting");
 }
 
 // #[test]
