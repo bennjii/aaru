@@ -1,11 +1,9 @@
-use std::fs::File;
 use std::hash::{Hash};
-use std::sync::Mutex;
-use std::vec::IntoIter;
 use geo::Coord;
-use osmpbf::{Element, ElementReader, IndexedReader};
 use scc::HashIndex;
-use crate::sharder::error::ShardError;
+
+use crate::osm;
+use crate::shard::error::ShardError;
 
 /// `Shard<T>
 ///
@@ -38,15 +36,16 @@ pub struct WaySide {
 }
 
 impl WaySide {
-    fn from_way(way: osmpbf::Way<'_>) -> WaySide {
+    fn from_way(way: &osm::Way) -> WaySide {
         WaySide {
-            nodes: way.node_locations().map(|node| {
-                Coord {
-                    x: node.nano_lat(),
-                    y: node.nano_lon()
-                }
-            }).collect(),
-            way_id: way.id(),
+            nodes: vec![],
+            // nodes: way.node_locations().map(|node| {
+            //     Coord {
+            //         x: node.nano_lat(),
+            //         y: node.nano_lon()
+            //     }
+            // }).collect(),
+            way_id: way.id,
         }
     }
 }
@@ -75,44 +74,30 @@ impl ShardData<WaySide> {
 impl Shard<ShardData<WaySide>> {
     pub fn from_file(file_name: &str) -> Result<Self, ShardError> {
         println!("Generating Node Structure from {file_name}\n");
+        // let path = std::path::Path::new(file_name);
 
-        let path = std::path::Path::new(file_name);
-        let f = File::open(path)?;
-
-        // let reader = ElementReader::from_path(path).unwrap();
-        let mut reader = osmpbf::IndexedReader::new(f)?;
         let mut data = ShardData::empty();
 
-        reader.read_ways_and_deps(
-            |way| {
-                way.tags().any(|key_value| key_value.0 == "highway")
-            },
-            |node| {
-                match node {
-                    Element::Way(w) => {
-                        println!("WAYID: {}", w.id());
-                        if let Err(err) = data.insert(w.id(), WaySide::from_way(w.clone())) {
-                            println!("Failed to insert ID {}.", err.0);
-                        }
-                    },
-                    Element::DenseNode(_) => println!("Has dense."),
-                    Element::Node(_) => println!("Has node."),
-                    _ => {}
-                }
-            }
-        ).expect("Failed to read.");
-
-        println!("Ingested nodes. Have {} nodes.", data.nodes.len());
-
-        // let ways = reader.read_ways_and_deps(
-        //     |way| way.tags().find(|tag| tag.0.starts_with("highway")).is_some(),
-        //     |e| {
-        //         match e {
-        //             Element::Node(node) => Some((node.lat(), node.lng())),
-        //             _ => None
+        // reader.read_ways_and_deps(
+        //     |way| {
+        //         way.tags().any(|key_value| key_value.0 == "highway")
+        //     },
+        //     |node| {
+        //         match node {
+        //             Element::Way(w) => {
+        //                 println!("WAYID: {}", w.id());
+        //                 if let Err(err) = data.insert(w.id(), WaySide::from_way(w)) {
+        //                     println!("Failed to insert ID {}.", err.0);
+        //                 }
+        //             },
+        //             Element::DenseNode(_) => println!("Has dense."),
+        //             Element::Node(_) => println!("Has node."),
+        //             _ => {}
         //         }
         //     }
-        // );
+        // ).expect("Failed to read.");
+
+        println!("Ingested nodes. Have {} nodes.", data.nodes.len());
 
         Ok(Shard {
             children: Box::new(None),

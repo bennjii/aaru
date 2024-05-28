@@ -1,193 +1,154 @@
-use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::path::PathBuf;
+use std::sync::Mutex;
+use log::{debug, info};
 
-use osmpbfreader::{NodeId, OsmObj};
-use petgraph::prelude::NodeIndex;
-use rstar::{Point, RTree};
-use serde::{Deserialize, Serialize};
+use petgraph::data::Build;
+use petgraph::Directed;
+use petgraph::graphmap::{DiGraphMap, GraphMap};
+use petgraph::prelude::{EdgeRef, NodeIndex};
+use petgraph::visit::IntoNodeReferences;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rstar::{RTree};
+use scc::HashMap;
+use tonic::codegen::Body;
 
-fn predicate(object: &OsmObj) -> bool {
-    let tags = object.tags();
-    object.is_way()
-        && (tags.contains("highway", "motorway")
-            || tags.contains("highway", "motorway_link")
-            || tags.contains("highway", "trunk")
-            || tags.contains("highway", "trunk_link")
-            || tags.contains("highway", "primary")
-            || tags.contains("highway", "primary_link")
-            || tags.contains("highway", "secondary")
-            || tags.contains("highway", "secondary_link")
-            || tags.contains("highway", "tertiary")
-            || tags.contains("highway", "tertiary_link")
-            || tags.contains("highway", "unclassified")
-            || tags.contains("highway", "residential")
-            || tags.contains("highway", "living_street"))
-}
+use crate::coord::latlng::LatLng;
+use crate::element::item::{Element, ProcessedElement};
+use crate::element::iterator::ElementIterator;
+use crate::element::processed_iterator::ProcessedElementIterator;
+use crate::element::variants::Node;
+use crate::parallel::Parallel;
+use crate::route::error::RouteError;
 
-fn read_osmpbf(filename: std::ffi::OsString) -> osmpbfreader::OsmPbfReader<std::fs::File> {
-    let path = std::path::Path::new(&filename);
-    let file = std::fs::File::open(&path).unwrap();
-    osmpbfreader::OsmPbfReader::new(file)
-}
+const MAX_WEIGHT: u32 = 999;
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, PartialOrd)]
-pub struct Node {
-    pub id: i64,
-    pub index: NodeIndex,
-    pub lon: f64,
-    pub lat: f64,
-}
-
-impl Point for Node {
-    type Scalar = f64;
-    const DIMENSIONS: usize = 2;
-
-    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
-        Node {
-            id: 0,
-            index: NodeIndex::new(0),
-            lon: generator(0),
-            lat: generator(1),
-        }
-    }
-
-    fn nth(&self, index: usize) -> Self::Scalar {
-        match index {
-            0 => self.lon,
-            1 => self.lat,
-            _ => unreachable!(),
-        }
-    }
-
-    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
-        match index {
-            0 => &mut self.lon,
-            1 => &mut self.lat,
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Graph {
-    data: petgraph::Graph<Node, i32>,
-    index: rstar::RTree<Node>,
+    graph: DiGraphMap<i64, u32>,
+    index: RTree<Node>,
+    hash: std::collections::HashMap<i64, Node>
 }
 
 impl Graph {
-    pub fn new(filename: std::ffi::OsString) -> Graph {
-        let mut pbf = read_osmpbf(filename);
-        let objects = pbf.get_objs_and_deps(predicate).unwrap();
-
+    pub fn weights<'a>() -> Result<HashMap<&'a str, u32>, RouteError> {
         let mut weights = HashMap::new();
 
-        weights.insert("motorway", 1);
-        weights.insert("motorway_link", 2);
-        weights.insert("trunk", 3);
-        weights.insert("trunk_link", 4);
-        weights.insert("primary", 5);
-        weights.insert("primary_link", 6);
-        weights.insert("secondary", 7);
-        weights.insert("secondary_link", 8);
-        weights.insert("tertiary", 9);
-        weights.insert("tertiary_link", 10);
-        weights.insert("unclassified", 11);
-        weights.insert("residential", 12);
-        weights.insert("living_street", 13);
+        weights.insert("motorway", 1)?;
+        weights.insert("motorway_link", 2)?;
+        weights.insert("trunk", 3)?;
+        weights.insert("trunk_link", 4)?;
+        weights.insert("primary", 5)?;
+        weights.insert("primary_link", 6)?;
+        weights.insert("secondary", 7)?;
+        weights.insert("secondary_link", 8)?;
+        weights.insert("tertiary", 9)?;
+        weights.insert("tertiary_link", 10)?;
+        weights.insert("unclassified", 11)?;
+        weights.insert("residential", 12)?;
+        weights.insert("living_street", 13)?;
 
-        let mut nodes = HashMap::new();
-        let mut graph = petgraph::Graph::new();
-        let mut index = RTree::new();
+        Ok(weights)
+    }
 
-        for (_id, object) in &objects {
-            match object {
-                OsmObj::Node(osm_node) => {
-                    let NodeId(node_id) = osm_node.id;
+    pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
+        let path = PathBuf::from(filename);
 
-                    let mut node = Node {
-                        id: node_id,
-                        index: NodeIndex::new(0),
-                        lat: (osm_node.decimicro_lat as f64) * 1e-7,
-                        lon: (osm_node.decimicro_lon as f64) * 1e-7,
-                    };
+        let mut reader = ProcessedElementIterator::new(path)?;
+        let weights = Graph::weights()?;
 
-                    let node_index = graph.add_node(node);
-                    node.index = node_index;
-                    nodes.insert(node_id, node_index);
-                    index.insert(node);
-                }
-                OsmObj::Way(osm_way) => {
-                    for osm_node_ids in osm_way.nodes.windows(2) {
-                        let NodeId(node1_id) = osm_node_ids[0];
-                        let NodeId(node2_id) = osm_node_ids[1];
+        info!("Ingesting...");
 
-                        let node1_index = nodes.get(&node1_id).unwrap();
-                        let node2_index = nodes.get(&node2_id).unwrap();
+        let (graph, index): (DiGraphMap<i64, u32>, Vec<Node>) = reader.par_red(
+            |(mut graph, mut tree): (DiGraphMap<i64, u32>, Vec<Node>), element: ProcessedElement| {
+                match element {
+                    ProcessedElement::Way(way) => {
+                        if !way.is_road() {
+                            return (graph, tree);
+                        }
 
-                        let highway = osm_way.tags.get("highway").unwrap().as_str();
-                        let weight = weights.get(highway).unwrap();
+                        // Get the weight from the weight table
+                        let weight = match way.r#type() {
+                            Some(weight) =>
+                                weights.get(weight.as_str())
+                                    .map(|v| v.get().clone())
+                                    .unwrap_or(MAX_WEIGHT),
+                            None => MAX_WEIGHT
+                        };
 
-                        graph.add_edge(*node1_index, *node2_index, *weight);
+                        // Update with all adjacent nodes
+                        way.refs()
+                            .windows(2)
+                            .for_each(|edge| {
+                                if let [a, b] = edge {
+                                    graph.add_edge(*a, *b, weight);
+                                } else {
+                                    debug!("Edge windowing produced odd-sized entry: {:?}", edge);
+                                }
+                            });
+                    }
+                    ProcessedElement::Node(node) => {
+                        // Add the node to the graph
+                        tree.push(node);
                     }
                 }
-                OsmObj::Relation(_) => {}
-            };
+
+                (graph, tree)
+            },
+            || (DiGraphMap::new(), Vec::new()),
+            |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
+                // TODO: Add `Graph` merge optimisations
+                for (start, end, weight) in b_graph.all_edges() {
+                    a_graph.add_edge(start, end, weight.clone());
+                }
+
+                a_tree.extend(b_tree);
+                (a_graph, a_tree)
+            },
+        );
+
+        let filtered = index
+            .iter()
+            .filter(|v| graph.contains_node(v.id))
+            .map(|v| v.clone())
+            .collect::<Vec<Node>>();
+
+        let mut hash = std::collections::HashMap::new();
+        for item in &filtered {
+            // Add referenced node instead
+            hash.insert(item.id, item.clone());
         }
 
-        Graph {
-            data: graph,
-            index: index,
-        }
+        let tree = RTree::bulk_load(filtered.clone());
+
+        println!("{:?}", hash.get(&1511122299));
+
+        info!("Ingested {:?} nodes.", tree.size());
+        Ok(Graph { graph, index: tree, hash })
     }
 
-    pub fn nearest_node(&self, lonlat: &[f64]) -> Option<&Node> {
-        let node = Node {
-            id: 0,
-            index: NodeIndex::new(0),
-            lon: lonlat[0],
-            lat: lonlat[1],
-        };
-
-        self.index.nearest_neighbor(&node)
+    pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
+        self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
     }
 
-    pub fn route(&self, start: &[f64], finish: &[f64]) -> (i32, Vec<Vec<f64>>) {
+    pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
         let start_node = self.nearest_node(start).unwrap();
         let finish_node = self.nearest_node(finish).unwrap();
 
-        let start_index = start_node.index;
-        let finish_index = finish_node.index;
-
         let (score, path) = petgraph::algo::astar(
-            &self.data,
-            start_index,
-            |finish| finish == finish_index,
+            &self.graph,
+            start_node.id,
+            |finish| finish == finish_node.id,
             |e| *e.weight(),
             |_| 0,
-        )
-        .unwrap();
+        )?;
 
-        let mut route = vec![];
-        let nodes = self.data.raw_nodes();
-        for node_index in path {
-            let node = nodes.get(node_index.index()).unwrap();
-            let node_weight = &node.weight;
-            route.push(vec![node_weight.lon, node_weight.lat]);
-        }
+        let route = path
+            .par_iter()
+            .map(|v| self.hash.get(v))
+            .filter(|v| v.is_some())
+            .map(|v| v.unwrap())
+            .cloned()
+            .collect();
 
-        (score, route)
-    }
-
-    pub fn write(&self, filename: std::ffi::OsString) -> () {
-        let graph_bin = bincode::serialize(&self).unwrap();
-        let mut buffer = std::fs::File::create(filename).unwrap();
-        buffer.write(&graph_bin).unwrap();
-    }
-
-    pub fn read(filename: std::ffi::OsString) -> Graph {
-        let mut file = std::fs::File::open(filename).unwrap();
-        let mut buffer = vec![];
-        file.read_to_end(&mut buffer).unwrap();
-        bincode::deserialize(&buffer).unwrap()
+        Some((score, route))
     }
 }
