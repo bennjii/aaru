@@ -17,11 +17,8 @@ pub struct LatLng {
 
 impl From<(&i64, &i64)> for LatLng {
     /// Format is: (Lat, Lng)
-    fn from(value: (&i64, &i64)) -> Self {
-        LatLng {
-            lat: value.0.clone() as f64,
-            lng: value.1.clone() as f64,
-        }
+    fn from((lat, lng): (&i64, &i64)) -> Self {
+        Self::new_7(lat.clone(), lng.clone())
     }
 }
 
@@ -49,8 +46,16 @@ impl LatLng {
         self.lat
     }
 
+    pub fn lat7(&self) -> i64 {
+        (self.lat * 1e7) as i64
+    }
+
     pub fn lng(&self) -> f64 {
         self.lng
+    }
+
+    pub fn lng7(&self) -> i64 {
+        (self.lng * 1e7) as i64
     }
 
     /// Offsets the `LatLng` from the given parent primitive.
@@ -65,17 +70,17 @@ impl LatLng {
         self
     }
 
-    pub fn delta(mut self, prior: Self) -> Self {
+    pub fn delta(lat: &i64, lng: &i64, prior: Self) -> Self {
         // Delta encoding (difference only)
-        self.lat += prior.lat;
-        self.lng += prior.lng;
-
-        self
+        LatLng {
+            lat: (lat + prior.lat7()) as f64 * 1e-7f64,
+            lng: (lng + prior.lng7()) as f64 * 1e-7f64,
+        }
     }
 }
 
 impl Debug for LatLng {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "POINT({} {})", self.lat as f64 * 1e-7f64, self.lng as f64 * 1e-7f64)
+        write!(f, "POINT({} {})", self.lat, self.lng)
     }
 }

@@ -16,8 +16,8 @@ fn columbia_mapping() -> crate::Result<()> {
 
     // LON;LAT
     // -771210058
-    let start = LatLng::new_raw(38.91261500917026, -77.02343850496823);
-    let end = LatLng::new_raw(38.91772552535467, -77.03456230592386);
+    let start = LatLng::new_raw(-77.02343850496823, 38.91261500917026);
+    let end = LatLng::new_raw(-77.03456230592386, 38.91772552535467);
 
     let node = graph.nearest_node(start);
     if let Some(node) = node {
@@ -41,7 +41,7 @@ fn columbia_mapping() -> crate::Result<()> {
     let linestring = route
         .1
         .iter()
-        .map(|loc| format!("{} {}", loc[0], loc[1]))
+        .map(|loc| format!("{:.10} {:.10}", loc.position.lat, loc.position.lng))
         .collect::<Vec<String>>()
         .join(",");
 

@@ -6,6 +6,8 @@ use petgraph::data::Build;
 use petgraph::Directed;
 use petgraph::graphmap::{DiGraphMap, GraphMap};
 use petgraph::prelude::{EdgeRef, NodeIndex};
+use petgraph::visit::IntoNodeReferences;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rstar::{RTree};
 use scc::HashMap;
 use tonic::codegen::Body;
@@ -18,15 +20,16 @@ use crate::element::variants::Node;
 use crate::parallel::Parallel;
 use crate::route::error::RouteError;
 
-const MAX_WEIGHT: i32 = 9e9 as i32;
+const MAX_WEIGHT: u32 = 999;
 
 pub struct Graph {
-    graph: DiGraphMap<i64, i64>,
-    index: RTree<Node>
+    graph: DiGraphMap<i64, u32>,
+    index: RTree<Node>,
+    hash: std::collections::HashMap<i64, Node>
 }
 
 impl Graph {
-    pub fn weights<'a>() -> Result<HashMap<&'a str, i32>, RouteError> {
+    pub fn weights<'a>() -> Result<HashMap<&'a str, u32>, RouteError> {
         let mut weights = HashMap::new();
 
         weights.insert("motorway", 1)?;
@@ -54,8 +57,8 @@ impl Graph {
 
         info!("Ingesting...");
 
-        let (graph, index): (DiGraphMap<i64, i64>, Vec<Node>) = reader.par_red(
-            |(mut graph, mut tree): (DiGraphMap<i64, i64>, Vec<Node>), element: ProcessedElement| {
+        let (graph, index): (DiGraphMap<i64, u32>, Vec<Node>) = reader.par_red(
+            |(mut graph, mut tree): (DiGraphMap<i64, u32>, Vec<Node>), element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         if !way.is_road() {
@@ -76,7 +79,7 @@ impl Graph {
                             .windows(2)
                             .for_each(|edge| {
                                 if let [a, b] = edge {
-                                    graph.add_edge(*a, *b, weight as i64);
+                                    graph.add_edge(*a, *b, weight);
                                 } else {
                                     debug!("Edge windowing produced odd-sized entry: {:?}", edge);
                                 }
@@ -108,17 +111,23 @@ impl Graph {
             .map(|v| v.clone())
             .collect::<Vec<Node>>();
 
-        let tree = RTree::bulk_load(filtered);
+        let mut hash = std::collections::HashMap::new();
+        for item in &filtered {
+            // Add referenced node instead
+            hash.insert(item.id, item.clone());
+        }
+
+        let tree = RTree::bulk_load(filtered.clone());
 
         info!("Ingested {:?} nodes.", tree.size());
-        Ok(Graph { graph, index: tree })
+        Ok(Graph { graph, index: tree, hash })
     }
 
     pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
         self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
     }
 
-    pub fn route(&self, start: LatLng, finish: LatLng) -> (i64, Vec<Vec<f64>>) {
+    pub fn route(&self, start: LatLng, finish: LatLng) -> (u32, Vec<Node>) {
         let start_node = self.nearest_node(start).unwrap();
         let finish_node = self.nearest_node(finish).unwrap();
 
@@ -132,18 +141,17 @@ impl Graph {
             start_node.id,
             |finish| finish == finish_node.id,
             |e| *e.weight(),
-            |a, b| 0,
+            |_| 0,
         )
         .unwrap();
 
-        let mut route = vec![];
-        // let nodes = self.graph.raw_nodes();
-        for node_index in path {
-            // let node = self.graph.nodes.get(&node_index).unwrap();
-            // let node = nodes.get(node_index.index()).unwrap();
-            // let node_weight = &node.weight;
-            // route.push(vec![node_weight.lon, node_weight.lat]);
-        }
+        let route = path
+            .par_iter()
+            .map(|v| self.hash.get(v))
+            .filter(|v| v.is_some())
+            .map(|v| v.unwrap())
+            .cloned()
+            .collect();
 
         (score, route)
     }
