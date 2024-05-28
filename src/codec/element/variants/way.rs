@@ -16,6 +16,10 @@ pub struct Way {
 }
 
 impl Way {
+    pub fn is_road(&self) -> bool {
+        self.road_tag.is_some()
+    }
+
     pub fn refs(&self) -> &Vec<i64> {
         &self.refs
     }

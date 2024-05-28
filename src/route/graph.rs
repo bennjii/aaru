@@ -57,6 +57,10 @@ impl Graph {
             |(mut graph, mut tree): (DiGraphMap<i64, i64>, Vec<Node>), element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
+                        if !way.is_road() {
+                            return (graph, tree);
+                        }
+
                         // Get the weight from the weight table
                         let weight = match way.r#type() {
                             Some(weight) =>
@@ -99,7 +103,7 @@ impl Graph {
 
         let tree = RTree::bulk_load(index);
 
-        info!("Ingested.");
+        info!("Ingested. {:?} nodes.", tree);
         Ok(Graph { graph, index: tree })
     }
 
