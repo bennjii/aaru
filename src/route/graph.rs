@@ -53,8 +53,8 @@ impl Graph {
 
         info!("Ingesting...");
 
-        let (graph, index): (DiGraphMap<i64, i64>, RTree<Node>) = reader.par_red(
-            |(mut graph, mut tree): (DiGraphMap<i64, i64>, RTree<Node>), element: ProcessedElement| {
+        let (graph, index): (DiGraphMap<i64, i64>, Vec<Node>) = reader.par_red(
+            |(mut graph, mut tree): (DiGraphMap<i64, i64>, Vec<Node>), element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         // Get the weight from the weight table
@@ -79,30 +79,28 @@ impl Graph {
                     }
                     ProcessedElement::Node(node) => {
                         // Add the node to the graph
-                        graph.add_node(node.id());
-                        tree.insert(node);
+                        tree.push(node);
                     }
                 }
 
                 (graph, tree)
             },
-            || (DiGraphMap::new(), RTree::new()),
+            || (DiGraphMap::new(), Vec::new()),
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
-                // TODO: Correctly combine the graphs
+                // TODO: Add `Graph` merge optimisations
                 for (start, end, weight) in b_graph.all_edges() {
                     a_graph.add_edge(start, end, weight.clone());
                 }
 
-                for node in b_tree {
-                    a_tree.insert(node);
-                }
-
+                a_tree.extend(b_tree);
                 (a_graph, a_tree)
             },
         );
 
+        let tree = RTree::bulk_load(index);
+
         info!("Ingested.");
-        Ok(Graph { graph, index })
+        Ok(Graph { graph, index: tree })
     }
 
     pub fn nearest_node(&self, node: Node) -> Option<&Node> {
