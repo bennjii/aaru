@@ -119,8 +119,6 @@ impl Graph {
 
         let tree = RTree::bulk_load(filtered.clone());
 
-        println!("{:?}", hash.get(&1511122299));
-
         info!("Ingested {:?} nodes.", tree.size());
         Ok(Graph { graph, index: tree, hash })
     }
@@ -138,7 +136,12 @@ impl Graph {
             start_node.id,
             |finish| finish == finish_node.id,
             |e| *e.weight(),
-            |_| 0,
+            |v| {
+                self.hash
+                    .get(&v)
+                    .map(|v| v.to(finish_node).as_m())
+                    .unwrap_or(0)
+            },
         )?;
 
         let route = path

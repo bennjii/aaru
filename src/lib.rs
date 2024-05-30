@@ -8,7 +8,6 @@ use crate::codec::error::CodecError;
 use crate::route::error::RouteError;
 use crate::shard::error::ShardError;
 
-
 pub mod shard;
 pub mod codec;
 pub mod route;
