@@ -1,6 +1,6 @@
 use crate::Graph;
 use std::{path::Path, time::Instant};
-use crate::codec::test::{AUSTRALIA, BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
+use crate::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
 use crate::coord::latlng::LatLng;
 use crate::element::variants::Node;
 

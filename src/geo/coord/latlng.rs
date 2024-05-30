@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use crate::osm::{PrimitiveBlock};
+use crate::server::route::router_service::Coordinate;
 
 pub type NanoDegree = i64;
 pub type Degree = f64;
@@ -16,6 +17,12 @@ pub type Degree = f64;
 pub struct LatLng {
     pub lng: NanoDegree,
     pub lat: NanoDegree,
+}
+
+impl From<Coordinate> for LatLng {
+    fn from(coord: Coordinate) -> Self {
+        LatLng::from_degree(coord.latitude, coord.longitude)
+    }
 }
 
 impl From<(&i64, &i64)> for LatLng {

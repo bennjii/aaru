@@ -24,10 +24,16 @@ env_logger = "0.10.0"
 test-log = { version = "0.2.16", features = ["log"] }
 
 # gRPC Server Dependencies
-tonic = "0.11.0"
+tonic = { version = "0.11.0" }
+tonic-reflection = { version = "0.11.0" }
 prost = { version = "0.12.6" }
 tokio = { version = "1.37.0", features = ["rt", "rt-multi-thread", "macros"] }
 
+# Tracing
+tracing = { version = "0.1.16", optional = true }
+tracing-subscriber = { version = "0.3", features = ["tracing-log", "fmt"], optional = true }
+
+# Optimisations and Compression
 rayon = "1.10.0"
 memmap2 = { version = "0.9.4", optional = true }
 flate2 = { version = "1.0.30", features = ["zlib-ng"] }
@@ -41,8 +47,9 @@ prost-build = { version = "0.12.6"}
 osmpbf = { version = "0.3.3", features = ["zlib-ng"], default-features = false }
 
 [features]
-default = ["mmap"]
+default = ["mmap", "tracing"]
 mmap = ["memmap2"]
+tracing = ["dep:tracing", "tracing-subscriber"]
 
 [profile.release]
 opt-level = 3
