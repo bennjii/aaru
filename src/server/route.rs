@@ -3,8 +3,8 @@ use tonic::{Request, Response, Status};
 
 use router_service::{RouteRequest, RouteResponse};
 use router_service::router_server::Router;
-use crate::coord::latlng::{Degree, LatLng};
-use crate::element::item::ProcessedElement::Node;
+
+use crate::coord::latlng::{LatLng};
 use crate::Graph;
 use crate::server::route::router_service::Coordinate;
 
@@ -15,6 +15,7 @@ pub mod router_service {
         tonic::include_file_descriptor_set!("aaru_descriptor");
 }
 
+#[derive(Debug)]
 pub struct RouteService {
     graph: Graph
 }
@@ -30,19 +31,22 @@ impl RouteService {
 
 #[tonic::async_trait]
 impl Router for RouteService {
+    #[tracing::instrument(err(level = Level::ERROR))]
     async fn route(&self, request: Request<RouteRequest>) -> Result<Response<RouteResponse>, Status> {
         let (_, _, routing) = request.into_parts();
 
         let start = routing.start
             .map_or(
                 Err(Status::invalid_argument("Missing Start")),
-                |coord| Ok(LatLng::from(coord))
+                |coord| LatLng::try_from(coord)
+                    .map_err(|err| Status::internal(format!("{:?}", err)))
             )?;
 
         let end = routing.end
             .map_or(
                 Err(Status::invalid_argument("Missing End")),
-                |coord| Ok(LatLng::from(coord))
+                |coord| LatLng::try_from(coord)
+                    .map_err(|err| Status::internal(format!("{:?}", err)))
             )?;
 
         self.graph.route(start, end)
@@ -60,5 +64,19 @@ impl Router for RouteService {
                     Ok(Response::new(RouteResponse { cost, shape }))
                 }
             )
+    }
+
+    #[tracing::instrument(err(level = Level::ERROR))]
+    async fn closest_point(&self, request: Request<Coordinate>) -> Result<Response<Coordinate>, Status> {
+        let point = LatLng::try_from(request.into_inner())
+            .map_err(|err| Status::internal(format!("{:?}", err)))?;
+
+        let nearest_point = self.graph.nearest_node(point)
+            .map_or(
+                Err(Status::internal("Could not find appropriate point")),
+                |coord| Ok(coord.position.coordinate())
+            )?;
+
+        Ok(Response::new(nearest_point))
     }
 }

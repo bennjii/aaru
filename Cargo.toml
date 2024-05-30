@@ -24,14 +24,18 @@ env_logger = "0.10.0"
 test-log = { version = "0.2.16", features = ["log"] }
 
 # gRPC Server Dependencies
-tonic = { version = "0.11.0" }
+tonic = { version = "0.11.0", features = ["tls", "tls-roots"] }
 tonic-reflection = { version = "0.11.0" }
 prost = { version = "0.12.6" }
 tokio = { version = "1.37.0", features = ["rt", "rt-multi-thread", "macros"] }
 
 # Tracing
 tracing = { version = "0.1.16", optional = true }
-tracing-subscriber = { version = "0.3", features = ["tracing-log", "fmt"], optional = true }
+tracing-subscriber = { version = "0.3", features = ["tracing-log", "fmt", "env-filter"], optional = true }
+opentelemetry = "0.23.0"
+opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.24.0"
+opentelemetry-otlp = { version = "0.16.0", features = ["tls"] }
 
 # Optimisations and Compression
 rayon = "1.10.0"

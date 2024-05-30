@@ -3,7 +3,7 @@ use std::io::Error;
 
 #[derive(Debug)]
 pub enum CodecError {
-    IOError(std::io::Error)
+    IOError(std::io::Error),
 }
 
 impl From<io::Error> for CodecError {

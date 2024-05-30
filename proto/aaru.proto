@@ -4,7 +4,8 @@ package aaru;
 // The routing service
 service Router {
   // Returns the appropriate route between the starting and ending locations.
-  rpc Route (RouteRequest) returns (RouteResponse) {}
+  rpc Route (RouteRequest) returns (RouteResponse);
+  rpc ClosestPoint (Coordinate) returns (Coordinate);
 }
 
 message Coordinate {

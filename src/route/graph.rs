@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use log::{debug, info};
@@ -26,6 +27,12 @@ pub struct Graph {
     graph: DiGraphMap<i64, u32>,
     index: RTree<Node>,
     hash: std::collections::HashMap<i64, Node>
+}
+
+impl Debug for Graph {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Graph with Nodes: {}", self.hash.len())
+    }
 }
 
 impl Graph {
@@ -127,6 +134,7 @@ impl Graph {
         self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
     }
 
+    #[tracing::instrument]
     pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
         let start_node = self.nearest_node(start).unwrap();
         let finish_node = self.nearest_node(finish).unwrap();

@@ -107,12 +107,6 @@ impl Node {
                     None => Node::new(LatLng::from((lat, lng)), id)
                 };
 
-                if new_node.position.lat.abs() < 5 || new_node.id == 1511122299 {
-                    info!("Got interesting node...");
-                    let mut k = 0;
-                    k += 1;
-                }
-
                 curr.push(new_node);
                 curr
             })

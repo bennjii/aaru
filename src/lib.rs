@@ -5,6 +5,7 @@ pub use geo::*;
 pub use server::*;
 
 use crate::codec::error::CodecError;
+use crate::geo::error::GeoError;
 use crate::route::error::RouteError;
 use crate::shard::error::ShardError;
 
@@ -18,7 +19,8 @@ pub mod server;
 pub enum Error {
     Shard(ShardError),
     Codec(CodecError),
-    Route(RouteError)
+    Route(RouteError),
+    Geo(GeoError)
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -26,6 +28,12 @@ type Result<T> = std::result::Result<T, Error>;
 impl From<RouteError> for Error {
     fn from(value: RouteError) -> Self {
         Error::Route(value)
+    }
+}
+
+impl From<GeoError> for Error {
+    fn from(value: GeoError) -> Self {
+        Error::Geo(value)
     }
 }
 
