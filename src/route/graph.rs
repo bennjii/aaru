@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use log::{debug, info};
@@ -26,6 +27,12 @@ pub struct Graph {
     graph: DiGraphMap<i64, u32>,
     index: RTree<Node>,
     hash: std::collections::HashMap<i64, Node>
+}
+
+impl Debug for Graph {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Graph with Nodes: {}", self.hash.len())
+    }
 }
 
 impl Graph {
@@ -119,8 +126,6 @@ impl Graph {
 
         let tree = RTree::bulk_load(filtered.clone());
 
-        println!("{:?}", hash.get(&1511122299));
-
         info!("Ingested {:?} nodes.", tree.size());
         Ok(Graph { graph, index: tree, hash })
     }
@@ -129,6 +134,7 @@ impl Graph {
         self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
     }
 
+    #[tracing::instrument]
     pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
         let start_node = self.nearest_node(start).unwrap();
         let finish_node = self.nearest_node(finish).unwrap();
@@ -138,7 +144,12 @@ impl Graph {
             start_node.id,
             |finish| finish == finish_node.id,
             |e| *e.weight(),
-            |_| 0,
+            |v| {
+                self.hash
+                    .get(&v)
+                    .map(|v| v.to(finish_node).as_m())
+                    .unwrap_or(0)
+            },
         )?;
 
         let route = path

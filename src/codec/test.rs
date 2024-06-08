@@ -9,13 +9,9 @@ use crate::blob::item::BlobItem;
 use crate::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::block::item::BlockItem;
+use crate::codec::consts::DISTRICT_OF_COLUMBIA;
 
-pub(crate) const DISTRICT_OF_COLUMBIA: &str = "./resources/district-of-columbia.osm.pbf";
-pub(crate) const BADEN_WUERTTEMBERG: &str = "./resources/baden-wuerttemberg-latest.osm.pbf";
-pub(crate) const AUSTRALIA: &str = "./resources/australia-latest.osm.pbf";
-pub(crate) const SYDNEY: &str = "./resources/sydney.osm.pbf";
-
-#[test_log::test]
+#[test]
 fn iterate_blobs_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iterator = BlobIterator::new(path.clone());
@@ -34,7 +30,7 @@ fn iterate_blobs_each() {
     info!("Test Complete.");
 }
 
-#[test_log::test]
+#[test]
 fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iterator = BlockIterator::new(path.clone());

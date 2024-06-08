@@ -4,6 +4,7 @@
 
 use log::info;
 use rstar::{Point};
+
 use crate::coord::latlng::{LatLng, NanoDegree};
 use crate::osm;
 use crate::osm::{DenseNodes, PrimitiveBlock};
@@ -12,6 +13,26 @@ use crate::osm::{DenseNodes, PrimitiveBlock};
 pub struct Node {
     pub id: i64,
     pub position: LatLng
+}
+
+pub struct Distance {
+    meter_value: u32
+}
+
+impl Distance {
+    pub fn from_meters(meters: u32) -> Self {
+        Distance {
+            meter_value: meters
+        }
+    }
+
+    pub fn as_km(&self) -> f32 {
+        (self.meter_value as f32) / 1000f32
+    }
+
+    pub fn as_m(&self) -> u32 {
+        self.meter_value
+    }
 }
 
 impl Point for Node {
@@ -86,17 +107,20 @@ impl Node {
                     None => Node::new(LatLng::from((lat, lng)), id)
                 };
 
-                if new_node.position.lat.abs() < 5 || new_node.id == 1511122299 {
-                    info!("Got interesting node...");
-                    let mut k = 0;
-                    k += 1;
-                }
-
                 curr.push(new_node);
                 curr
             })
             .into_iter()
             // .map(|(coord, id)| Node::new(LatLng::from(coord).offset(block), id))
+    }
+
+    pub fn to(&self, other: &Node) -> Distance {
+        let lat: f64 = (self.position.lat() - other.position.lat()) * 1e-2;
+        let lng: f64 = (self.position.lng() - other.position.lng()) * 1e-2;
+
+        let a = (lng / 2.0f64).sin().powi(2) + self.position.lat().cos() * other.position.lat().cos() * (lat / 2.0f64).sin().powi(2);
+        let c = 2f64 * a.sqrt().asin();
+        Distance::from_meters((6371008.8 * c) as u32)
     }
 }
 

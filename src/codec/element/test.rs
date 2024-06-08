@@ -4,12 +4,13 @@ use log::info;
 use crate::codec::parallel::Parallel;
 use crate::codec::element::item::Element;
 use crate::codec::element::iterator::ElementIterator;
+use crate::consts::DISTRICT_OF_COLUMBIA;
 use crate::element::item::ProcessedElement;
 use crate::element::processed_iterator::ProcessedElementIterator;
 
 #[test]
 fn try_into_iter() {
-    let path = PathBuf::from(crate::codec::test::DISTRICT_OF_COLUMBIA);
+    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let mut iter = ElementIterator::new(path).expect("Could not create iterator");
 
     iter.for_each(|item| {
@@ -19,7 +20,7 @@ fn try_into_iter() {
 
 #[test_log::test]
 fn iter_count() {
-    let path = PathBuf::from(crate::codec::test::DISTRICT_OF_COLUMBIA);
+    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let mut iter = ElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(|item| {
@@ -36,7 +37,7 @@ fn iter_count() {
 
 #[test_log::test]
 fn iter_count_processed() {
-    let path = PathBuf::from(crate::codec::test::DISTRICT_OF_COLUMBIA);
+    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let mut iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(|item| {

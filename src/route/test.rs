@@ -1,6 +1,7 @@
-use crate::Graph;
 use std::{path::Path, time::Instant};
-use crate::codec::test::{AUSTRALIA, BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
+
+use crate::Graph;
+use crate::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
 use crate::coord::latlng::LatLng;
 use crate::element::variants::Node;
 
@@ -61,8 +62,8 @@ fn stutgard_mapping() -> crate::Result<()> {
 fn sydney_mapping() -> crate::Result<()> {
     let graph = init_graph(SYDNEY)?;
 
-    let start = LatLng::from_degree(-33.885424, 151.183154);
-    let end = LatLng::from_degree(-33.883972, 151.202487);
+    let start = LatLng::from_degree(-33.883572, 151.180025);
+    let end = LatLng::from_degree(-33.890029, 151.201438);
 
     println!("Start: {:?}", graph.nearest_node(start));
 

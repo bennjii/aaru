@@ -1,5 +1,9 @@
 use std::fmt::{Debug, Formatter};
+use crate::codec::error::CodecError;
+use crate::geo::error::GeoError;
+
 use crate::osm::{PrimitiveBlock};
+use crate::server::route::router_service::Coordinate;
 
 pub type NanoDegree = i64;
 pub type Degree = f64;
@@ -18,6 +22,14 @@ pub struct LatLng {
     pub lat: NanoDegree,
 }
 
+impl TryFrom<Coordinate> for LatLng {
+    type Error = GeoError;
+
+    fn try_from(coord: Coordinate) -> Result<Self, Self::Error> {
+        LatLng::from_degree(coord.latitude, coord.longitude)
+    }
+}
+
 impl From<(&i64, &i64)> for LatLng {
     /// Format is: (Lat, Lng)
     fn from((lat, lng): (&i64, &i64)) -> Self {
@@ -31,14 +43,35 @@ impl LatLng {
         LatLng { lat, lng }
     }
 
-    pub fn from_degree(lat: Degree, lng: Degree) -> Self {
-        assert!(lat > -90f64 && lat < 90f64);
-        assert!(lng < 180f64 && lng > -180f64);
+    /// Converts from `LatLng` into the `Coordinate` proto message
+    pub fn coordinate(&self) -> Coordinate {
+        Coordinate {
+            latitude: self.lat(),
+            longitude: self.lng(),
+        }
+    }
 
-        LatLng {
+    pub fn from_degree(lat: Degree, lng: Degree) -> Result<Self, GeoError> {
+        if !(lat > -90f64 && lat < 90f64) {
+            return Err(
+                GeoError::InvalidCoordinate(
+                    format!("Lattitude must be greater than -90 and less than 90. Given: {}", lat)
+                )
+            );
+        }
+
+        if !(lng < 180f64 && lng > -180f64) {
+            return Err(
+                GeoError::InvalidCoordinate(
+                    format!("Longitude must be greater than -180 and less than 180. Given: {}", lng)
+                )
+            );
+        }
+
+        Ok(LatLng {
             lat: (lat * 1e7) as i64,
             lng: (lng * 1e7) as i64
-        }
+        })
     }
 
     pub fn lat(&self) -> Degree {
