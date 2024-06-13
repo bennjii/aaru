@@ -42,6 +42,7 @@ rayon = "1.10.0"
 memmap2 = { version = "0.9.4", optional = true }
 flate2 = { version = "1.0.30", features = ["zlib-ng"] }
 either = "1.11.0"
+dotenv = "0.15.0"
 
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }

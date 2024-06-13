@@ -1,9 +1,5 @@
-use std::env;
-use opentelemetry_otlp::{ExportConfig, Protocol, WithExportConfig};
-use opentelemetry_otlp::Protocol::Grpc;
-use tonic::codegen::http::{HeaderMap, HeaderValue};
-use tonic::metadata::MetadataMap;
-use tonic::transport::Server;
+use dotenv::dotenv;
+use tonic::transport::{Server};
 
 use tracing_subscriber;
 use tracing_subscriber::layer::SubscriberExt;
@@ -15,45 +11,32 @@ use aaru::server::route::{router_service, RouteService};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load `.env` file
+    dotenv()?;
+
+    // Create the tracer first.
+    aaru::trace::initialize_tracer();
+
+    // Create the router
     tracing::info!("Creating Router");
     let router = RouteService::from_file(SYDNEY).expect("-");
     tracing::info!("Router Created");
 
-    let service = tonic_reflection::server::Builder::configure()
+    // Initialize the reflector
+    let reflector = tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(router_service::FILE_DESCRIPTOR_SET)
         .build()
         .unwrap();
 
-    // The remote server to log to...
-    let exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
-        .with_tls_config(Default::default());
-
-    // Initialize OpenTelemetry OLTP Protoc Pipeline
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(exporter)
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Couldn't create OTLP tracer");
-
-    // Link OTEL and STDOUT subscribers
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-    let fmt_layer = tracing_subscriber::fmt::layer();
-
-    // Initialise tracing with subscribers and environment filter
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::from_default_env())
-        .with(fmt_layer)
-        .with(otel_layer)
-        .init();
-
+    // Set the address to serve from
     let addr = "[::1]:9001".parse().unwrap();
     tracing::info!(message = "Starting server.", %addr);
 
     Server::builder()
+        .accept_http1(true)
         .trace_fn(|_| tracing::info_span!("aaru"))
         .add_service(RouterServer::new(router))
-        .add_service(service)
+        .add_service(reflector)
         .serve(addr)
         .await?;
 

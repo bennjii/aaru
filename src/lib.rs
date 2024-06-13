@@ -1,14 +1,19 @@
+pub use server::*;
 pub use shard::*;
 pub use codec::*;
 pub use route::*;
+pub use util::*;
 pub use geo::*;
-pub use server::*;
 
 use crate::codec::error::CodecError;
-use crate::geo::error::GeoError;
 use crate::route::error::RouteError;
 use crate::shard::error::ShardError;
+use crate::geo::error::GeoError;
 
+use crate::err::err_macro::impl_err;
+
+pub mod util;
+pub mod tile;
 pub mod shard;
 pub mod codec;
 pub mod route;
@@ -25,26 +30,7 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-impl From<RouteError> for Error {
-    fn from(value: RouteError) -> Self {
-        Error::Route(value)
-    }
-}
-
-impl From<GeoError> for Error {
-    fn from(value: GeoError) -> Self {
-        Error::Geo(value)
-    }
-}
-
-impl From<CodecError> for Error {
-    fn from(value: CodecError) -> Self {
-        Error::Codec(value)
-    }
-}
-
-impl From<ShardError> for Error {
-    fn from(value: ShardError) -> Self {
-        Error::Shard(value)
-    }
-}
+impl_err!(RouteError, Route);
+impl_err!(CodecError, Codec);
+impl_err!(ShardError, Shard);
+impl_err!(GeoError, Geo);

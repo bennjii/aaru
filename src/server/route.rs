@@ -3,6 +3,7 @@ use tonic::{Request, Response, Status};
 
 use router_service::{RouteRequest, RouteResponse};
 use router_service::router_server::Router;
+use tracing::Level;
 
 use crate::coord::latlng::{LatLng};
 use crate::Graph;
