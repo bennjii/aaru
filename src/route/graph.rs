@@ -37,7 +37,7 @@ impl Debug for Graph {
 
 impl Graph {
     pub fn weights<'a>() -> Result<HashMap<&'a str, u32>, RouteError> {
-        let mut weights = HashMap::new();
+        let weights = HashMap::new();
 
         weights.insert("motorway", 1)?;
         weights.insert("motorway_link", 2)?;

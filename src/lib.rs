@@ -10,8 +10,6 @@ use crate::route::error::RouteError;
 use crate::shard::error::ShardError;
 use crate::geo::error::GeoError;
 
-use crate::err::err_macro::impl_err;
-
 pub mod util;
 pub mod tile;
 pub mod shard;

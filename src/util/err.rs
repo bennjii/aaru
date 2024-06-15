@@ -6,17 +6,16 @@
 /// aaru::impl_err!(CodecError, Codec);
 /// ```
 pub mod err_macro {
+    #[macro_export]
     macro_rules! impl_err {
         ($from:ty, $variant:ident) => {
-            use aaru::Error;
-
-            impl From<$from> for Error {
+            impl From<$from> for crate::Error {
                 fn from(value: $from) -> Self {
-                    Error::$variant(value)
+                    crate::Error::$variant(value)
                 }
             }
         };
     }
 
-    pub(crate) use impl_err;
+    pub use impl_err;
 }
