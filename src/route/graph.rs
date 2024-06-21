@@ -11,12 +11,12 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rstar::{RTree};
 use scc::HashMap;
 
-use crate::coord::latlng::LatLng;
-use crate::element::item::{Element, ProcessedElement};
-use crate::element::iterator::ElementIterator;
-use crate::element::processed_iterator::ProcessedElementIterator;
-use crate::element::variants::Node;
-use crate::parallel::Parallel;
+use crate::geo::coord::latlng::LatLng;
+use crate::codec::element::item::{Element, ProcessedElement};
+use crate::codec::element::iterator::ElementIterator;
+use crate::codec::element::processed_iterator::ProcessedElementIterator;
+use crate::codec::element::variants::Node;
+use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 
 const MAX_WEIGHT: u32 = 999;

@@ -1,6 +1,6 @@
 use std::time::Duration;
 use bigtable_rs::bigtable::{BigTableConnection, RowCell};
-use bigtable_rs::google::bigtable::v2::{ReadRowsRequest, Row, RowFilter, RowRange, SampleRowKeysRequest};
+use bigtable_rs::google::bigtable::v2::{ReadRowsRequest, RowFilter, RowRange, SampleRowKeysRequest};
 use scc::hash_map::OccupiedEntry;
 use scc::HashMap;
 use tonic::codegen::tokio_stream::StreamExt;

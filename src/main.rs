@@ -1,11 +1,7 @@
 use dotenv::dotenv;
 use tonic::transport::{Server};
 
-use tracing_subscriber;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-
-use aaru::consts::SYDNEY;
+use aaru::codec::consts::SYDNEY;
 use aaru::server::route::router_service::router_server::RouterServer;
 use aaru::server::route::{router_service, RouteService};
 
@@ -15,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv()?;
 
     // Create the tracer first.
-    aaru::trace::initialize_tracer();
+    aaru::server::trace::initialize_tracer();
 
     // Create the router
     tracing::info!("Creating Router");

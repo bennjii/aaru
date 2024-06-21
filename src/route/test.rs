@@ -1,10 +1,11 @@
 use std::{path::Path, time::Instant};
 
-use crate::Graph;
-use crate::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
-use crate::coord::latlng::LatLng;
-use crate::element::variants::Node;
+use crate::route::Graph;
+use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
+use crate::geo::coord::latlng::LatLng;
+use crate::codec::element::variants::Node;
 
+#[cfg(test)]
 fn generate_linestring(route: Vec<Node>) -> String {
     format!("LINESTRING({})",
         route
@@ -15,6 +16,7 @@ fn generate_linestring(route: Vec<Node>) -> String {
     )
 }
 
+#[cfg(test)]
 fn init_graph(file: &str) -> crate::Result<Graph> {
     let time = Instant::now();
 
@@ -30,8 +32,8 @@ fn columbia_mapping() -> crate::Result<()> {
     let graph = init_graph(DISTRICT_OF_COLUMBIA)?;
     let time = Instant::now();
 
-    let start = LatLng::from_degree(38.91261500917026, -77.02343850496823);
-    let end = LatLng::from_degree(38.91772552535467, -77.03456230592386);
+    let start = LatLng::from_degree(38.91261500917026, -77.02343850496823)?;
+    let end = LatLng::from_degree(38.91772552535467, -77.03456230592386)?;
 
     let (weight, route) = graph.route(start, end).expect("Could not produce route");
     println!("Took: {:?}", time.elapsed());
@@ -45,8 +47,8 @@ fn columbia_mapping() -> crate::Result<()> {
 #[test]
 fn stutgard_mapping() -> crate::Result<()> {
     let graph = init_graph(BADEN_WUERTTEMBERG)?;
-    let start = LatLng::from_degree(48.773585361, 9.186777765);
-    let end = LatLng::from_degree(48.779354943, 9.170598155);
+    let start = LatLng::from_degree(48.773585361, 9.186777765)?;
+    let end = LatLng::from_degree(48.779354943, 9.170598155)?;
 
     let time = Instant::now();
     let (weight, route) = graph.route(start, end).expect("Could not produce route");
@@ -62,8 +64,8 @@ fn stutgard_mapping() -> crate::Result<()> {
 fn sydney_mapping() -> crate::Result<()> {
     let graph = init_graph(SYDNEY)?;
 
-    let start = LatLng::from_degree(-33.883572, 151.180025);
-    let end = LatLng::from_degree(-33.890029, 151.201438);
+    let start = LatLng::from_degree(-33.883572, 151.180025)?;
+    let end = LatLng::from_degree(-33.890029, 151.201438)?;
 
     println!("Start: {:?}", graph.nearest_node(start));
 

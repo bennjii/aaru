@@ -5,8 +5,8 @@ use log::{error, info, warn};
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge};
 use rayon::iter::ParallelIterator;
 
-use crate::blob::item::BlobItem;
-use crate::blob::iterator::BlobIterator;
+use crate::codec::blob::item::BlobItem;
+use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::block::item::BlockItem;
 use crate::codec::consts::DISTRICT_OF_COLUMBIA;

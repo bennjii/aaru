@@ -1,5 +1,5 @@
-use crate::coord::latlng::LatLng;
-use crate::coord::point::Point;
+use crate::geo::coord::latlng::LatLng;
+use crate::geo::coord::point::Point;
 use crate::tile::layer::MVT_EXTENT;
 
 pub trait Project {

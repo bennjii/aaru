@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use crate::geo::error::GeoError;
 
-use crate::osm::{PrimitiveBlock};
+use crate::codec::osm::{PrimitiveBlock};
 use crate::server::route::router_service::Coordinate;
 
 pub type NanoDegree = i64;

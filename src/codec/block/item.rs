@@ -13,9 +13,9 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use crate::codec::blob::item::BlobItem;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
-use crate::element::item::ProcessedElement;
-use crate::osm::{Blob, HeaderBlock, PrimitiveBlock};
-use crate::osm::blob::Data;
+use crate::codec::element::item::ProcessedElement;
+use crate::codec::osm::{Blob, HeaderBlock, PrimitiveBlock};
+use crate::codec::osm::blob::Data;
 
 pub enum BlockItem {
     HeaderBlock(HeaderBlock),

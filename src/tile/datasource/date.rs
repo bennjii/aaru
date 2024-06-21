@@ -1,5 +1,4 @@
-use std::fmt::Display;
-use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use serde::{de, Deserialize, Deserializer};
 
 const STORAGE_FORMAT: &str = "%y%m%d";

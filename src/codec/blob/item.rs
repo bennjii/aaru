@@ -1,10 +1,7 @@
 //! Describes the `BlobItem`, which holds the file reference for an `Element`
 
 use std::cmp::min;
-use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
-use log::trace;
-use crate::osm::BlobHeader;
+use crate::codec::osm::BlobHeader;
 
 pub(crate) struct BlobItem {
     pub(crate) start: u64,

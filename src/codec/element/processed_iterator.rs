@@ -5,10 +5,9 @@ use std::path::PathBuf;
 use rayon::iter::{ParallelIterator};
 
 use crate::codec::block::iterator::BlockIterator;
-use crate::codec::element::item::Element;
 use crate::codec::error::CodecError;
-use crate::element::item::ProcessedElement;
-use crate::parallel::Parallel;
+use crate::codec::element::item::ProcessedElement;
+use crate::codec::parallel::Parallel;
 
 pub struct ProcessedElementIterator {
     iter: BlockIterator,

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
-use crate::coord::point::Point;
-use crate::mvt::{Feature, GeomType, Layer, Value};
+use crate::geo::coord::point::Point;
+use crate::codec::mvt::{Feature, GeomType, Layer, Value};
 use crate::tile::project::Project;
 use crate::tile::project::projections::WebMercator;
 

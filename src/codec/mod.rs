@@ -1,4 +1,3 @@
-pub mod decode;
 pub mod element;
 pub(crate) mod blob;
 pub(crate) mod block;

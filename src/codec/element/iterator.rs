@@ -7,7 +7,7 @@ use rayon::iter::{ParallelIterator};
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
 use crate::codec::error::CodecError;
-use crate::parallel::Parallel;
+use crate::codec::parallel::Parallel;
 
 pub struct ElementIterator {
     iter: BlockIterator,

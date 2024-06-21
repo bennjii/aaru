@@ -5,8 +5,8 @@ use router_service::{RouteRequest, RouteResponse};
 use router_service::router_server::Router;
 use tracing::Level;
 
-use crate::coord::latlng::{LatLng};
-use crate::Graph;
+use crate::geo::coord::latlng::{LatLng};
+use crate::route::Graph;
 use crate::server::route::router_service::Coordinate;
 
 pub mod router_service {

@@ -5,8 +5,8 @@
 use std::borrow::Cow;
 use petgraph::visit::Walker;
 
-use crate::osm;
-use crate::osm::PrimitiveBlock;
+use crate::codec::osm;
+use crate::codec::osm::PrimitiveBlock;
 
 #[derive(Clone)]
 pub struct Way {
@@ -39,7 +39,6 @@ impl Way {
         }
     }
 }
-
 
 fn make_string(k: usize, block: &PrimitiveBlock) -> String {
     let cow = String::from_utf8_lossy(&*block.stringtable.s[k]);

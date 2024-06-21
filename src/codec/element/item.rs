@@ -3,9 +3,9 @@
 //! derived item, in the primitive entity.
 
 use std::vec;
-use crate::osm;
-use crate::element::variants::{Node, Way};
-use crate::osm::{PrimitiveBlock, PrimitiveGroup};
+use crate::codec::osm;
+use crate::codec::element::variants::{Node, Way};
+use crate::codec::osm::{PrimitiveBlock, PrimitiveGroup};
 
 #[derive(Clone)]
 pub enum Element<'a> {

@@ -2,12 +2,11 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use log::info;
 use rstar::{Point};
 
-use crate::coord::latlng::{LatLng, NanoDegree};
-use crate::osm;
-use crate::osm::{DenseNodes, PrimitiveBlock};
+use crate::geo::coord::latlng::{LatLng, NanoDegree};
+use crate::codec::osm;
+use crate::codec::osm::{DenseNodes, PrimitiveBlock};
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Node {
@@ -81,8 +80,8 @@ impl Node {
     /// iterator from `DenseNodes` with their contextual `PrimitiveBlock`.
     ///
     /// ```rust
-    ///  use aaru::element::{item::Element, variants::Node};
-    ///  use aaru::osm::PrimitiveBlock;
+    ///  use aaru::codec::element::{item::Element, variants::Node};
+    ///  use aaru::codec::osm::PrimitiveBlock;
     ///
     /// let block: PrimitiveBlock = unimplemented!();
     ///  if let Element::DenseNodes(nodes) = block {

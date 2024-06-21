@@ -1,5 +1,4 @@
-use std::fmt::Display;
-use crate::mvt::{Layer, Tile, Value};
+use crate::codec::mvt::{Layer, Tile, Value};
 
 impl From<Vec<Layer>> for Tile {
     fn from(value: Vec<Layer>) -> Self {

@@ -4,12 +4,11 @@ use bigtable_rs::google::bigtable::v2::{RowFilter, RowRange};
 use chrono::{DateTime, Utc};
 use prost::Message;
 use scc::hash_map::OccupiedEntry;
-use serde::Deserialize;
 
-use crate::coord::latlng::LatLng;
-use crate::coord::point::Point;
-use crate::cvt::Brakepoint;
-use crate::mvt::{Layer, Tile, Value};
+use crate::geo::coord::latlng::LatLng;
+use crate::geo::coord::point::Point;
+use crate::codec::cvt::Brakepoint;
+use crate::codec::mvt::{Layer, Tile, Value};
 use crate::tile::datasource::date::format_date;
 use crate::tile::datasource::query::{Query, Queryable};
 use crate::tile::error::TileError;
