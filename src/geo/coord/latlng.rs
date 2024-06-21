@@ -1,5 +1,4 @@
 use std::fmt::{Debug, Formatter};
-use crate::codec::error::CodecError;
 use crate::geo::error::GeoError;
 
 use crate::osm::{PrimitiveBlock};
@@ -55,7 +54,7 @@ impl LatLng {
         if !(lat > -90f64 && lat < 90f64) {
             return Err(
                 GeoError::InvalidCoordinate(
-                    format!("Lattitude must be greater than -90 and less than 90. Given: {}", lat)
+                    format!("Latitude must be greater than -90 and less than 90. Given: {}", lat)
                 )
             );
         }
@@ -88,6 +87,10 @@ impl LatLng {
 
     pub fn nano_lng(&self) -> NanoDegree {
         self.lng as i64
+    }
+
+    pub fn expand(&self) -> (Degree, Degree) {
+        (self.lat(), self.lng())
     }
 
     /// Offsets the `LatLng` from the given parent primitive.

@@ -10,3 +10,7 @@ pub mod consts;
 pub mod osm {
     include!(concat!(env!("OUT_DIR"), "/osmpbf.rs"));
 }
+
+pub mod mvt {
+    include!(concat!(env!("OUT_DIR"), "/mvt.rs"));
+}
