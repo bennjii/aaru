@@ -67,10 +67,14 @@ impl LatLng {
             );
         }
 
-        Ok(LatLng {
+        Ok(Self::from_degree_unchecked(lat, lng))
+    }
+
+    pub fn from_degree_unchecked(lat: Degree, lng: Degree) -> Self {
+        LatLng {
             lat: (lat * 1e7) as i64,
             lng: (lng * 1e7) as i64
-        })
+        }
     }
 
     pub fn lat(&self) -> Degree {

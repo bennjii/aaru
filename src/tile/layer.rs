@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use crate::coord::point::Point;
 use crate::mvt::{Feature, GeomType, Layer, Value};
 use crate::tile::project::Project;
@@ -6,7 +7,20 @@ use crate::tile::project::projections::WebMercator;
 pub const MVT_EXTENT: u32 = 4096;
 pub const MVT_VERSION: u32 = 2;
 
-impl<T: Point<Value>> From<Vec<T>> for Layer {
+struct TileLayer<const N: usize> {
+    layer: Layer,
+    breath: PhantomData<[(); N]>
+}
+
+impl<const N: usize> TileLayer<N> {
+    fn new(layer: Layer) -> Self {
+        Self { layer, breath: PhantomData::default() }
+    }
+}
+
+impl<T> From<Vec<T>> for Layer
+    where T: Point<Value, 2>
+{
     fn from(value: Vec<T>) -> Self {
         let keys = T::keys();
         let values = value.iter().flat_map(|v| v.values()).collect();
@@ -24,7 +38,8 @@ impl<T: Point<Value>> From<Vec<T>> for Layer {
             .collect();
 
         Layer {
-            name,
+            // TODO: Implement-Me properly
+            name: "".to_string(),
             values,
             features,
             extent: Some(MVT_EXTENT),
@@ -34,10 +49,10 @@ impl<T: Point<Value>> From<Vec<T>> for Layer {
     }
 }
 
-impl<T: Point<Value>> From<T> for Feature {
-    fn from(value: T) -> Self {
+impl<T> From<&T> for Feature where T: Point<Value, 2> {
+    fn from(value: &T) -> Self {
         let buffer_size: u32 = 0;
-        let key_length: u32 = u32::from(T::keys().len());
+        let key_length: u32 = T::keys().len() as u32;
 
         let (_, px, py) = WebMercator::project(value);
 

@@ -17,18 +17,18 @@ impl<'a> Hash for auto::WaySide {
         state.finish();
     }
 
-    fn hash_slice<H: Hasher>(data: &[Self], state: &mut H) where Self: Sized {
+    fn hash_slice<H: Hasher>(_: &[Self], _: &mut H) where Self: Sized {
         todo!()
     }
 }
 
 impl<'a, T: Hash> Hash for auto::ShardData<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, _: &mut H) {
         // self.nodes.type_id();
         // self.nodes.into_iter(&Default::default()).map(|node| node.hash(state)))
     }
 
-    fn hash_slice<H: Hasher>(data: &[Self], state: &mut H) where Self: Sized {
+    fn hash_slice<H: Hasher>(_: &[Self], _: &mut H) where Self: Sized {
         todo!()
     }
 }

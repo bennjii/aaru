@@ -9,6 +9,7 @@ use crate::codec::error::CodecError;
 use crate::route::error::RouteError;
 use crate::shard::error::ShardError;
 use crate::geo::error::GeoError;
+use crate::tile::error::TileError;
 
 pub mod util;
 pub mod tile;
@@ -23,7 +24,8 @@ pub enum Error {
     Shard(ShardError),
     Codec(CodecError),
     Route(RouteError),
-    Geo(GeoError)
+    Tile(TileError),
+    Geo(GeoError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -31,4 +33,5 @@ type Result<T> = std::result::Result<T, Error>;
 impl_err!(RouteError, Route);
 impl_err!(CodecError, Codec);
 impl_err!(ShardError, Shard);
+impl_err!(TileError, Tile);
 impl_err!(GeoError, Geo);

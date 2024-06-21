@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package cvt;
+
+enum Classification {
+  Braking = 0;
+  Steering = 1;
+  Combined = 2;
+}
+
+message Brakepoint {
+  // Don't change below for interop with existing Brakepoint
+  double latitude = 1;
+  double longitude = 2;
+  float speed = 3;
+  float gforce = 4;
+}
+
+message Safepoint {
+  // Stored as seconds since epoch
+  int64 timestamp = 1;
+  double longitude = 2;
+  double latitude = 3;
+  float speed = 4;
+  float xacc = 5;
+  float yacc = 6;
+
+  // Safepoint-specific fields:
+  // Store `nearby` as string and let front-end parse
+  Classification classification = 7;
+  string nearby = 8;
+  string vehicle_type = 9;
+  float highest_speed = 10;
+  // Disallow optional fields to pacify Prost
+  float speed_limit = 11;
+}

@@ -1,5 +1,7 @@
 mod fragment;
-mod point;
 mod mvt;
 mod layer;
 mod project;
+mod datasource;
+mod querier;
+pub mod error;

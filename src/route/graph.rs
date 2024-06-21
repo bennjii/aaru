@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use log::{debug, info};
 
-use petgraph::data::Build;
 use petgraph::Directed;
 use petgraph::graphmap::{DiGraphMap, GraphMap};
 use petgraph::prelude::{EdgeRef, NodeIndex};
@@ -11,7 +10,6 @@ use petgraph::visit::IntoNodeReferences;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rstar::{RTree};
 use scc::HashMap;
-use tonic::codegen::Body;
 
 use crate::coord::latlng::LatLng;
 use crate::element::item::{Element, ProcessedElement};

@@ -14,3 +14,7 @@ pub mod osm {
 pub mod mvt {
     include!(concat!(env!("OUT_DIR"), "/mvt.rs"));
 }
+
+pub mod cvt {
+    include!(concat!(env!("OUT_DIR"), "/cvt.rs"));
+}

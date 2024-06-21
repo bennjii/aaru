@@ -6,7 +6,9 @@
 //! This is a generic implementation of a
 //! slippy tile.
 
-struct Fragment {
+use fast_hilbert::xy2h;
+
+pub struct Fragment {
     x: u32,
     y: u32,
     zoom: u8
@@ -21,7 +23,7 @@ impl Fragment {
     ///
     /// We want to determine the tiles visible
     /// at a specific zoom level,
-    fn detail(&self, z: u8) -> Vec<Fragment> {
+    pub(crate) fn detail(self, z: u8) -> Vec<Fragment> {
         let mut target_tiles = vec![];
         let mut tiles_to_pop = vec![self];
 
@@ -33,7 +35,7 @@ impl Fragment {
             }
         }
 
-        target_tiles.iter().cloned().collect()
+        target_tiles
     }
 
     /// `segment()`
@@ -58,5 +60,9 @@ impl Fragment {
                 }))
             }
         }
+    }
+
+    pub fn to_hilbert(&self) -> u64 {
+        xy2h(self.x, self.y, self.zoom)
     }
 }

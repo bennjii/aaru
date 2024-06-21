@@ -43,6 +43,9 @@ memmap2 = { version = "0.9.4", optional = true }
 flate2 = { version = "1.0.30", features = ["zlib-ng"] }
 either = "1.11.0"
 dotenv = "0.15.0"
+bigtable_rs = { version = "0.2.10" }
+chrono = "0.4.38"
+fast_hilbert = "2.0.0"
 
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }

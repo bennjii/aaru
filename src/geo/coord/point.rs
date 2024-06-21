@@ -1,7 +1,8 @@
 use crate::coord::latlng::LatLng;
 
-pub trait Point<T> {
-    const N: usize;
+#[allow(incomplete_features, dead_code)]
+#[feature(generic_const_exprs, generic_const_items)]
+pub trait Point<T, const N: usize> {
     const ZOOM: u8;
 
     /// `id()`
@@ -18,8 +19,8 @@ pub trait Point<T> {
     fn lat_lng(&self) -> LatLng;
 
     /// `keys()`
-    fn keys() -> [String; Self::N];
+    fn keys() -> [String; N];
 
     /// `values()`
-    fn values(&self) -> [T; Self::N];
+    fn values(&self) -> [T; N];
 }
