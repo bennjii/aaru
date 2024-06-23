@@ -14,6 +14,12 @@ pub struct QuerySet {
 }
 
 impl QuerySet {
+    pub fn new() -> Self {
+        Self {
+            repositories: HashMap::new()
+        }
+    }
+
     pub fn get_repository(&self, repository: &str) -> Option<OccupiedEntry<String, Repository>> {
         self.repositories.get(repository)
     }
@@ -55,7 +61,7 @@ impl Repository {
             .map_err(|e| TileError::from(e))
     }
 
-    pub async fn query(&self, req: Query<Vec<RowRange>, RowFilter>) -> Result<Vec<(Vec<u8>, Vec<RowCell>)>, TileError> {
+    pub async fn query(&self, req: Query<Vec<RowRange>, Option<RowFilter>>) -> Result<Vec<(Vec<u8>, Vec<RowCell>)>, TileError> {
         let mut client = self.connection.client();
         let request = ReadRowsRequest::from(req);
 

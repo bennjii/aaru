@@ -3,6 +3,14 @@ name = "aaru"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "route"
+path = "src/bin/route.rs"
+
+[[bin]]
+name = "tile"
+path = "src/bin/tile.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -46,6 +54,10 @@ dotenv = "0.15.0"
 bigtable_rs = { version = "0.2.10" }
 chrono = "0.4.38"
 fast_hilbert = "2.0.0"
+
+tower-http = { version = "0.5.2", features = ["cors"] }
+axum = { version = "0.7.5" }
+axum-macros = "0.4.1"
 
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }

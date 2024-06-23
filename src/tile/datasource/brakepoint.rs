@@ -1,9 +1,13 @@
+use std::sync::Arc;
+use axum::extract::{Path, Query as AxumQuery, State};
+use axum_macros::debug_handler;
 use bigtable_rs::bigtable::RowCell;
 use bigtable_rs::google::bigtable::v2::row_range::{EndKey, StartKey};
 use bigtable_rs::google::bigtable::v2::{RowFilter, RowRange};
 use chrono::{DateTime, Utc};
 use prost::Message;
 use scc::hash_map::OccupiedEntry;
+use serde::Deserialize;
 
 use crate::geo::coord::latlng::LatLng;
 use crate::geo::coord::point::Point;
@@ -48,11 +52,37 @@ impl Brakepoint {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Deserialize)]
+enum RangeType {
+    Inclusive,
+    Exclusive
+}
+
+#[derive(Copy, Clone, Deserialize)]
+struct Range<T> {
+    start: T,
+    end: T,
+    variant: RangeType
+}
+
+impl<T> Range<T> where T: PartialOrd {
+    fn split(&self) -> (&T, &T) {
+        (&self.start, &self.end)
+    }
+
+    fn within(&self, other: T) -> bool {
+        match self.variant {
+            RangeType::Exclusive => self.start < other && self.end > other,
+            RangeType::Inclusive => self.start <= other && self.end >= other
+        }
+    }
+}
+
+#[derive(Copy, Clone, Deserialize)]
 pub struct BrakepointParams {
-    date: (DateTime<Utc>, DateTime<Utc>),
-    gforce: (f32, f32),
-    speed: (f32, f32),
-    position: (u8, u32, u32),
+    date: Range<DateTime<Utc>>,
+    gforce: Range<f32>,
+    speed: Range<f32>,
 }
 
 impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
@@ -64,7 +94,7 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
     // TODO: Implement Me!
     const QUERY_TABLE: &'static str = "";
 
-    async fn query(&self, input: Query<Vec<RowRange>, RowFilter>, parameters: Self::Parameters) -> Result<Tile, Self::Error> {
+    async fn query(&self, input: Query<Vec<RowRange>, Option<RowFilter>>, parameters: Self::Parameters) -> Result<Tile, Self::Error> {
         let connection = self.connection()?;
         let rows = connection.query(input).await?;
 
@@ -83,10 +113,9 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
         Ok(Tile::from(Layer::from(points)))
     }
 
-    fn batch(query: Query<BrakepointParams, ()>) -> Vec<RowRange> {
-        let params = query.params();
-        let (start_date, end_date) = params.date;
-        let (z, x, y) = params.position;
+    fn batch(&self, query: Query<BrakepointParams, (u8, u32, u32)>) -> Vec<RowRange> {
+        let (start_date, end_date) = query.params().date.split();
+        let (z, x, y) = query.filter();
 
         let format_key = |date: &DateTime<Utc>, hid: u64| {
             format!("{:012}/{}/{}", hid, PREFIX, format_date(date)).into_bytes()
@@ -109,14 +138,28 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
     }
 
     fn filter(&self, filter: &Self::Parameters, item: &Self::Item) -> bool {
-        item.gforce >= filter.gforce.0
-            && item.gforce <= filter.gforce.1
-            && item.speed >= filter.speed.0
-            && item.speed <= filter.speed.1
+        filter.gforce.within(item.gforce)
+            && filter.speed.within(item.speed)
     }
 
     fn connection(&self) -> Result<Self::Connection<'_>, Self::Error> {
         self.get_repository(Self::QUERY_TABLE)
             .ok_or(TileError::NoMatchingRepository)
+    }
+}
+
+impl Brakepoint {
+    pub async fn query(
+        State(state): State<Arc<QuerySet>>,
+        Path((z, x, y)): Path<(u8, u32, u32)>,
+        AxumQuery(params): AxumQuery<BrakepointParams>,
+    ) -> Result<Tile, TileError> {
+        // Query rows
+        if z < MIN_ZOOM || z > STORAGE_ZOOM {
+            return Err(TileError::UnsupportedZoom(z));
+        }
+
+        let rows = state.batch(Query::new(params, (z, x, y)));
+        state.query(Query::new(rows, None), params).await
     }
 }

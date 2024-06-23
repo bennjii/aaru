@@ -11,12 +11,12 @@ impl<T, F> Query<T, F> {
         Query { parameters, filter }
     }
 
-    pub fn params(self) -> T {
-        self.parameters
+    pub fn params(&self) -> &T {
+        &self.parameters
     }
 
-    pub fn filter(self) -> F {
-        self.filter
+    pub fn filter(&self) -> &F {
+        &self.filter
     }
 }
 
@@ -28,14 +28,14 @@ pub trait Queryable<In, Filter, Out> {
 
     const QUERY_TABLE: &'static str;
 
-    async fn query(&self, input: Query<In, Filter>, params: Self::Parameters) -> Result<Out, Self::Error>;
-    fn batch(query: Query<Self::Parameters, ()>) -> In;
+    async fn query(&self, input: Query<In, Option<Filter>>, params: Self::Parameters) -> Result<Out, Self::Error>;
+    fn batch(&self, query: Query<Self::Parameters, (u8, u32, u32)>) -> In;
     fn filter(&self, filter: &Self::Parameters, item: &Self::Item) -> bool;
     fn connection(&self) -> Result<Self::Connection<'_>, Self::Error>;
 }
 
-impl From<Query<Vec<RowRange>, RowFilter>> for ReadRowsRequest {
-    fn from(value: Query<Vec<RowRange>, RowFilter>) -> ReadRowsRequest {
+impl From<Query<Vec<RowRange>, Option<RowFilter>>> for ReadRowsRequest {
+    fn from(value: Query<Vec<RowRange>, Option<RowFilter>>) -> ReadRowsRequest {
         ReadRowsRequest {
             // TODO: Assign a table name
             table_name: "".to_string(),
@@ -43,7 +43,7 @@ impl From<Query<Vec<RowRange>, RowFilter>> for ReadRowsRequest {
             request_stats_view: 0, // new field, not sure what to do
             rows_limit: 0,         // boundless rows, implement limit via row filter / row-ranges
 
-            filter: Some(value.filter),
+            filter: value.filter,
             rows: Some(RowSet {
                 row_keys: vec![],
                 row_ranges: value.parameters,

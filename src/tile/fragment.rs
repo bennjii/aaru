@@ -15,8 +15,8 @@ pub struct Fragment {
 }
 
 impl Fragment {
-    pub fn new(z: u8, x: u32, y: u32) -> Self {
-        Self { zoom: z, x, y }
+    pub fn new(z: &u8, x: &u32, y: &u32) -> Self {
+        Self { zoom: *z, x: *x, y: *y }
     }
 
     /// `detail(zoom)`
