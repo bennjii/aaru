@@ -1,16 +1,19 @@
-use std::time::Duration;
+use axum::async_trait;
 use bigtable_rs::bigtable::{BigTableConnection, RowCell};
 use bigtable_rs::google::bigtable::v2::{ReadRowsRequest, RowFilter, RowRange, SampleRowKeysRequest};
 use scc::hash_map::OccupiedEntry;
 use scc::HashMap;
-use tonic::codegen::tokio_stream::StreamExt;
+
 use crate::tile::datasource::query::Query;
 use crate::tile::error::TileError;
+use crate::tile::querier::repositories::big_table;
 
 pub const DEFAULT_APP_PROFILE: &'static str = "default";
 
+pub type Repo = Box<dyn Repository>;
+
 pub struct QuerySet {
-    pub repositories: HashMap<String, Repository>
+    pub repositories: HashMap<String, Repo>
 }
 
 impl QuerySet {
@@ -20,24 +23,45 @@ impl QuerySet {
         }
     }
 
-    pub fn get_repository(&self, repository: &str) -> Option<OccupiedEntry<String, Repository>> {
+    pub fn get_repository(&self, repository: &str) -> Option<OccupiedEntry<String, Repo>> {
         self.repositories.get(repository)
+    }
+
+    pub fn attach<R: Repository + 'static>(mut self, repository: R, name: &str) -> Result<Self, TileError> {
+        self.repositories.insert(name.to_string(), Box::new(repository))
+            .map_err(|e| TileError::AttachRepository(e.0))?;
+        Ok(self)
     }
 }
 
-pub struct Repository {
-    connection: BigTableConnection,
-    table_name: String
+#[async_trait]
+pub trait Repository: Send + Sync {
+    async fn new(project_id: &str, instance_name: &str, table_id: &str) -> Result<Self, TileError> where Self: Sized;
+    async fn ping(&self) -> Result<(), TileError>;
+    async fn query(&self, req: Query<Vec<RowRange>, Option<RowFilter>>) -> Result<Vec<(Vec<u8>, Vec<RowCell>)>, TileError>;
 }
 
-impl Repository {
-    const READ_ONLY: bool = true;
-    const CHANNEL_SIZE: usize = 4;
-    const TIMEOUT: Option<Duration> = Some(Duration::from_secs(20));
+pub mod repositories {
+    pub mod big_table {
+        use std::time::Duration;
+        use bigtable_rs::bigtable::BigTableConnection;
 
-    pub async fn new(project_id: &str, instance_name: &str, table_id: &str) -> Result<Self, TileError> {
+        pub(crate) const READ_ONLY: bool = true;
+        pub(crate) const CHANNEL_SIZE: usize = 4;
+        pub(crate) const TIMEOUT: Option<Duration> = Some(Duration::from_secs(20));
+
+        pub struct BigTableRepository {
+            pub connection: BigTableConnection,
+            pub table_name: String
+        }
+    }
+}
+
+#[async_trait]
+impl Repository for big_table::BigTableRepository {
+    async fn new(project_id: &str, instance_name: &str, table_id: &str) -> Result<Self, TileError> where Self: Sized {
         let connection = BigTableConnection::new(
-            project_id, instance_name, Self::READ_ONLY, Self::CHANNEL_SIZE, Self::TIMEOUT
+            project_id, instance_name, big_table::READ_ONLY, big_table::CHANNEL_SIZE, big_table::TIMEOUT
         ).await?;
 
         let client = connection.client();
@@ -48,7 +72,7 @@ impl Repository {
         })
     }
 
-    pub async fn ping(&self) -> Result<(), TileError> {
+    async fn ping(&self) -> Result<(), TileError> {
         let mut client = self.connection.client();
 
         let req = SampleRowKeysRequest {
@@ -61,9 +85,10 @@ impl Repository {
             .map_err(|e| TileError::from(e))
     }
 
-    pub async fn query(&self, req: Query<Vec<RowRange>, Option<RowFilter>>) -> Result<Vec<(Vec<u8>, Vec<RowCell>)>, TileError> {
+    async fn query(&self, req: Query<Vec<RowRange>, Option<RowFilter>>) -> Result<Vec<(Vec<u8>, Vec<RowCell>)>, TileError> {
         let mut client = self.connection.client();
-        let request = ReadRowsRequest::from(req);
+        let mut request = ReadRowsRequest::from(req);
+        request.table_name = self.table_name.clone();
 
         client.read_rows(request).await.map_err(TileError::BigTableError)
     }

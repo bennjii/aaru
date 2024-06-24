@@ -56,8 +56,9 @@ chrono = "0.4.38"
 fast_hilbert = "2.0.0"
 
 tower-http = { version = "0.5.2", features = ["cors"] }
-axum = { version = "0.7.5" }
+axum = { version = "0.7.5", features = ["query"] }
 axum-macros = "0.4.1"
+serde_qs = "0.13.0"
 
 [build-dependencies]
 tonic-build = { version = "0.11.0", features = ["prost"] }

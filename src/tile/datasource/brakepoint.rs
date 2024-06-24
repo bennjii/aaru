@@ -1,13 +1,19 @@
 use std::sync::Arc;
-use axum::extract::{Path, Query as AxumQuery, State};
+
+use axum::async_trait;
+use axum::extract::{FromRequest, Path, State};
+use axum::http::StatusCode;
 use axum_macros::debug_handler;
+
+use chrono::{DateTime, NaiveDateTime, Utc};
+use scc::hash_map::OccupiedEntry;
+use tracing::info;
+use prost::Message;
+use serde::Deserialize;
+
 use bigtable_rs::bigtable::RowCell;
 use bigtable_rs::google::bigtable::v2::row_range::{EndKey, StartKey};
 use bigtable_rs::google::bigtable::v2::{RowFilter, RowRange};
-use chrono::{DateTime, Utc};
-use prost::Message;
-use scc::hash_map::OccupiedEntry;
-use serde::Deserialize;
 
 use crate::geo::coord::latlng::LatLng;
 use crate::geo::coord::point::Point;
@@ -17,7 +23,9 @@ use crate::tile::datasource::date::format_date;
 use crate::tile::datasource::query::{Query, Queryable};
 use crate::tile::error::TileError;
 use crate::tile::fragment::Fragment;
-use crate::tile::querier::{QuerySet, Repository};
+use crate::tile::params::QueryParams;
+use crate::tile::querier::{QuerySet, Repo, Repository};
+use crate::tile::querier::repositories::big_table::BigTableRepository;
 
 const PREFIX: &str = "bp";
 const STORAGE_ZOOM: u8 = 19;
@@ -52,13 +60,19 @@ impl Brakepoint {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Deserialize)]
 enum RangeType {
     Inclusive,
     Exclusive
 }
 
-#[derive(Copy, Clone, Deserialize)]
+impl Default for RangeType {
+    fn default() -> Self {
+        RangeType::Inclusive
+    }
+}
+
+#[derive(Copy, Clone, Debug, Deserialize)]
 struct Range<T> {
     start: T,
     end: T,
@@ -78,7 +92,7 @@ impl<T> Range<T> where T: PartialOrd {
     }
 }
 
-#[derive(Copy, Clone, Deserialize)]
+#[derive(Copy, Clone, Debug, Deserialize)]
 pub struct BrakepointParams {
     date: Range<DateTime<Utc>>,
     gforce: Range<f32>,
@@ -89,10 +103,10 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
     type Item = Brakepoint;
     type Error = TileError;
     type Parameters = BrakepointParams;
-    type Connection<'a> = OccupiedEntry<'a, String, Repository>;
+    type Connection<'a> = OccupiedEntry<'a, String, Repo>;
 
     // TODO: Implement Me!
-    const QUERY_TABLE: &'static str = "";
+    const QUERY_TABLE: &'static str = "big-table";
 
     async fn query(&self, input: Query<Vec<RowRange>, Option<RowFilter>>, parameters: Self::Parameters) -> Result<Tile, Self::Error> {
         let connection = self.connection()?;
@@ -152,14 +166,16 @@ impl Brakepoint {
     pub async fn query(
         State(state): State<Arc<QuerySet>>,
         Path((z, x, y)): Path<(u8, u32, u32)>,
-        AxumQuery(params): AxumQuery<BrakepointParams>,
+        QueryParams(params): QueryParams<BrakepointParams>
     ) -> Result<Tile, TileError> {
-        // Query rows
+        info!("Got query parameters: {x} {y} :: {z} :: {:?}", params);
+
         if z < MIN_ZOOM || z > STORAGE_ZOOM {
             return Err(TileError::UnsupportedZoom(z));
         }
 
         let rows = state.batch(Query::new(params, (z, x, y)));
+        info!("Querying for {} rows", rows.len());
         state.query(Query::new(rows, None), params).await
     }
 }

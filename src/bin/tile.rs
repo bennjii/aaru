@@ -14,8 +14,9 @@ use aaru::codec::consts::SYDNEY;
 use aaru::codec::cvt::Brakepoint;
 use aaru::server::route::router_service::router_server::RouterServer;
 use aaru::server::route::{router_service, RouteService};
+use aaru::tile::datasource::bigquery::init_bq;
 use aaru::tile::datasource::brakepoint;
-use aaru::tile::querier::QuerySet;
+use aaru::tile::querier::{QuerySet, Repository};
 
 async fn health_check(State(state): State<Arc<QuerySet>>) -> Response {
     // TODO: Implement me!
@@ -63,16 +64,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     aaru::server::trace::initialize_tracer();
 
     // Set the address to serve from
-    let addr = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
+    let addr = tokio::net::TcpListener::bind(format!("localhost:{port}")).await?;
     tracing::info!(message = "Starting server.", ?addr);
 
-    let state = Arc::new(QuerySet::new());
+    let big_table = init_bq().await.expect("Could not initialize BigTable");
+
+    let state = QuerySet::new()
+        .attach(big_table, "big-table").expect("Could not attach BigTable");
 
     let app = Router::new()
         .route("/", get(health_check))
         .route("/brakepoint/:z/:x/:y", get(Brakepoint::query))
         .layer(cors(allowed_origins))
-        .with_state(state);
+        .with_state(Arc::new(state));
 
     serve(addr, app).await?;
 

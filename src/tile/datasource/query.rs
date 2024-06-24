@@ -1,5 +1,6 @@
 use bigtable_rs::google::bigtable::v2::{ReadRowsRequest, RowFilter, RowRange, RowSet};
 use crate::tile::querier::DEFAULT_APP_PROFILE;
+use crate::tile::querier::repositories::big_table::BigTableRepository;
 
 pub struct Query<T, F> {
     parameters: T,

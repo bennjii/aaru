@@ -10,7 +10,9 @@ use crate::codec::mvt::Tile;
 #[derive(Debug)]
 pub enum TileError {
     BigTableError(bigtable_rs::bigtable::Error),
+    AttachRepository(String),
     ProtoDecode(DecodeError),
+    MissingEnvironment(String),
     NoTilesFound,
     UnsupportedZoom(u8),
     NoMatchingRepository
