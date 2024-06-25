@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use tracing::debug;
 use crate::geo::coord::point::Point;
 use crate::codec::mvt::{Feature, GeomType, Layer, Value};
 use crate::tile::project::Project;
@@ -28,13 +29,14 @@ impl<T> From<Vec<T>> for Layer
         let features = value
             .iter()
             .enumerate()
-            .map(|(index, point)| {
+            .map(|point| {
                 Feature::from(point)
                 // let (lng, lat) = point.lnglat();
                 // let (_, _, px, py) = slippy_mvt(zoom, lng, lat);
                 // let tags = create_tags(index as u32, keys.len() as u32);
                 // Feature::from_point(Some(point.id()), px, py, tags)
             })
+            .inspect(|v| debug!("Introspective Point: {:?}", v))
             .collect();
 
         Layer {
@@ -49,9 +51,8 @@ impl<T> From<Vec<T>> for Layer
     }
 }
 
-impl<T> From<&T> for Feature where T: Point<Value, 2> {
-    fn from(value: &T) -> Self {
-        let buffer_size: u32 = 0;
+impl<T> From<(usize, &T)> for Feature where T: Point<Value, 2> {
+    fn from((index, value): (usize, &T)) -> Self {
         let key_length: u32 = T::keys().len() as u32;
 
         let (_, px, py) = WebMercator::project(value);
@@ -64,7 +65,7 @@ impl<T> From<&T> for Feature where T: Point<Value, 2> {
             id: Some(value.id()),
             tags: (0..key_length)
                 .into_iter()
-                .flat_map(|i| [i, buffer_size * key_length + i])
+                .flat_map(|i| [i, (index as u32) * key_length + i])
                 .collect(),
             r#type: Some(i32::from(GeomType::Point)),
             geometry: vec![(1 & 0x7) | (1 << 3), zig(px), zig(py)]

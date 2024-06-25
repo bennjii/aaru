@@ -8,6 +8,7 @@
 
 use fast_hilbert::xy2h;
 
+#[derive(Debug)]
 pub struct Fragment {
     x: u32,
     y: u32,
@@ -44,7 +45,7 @@ impl Fragment {
     /// This continues until u8::MAX.
     fn segment(&self) -> Option<[Fragment; 4]> {
         match self.zoom {
-            u8::MAX => None,
+            24 => None,
             _ => {
                 Some([
                     (0, 0),

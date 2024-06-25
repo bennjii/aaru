@@ -7,13 +7,14 @@ use axum_macros::debug_handler;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use scc::hash_map::OccupiedEntry;
-use tracing::info;
+use tracing::{debug, info};
 use prost::Message;
 use serde::Deserialize;
 
 use bigtable_rs::bigtable::RowCell;
 use bigtable_rs::google::bigtable::v2::row_range::{EndKey, StartKey};
 use bigtable_rs::google::bigtable::v2::{RowFilter, RowRange};
+use tracing::field::debug;
 
 use crate::geo::coord::latlng::LatLng;
 use crate::geo::coord::point::Point;
@@ -121,6 +122,7 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
             .flat_map(|r| r.1)
             .map(Brakepoint::from_cell)
             .filter_map(|r| r.ok())
+            .inspect(|point| debug!("Got point: LAT:{} LON:{}", point.latitude, point.longitude))
             .filter(|point| self.filter(&parameters, point))
             .collect();
 
@@ -138,6 +140,9 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
         Fragment::new(z, x, y)
             .detail(STORAGE_ZOOM)
             .into_iter()
+            .inspect(|fragment| {
+                debug!("Obtaining fragment data: {:?}", fragment)
+            })
             .map(|t| RowRange {
                 start_key: Some(StartKey::StartKeyClosed(format_key(
                     &start_date,
