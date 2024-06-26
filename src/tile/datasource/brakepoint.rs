@@ -14,6 +14,7 @@ use serde::Deserialize;
 use bigtable_rs::bigtable::RowCell;
 use bigtable_rs::google::bigtable::v2::row_range::{EndKey, StartKey};
 use bigtable_rs::google::bigtable::v2::{RowFilter, RowRange};
+use tokio::time::Instant;
 use tracing::field::debug;
 
 use crate::geo::coord::latlng::LatLng;
@@ -103,19 +104,24 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
     type Item = Brakepoint;
     type Error = TileError;
     type Parameters = (BrakepointParams, u8);
-    type Connection<'a> = OccupiedEntry<'a, String, Repo>;
+    type Connection<'a> = &'a Repo;
 
-    // TODO: Implement Me!
-    const QUERY_TABLE: &'static str = "big-table";
+    const QUERY_TABLE: &'static str = "big_table";
 
     async fn query(&self, input: Query<Vec<RowRange>, Option<RowFilter>>, parameters: Self::Parameters) -> Result<Tile, Self::Error> {
         let connection = self.connection()?;
+
+        info!("Obtained connection- querying...");
+        let start_time = Instant::now();
         let rows = connection.query(input).await?;
+        info!("Query complete. Took {}ms", start_time.elapsed().as_millis());
 
         if rows.len() == 0 {
             info!("Found no tile data.");
             return Err(TileError::NoTilesFound)
         }
+
+        info!("Got tile data, processing...");
 
         let points: Vec<Brakepoint> = rows
             .into_iter()
@@ -135,6 +141,8 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
         let format_key = |date: &DateTime<Utc>, hid: u64| {
             format!("{:012}/{}/{}", hid, PREFIX, format_date(date)).into_bytes()
         };
+
+        debug!("Input fragment: {:?}", Fragment::new(z, x, y));
 
         Fragment::new(z, x, y)
             .detail(STORAGE_ZOOM)

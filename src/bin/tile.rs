@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let big_table = init_bq().await.expect("Could not initialize BigTable");
 
     let state = QuerySet::new()
-        .attach(big_table, "big-table").expect("Could not attach BigTable");
+        .attach(big_table, "big_table");
 
     let app = Router::new()
         .route("/", get(health_check))

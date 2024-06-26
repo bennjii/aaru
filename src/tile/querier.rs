@@ -1,8 +1,7 @@
+use std::collections::HashMap;
 use axum::async_trait;
 use bigtable_rs::bigtable::{BigTableConnection, RowCell};
 use bigtable_rs::google::bigtable::v2::{ReadRowsRequest, RowFilter, RowRange, SampleRowKeysRequest};
-use scc::hash_map::OccupiedEntry;
-use scc::HashMap;
 
 use crate::tile::datasource::query::Query;
 use crate::tile::error::TileError;
@@ -23,14 +22,12 @@ impl QuerySet {
         }
     }
 
-    pub fn get_repository(&self, repository: &str) -> Option<OccupiedEntry<String, Repo>> {
+    pub fn get_repository(&self, repository: &str) -> Option<&Repo> {
         self.repositories.get(repository)
     }
 
-    pub fn attach<R: Repository + 'static>(mut self, repository: R, name: &str) -> Result<Self, TileError> {
-        self.repositories.insert(name.to_string(), Box::new(repository))
-            .map_err(|e| TileError::AttachRepository(e.0))?;
-        Ok(self)
+    pub fn attach<R: Repository + 'static>(mut self, repository: R, name: &str) -> Self {
+        self.repositories.insert(name.to_string(), Box::new(repository));
     }
 }
 

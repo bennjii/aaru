@@ -20,6 +20,13 @@ impl Fragment {
         Self { zoom: *z, x: *x, y: *y }
     }
 
+    pub fn with_zoom(self, z: u8) -> Self {
+        Self {
+            zoom: z,
+            ..self
+        }
+    }
+
     /// `detail(zoom)`
     ///
     /// We want to determine the tiles visible
