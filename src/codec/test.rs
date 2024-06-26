@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use std::fs::File;
 use std::path::PathBuf;
 use log::{error, info, warn};

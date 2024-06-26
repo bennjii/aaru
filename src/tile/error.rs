@@ -1,11 +1,10 @@
 use axum::body::Body;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+
+use tracing::{event, Level};
 use bigtable_rs::bigtable::Error;
 use prost::DecodeError;
-use tracing::{error, event, Level, trace};
-
-use crate::codec::mvt::Tile;
 
 #[derive(Debug)]
 pub enum TileError {

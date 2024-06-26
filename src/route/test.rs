@@ -1,11 +1,11 @@
+#![cfg(test)]
+
 use std::{path::Path, time::Instant};
 
 use crate::route::Graph;
 use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
-use crate::geo::coord::latlng::LatLng;
-use crate::codec::element::variants::Node;
+use crate::{geo::coord::latlng::LatLng, codec::element::variants::Node};
 
-#[cfg(test)]
 fn generate_linestring(route: Vec<Node>) -> String {
     format!("LINESTRING({})",
         route
@@ -16,7 +16,6 @@ fn generate_linestring(route: Vec<Node>) -> String {
     )
 }
 
-#[cfg(test)]
 fn init_graph(file: &str) -> crate::Result<Graph> {
     let time = Instant::now();
 

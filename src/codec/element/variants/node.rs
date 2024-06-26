@@ -6,7 +6,7 @@ use rstar::{Point};
 
 use crate::geo::coord::latlng::{LatLng, NanoDegree};
 use crate::codec::osm;
-use crate::codec::osm::{DenseNodes, PrimitiveBlock};
+use crate::codec::osm::DenseNodes;
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Node {
@@ -85,13 +85,13 @@ impl Node {
     ///
     /// let block: PrimitiveBlock = unimplemented!();
     ///  if let Element::DenseNodes(nodes) = block {
-    ///     let nodes = Node::from_dense(nodes, &block);
+    ///     let nodes = Node::from_dense(nodes);
     ///     for node in nodes {
     ///         println!("Node: {}", node);
     ///     }
     ///  }
     /// ```
-    pub fn from_dense<'a>(value: &'a DenseNodes, block: &'a PrimitiveBlock) -> impl Iterator<Item=Self> + 'a {
+    pub fn from_dense<'a>(value: &'a DenseNodes) -> impl Iterator<Item=Self> + 'a {
         value.lat.iter()
             .zip(value.lon.iter())
             .zip(value.id.iter())
@@ -110,7 +110,6 @@ impl Node {
                 curr
             })
             .into_iter()
-            // .map(|(coord, id)| Node::new(LatLng::from(coord).offset(block), id))
     }
 
     pub fn to(&self, other: &Node) -> Distance {

@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
-use tracing::debug;
+
 use crate::geo::coord::point::Point;
 use crate::codec::mvt::{Feature, GeomType, Layer, Value};
 use crate::tile::project::Project;
-use crate::tile::project::projections::{SlippyTile, WebMercator};
+use crate::tile::project::projections::{SlippyTile};
 
 pub const MVT_EXTENT: u32 = 4096;
 pub const MVT_VERSION: u32 = 2;

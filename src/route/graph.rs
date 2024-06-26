@@ -1,19 +1,15 @@
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-use std::sync::Mutex;
 use log::{debug, info};
 
-use petgraph::Directed;
-use petgraph::graphmap::{DiGraphMap, GraphMap};
-use petgraph::prelude::{EdgeRef, NodeIndex};
-use petgraph::visit::IntoNodeReferences;
+use petgraph::graphmap::{DiGraphMap};
+use petgraph::prelude::{EdgeRef};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rstar::{RTree};
 use scc::HashMap;
 
 use crate::geo::coord::latlng::LatLng;
-use crate::codec::element::item::{Element, ProcessedElement};
-use crate::codec::element::iterator::ElementIterator;
+use crate::codec::element::item::{ProcessedElement};
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;

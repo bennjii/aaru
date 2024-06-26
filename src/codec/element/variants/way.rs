@@ -3,13 +3,13 @@
 //! tags for graph representation.
 
 use std::borrow::Cow;
-use petgraph::visit::Walker;
 
 use crate::codec::osm;
 use crate::codec::osm::PrimitiveBlock;
 
 #[derive(Clone)]
 pub struct Way {
+    #[allow(unused)]
     id: i64,
     road_tag: Option<String>,
     refs: Vec<i64>,

@@ -25,7 +25,7 @@ impl ProcessedElement {
     pub(crate) fn from_raw(element: Element, block: &PrimitiveBlock) -> Vec<ProcessedElement>{
         match element {
             Element::DenseNodes(dense_nodes) => {
-                Node::from_dense(dense_nodes, block)
+                Node::from_dense(dense_nodes)
                     .map(|node| ProcessedElement::Node(node))
                     .collect()
             },

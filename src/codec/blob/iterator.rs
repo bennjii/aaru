@@ -7,7 +7,7 @@ use std::io::Cursor;
 #[cfg(not(feature = "mmap"))]
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
-use log::{trace, warn};
+use log::{warn};
 use prost::Message;
 use crate::codec::blob::item::BlobItem;
 use crate::codec::osm::BlobHeader;

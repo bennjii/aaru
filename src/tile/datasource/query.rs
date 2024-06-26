@@ -1,3 +1,4 @@
+use axum::async_trait;
 use bigtable_rs::google::bigtable::v2::{ReadRowsRequest, RowFilter, RowRange, RowSet};
 use crate::tile::querier::DEFAULT_APP_PROFILE;
 
@@ -24,6 +25,7 @@ impl<T, F> Query<T, F> {
     }
 }
 
+#[async_trait]
 pub trait Queryable<In, Filter, Out> {
     type Item;
     type Error;

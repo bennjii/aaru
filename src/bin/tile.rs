@@ -1,5 +1,4 @@
 use std::env;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use axum::extract::State;
@@ -10,23 +9,26 @@ use axum::routing::get;
 use dotenv::dotenv;
 use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 
-use aaru::codec::consts::SYDNEY;
 use aaru::codec::cvt::Brakepoint;
-use aaru::server::route::router_service::router_server::RouterServer;
-use aaru::server::route::{router_service, RouteService};
 use aaru::tile::datasource::bigquery::init_bq;
-use aaru::tile::datasource::brakepoint;
-use aaru::tile::querier::{QuerySet, Repository};
+use aaru::tile::querier::{QuerySet};
+use axum::http::StatusCode;
 
-async fn health_check(State(state): State<Arc<QuerySet>>) -> Response {
-    // TODO: Implement me!
-    Response::default()
-    // state.repositories
-    //     .scan_async(async move |k, v| {
-    //         v.ping().await.into_response();
-    //     })
-    //     .await
-    //     .into_response()
+async fn health_check(State(_state): State<Arc<QuerySet>>) -> Response {
+    // let mut set = JoinSet::new();
+    //
+    // for (id, repo) in &state.repositories {
+    //     event!(Level::DEBUG, name="repo::ping", ?id);
+    //     set.spawn(repo.ping());
+    // }
+    //
+    // while let Some(Ok(res)) = set.join_next().await {
+    //     if let Err(response) = res {
+    //         return response.into_response();
+    //     }
+    // }
+
+    StatusCode::OK.into_response()
 }
 
 fn cors(origins: String) -> CorsLayer {

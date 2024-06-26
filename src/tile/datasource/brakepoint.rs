@@ -1,37 +1,30 @@
 use std::sync::Arc;
 
 use axum::async_trait;
-use axum::extract::{FromRequest, Path, State};
-use axum::http::StatusCode;
-use axum_macros::debug_handler;
+use axum::extract::{Path, State};
 
-use chrono::{DateTime, NaiveDateTime, Utc};
-use scc::hash_map::OccupiedEntry;
-use tracing::{debug, error, event, info, Level};
+use chrono::{DateTime, Utc};
+use tracing::{debug, event, info, Level};
 use prost::Message;
 use serde::Deserialize;
 
 use bigtable_rs::bigtable::RowCell;
 use bigtable_rs::google::bigtable::v2::row_range::{EndKey, StartKey};
 use bigtable_rs::google::bigtable::v2::{RowFilter, RowRange};
-use tokio::time::Instant;
-use tracing::field::debug;
 
 use crate::geo::coord::latlng::LatLng;
 use crate::geo::coord::point::Point;
 use crate::codec::cvt::Brakepoint;
 use crate::codec::mvt::{Layer, Tile, Value};
-use crate::tile::datasource::date::format_date;
-use crate::tile::datasource::query::{Query, Queryable};
+use crate::tile::datasource::{date::format_date, query::{Query, Queryable}};
 use crate::tile::error::TileError;
 use crate::tile::fragment::Fragment;
 use crate::tile::params::QueryParams;
-use crate::tile::querier::{QuerySet, Repo, Repository};
-use crate::tile::querier::repositories::big_table::BigTableRepository;
+use crate::tile::querier::{QuerySet, Repo};
 
 const PREFIX: &str = "bp";
 const STORAGE_ZOOM: u8 = 19;
-const MIN_ZOOM: u8 = 14;
+const MIN_ZOOM: u8 = 16;
 
 impl Point<Value, 2> for Brakepoint {
     fn id(&self) -> u64 {
@@ -97,6 +90,7 @@ pub struct BrakepointParams {
     speed: Range<f32>,
 }
 
+#[async_trait]
 impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
     type Item = Brakepoint;
     type Error = TileError;
