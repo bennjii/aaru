@@ -2,7 +2,7 @@
 /// an aaru::Error variant.
 ///
 /// ```rust
-/// use aaru::{CodecError};
+/// use aaru::CodecError;
 /// aaru::impl_err!(CodecError, Codec);
 /// ```
 pub mod err_macro {

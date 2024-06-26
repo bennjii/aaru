@@ -11,7 +11,7 @@ pub type Degree = f64;
 /// The latitude, longitude pair structure, geotags an item with a location.
 ///
 /// ```rust
-/// use aaru::coord::latlng::LatLng;
+/// use aaru::geo::coord::latlng::LatLng;
 /// let latlng = LatLng::new(10, 10);
 /// println!("Position: {}", latlng);
 /// ```
