@@ -8,7 +8,7 @@
 
 use fast_hilbert::xy2h;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Fragment {
     x: u32,
     y: u32,

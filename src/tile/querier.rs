@@ -28,6 +28,7 @@ impl QuerySet {
 
     pub fn attach<R: Repository + 'static>(mut self, repository: R, name: &str) -> Self {
         self.repositories.insert(name.to_string(), Box::new(repository));
+        self
     }
 }
 

@@ -7,7 +7,7 @@ use axum_macros::debug_handler;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use scc::hash_map::OccupiedEntry;
-use tracing::{debug, error, info};
+use tracing::{debug, error, event, info, Level};
 use prost::Message;
 use serde::Deserialize;
 
@@ -111,10 +111,9 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
     async fn query(&self, input: Query<Vec<RowRange>, Option<RowFilter>>, parameters: Self::Parameters) -> Result<Tile, Self::Error> {
         let connection = self.connection()?;
 
-        info!("Obtained connection- querying...");
-        let start_time = Instant::now();
+        tracing::event!(Level::INFO, name="query::start", table=Self::QUERY_TABLE);
         let rows = connection.query(input).await?;
-        info!("Query complete. Took {}ms", start_time.elapsed().as_millis());
+        tracing::event!(Level::INFO, name="query::end", table=Self::QUERY_TABLE);
 
         if rows.len() == 0 {
             info!("Found no tile data.");
@@ -180,19 +179,18 @@ impl Brakepoint {
         Path((z, x, y)): Path<(u8, u32, u32)>,
         QueryParams(params): QueryParams<BrakepointParams>
     ) -> Result<Tile, TileError> {
-        info!("Got query parameters: {x} {y} :: {z} :: {:?}", params);
+        event!(Level::TRACE, "query::spawn", loc=(z,x,y), params=params);
 
         if z < MIN_ZOOM || z > STORAGE_ZOOM {
-            error!("Unsupported zoom level, {z}");
+            event!(Level::ERROR, "zoom::unsupported", zoom=%z);
             return Err(TileError::UnsupportedZoom(z));
         }
 
-        let rows = state.batch(Query::new((params, z), (z, x, y)));
-        let row_size = rows.len();
+        let rows = state.batch(
+            Query::new((params, z), (z, x, y))
+        );
 
-        info!("Querying for {row_size} rows");
-        let query = state.query(Query::new(rows, None), (params, z)).await;
-        info!("Query for {row_size} rows complete.");
-        query
+        event!(Level::INFO, name="query::plan", size=rows.len());
+        state.query(Query::new(rows, None), (params, z)).await
     }
 }

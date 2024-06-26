@@ -1,7 +1,5 @@
 use crate::geo::coord::latlng::LatLng;
 
-#[allow(incomplete_features, dead_code)]
-#[feature(generic_const_exprs, generic_const_items)]
 pub trait Point<T, const N: usize> {
     /// `id()`
     ///
