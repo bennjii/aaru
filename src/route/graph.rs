@@ -57,7 +57,7 @@ impl Graph {
     pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
         let path = PathBuf::from(filename);
 
-        let mut reader = ProcessedElementIterator::new(path)?;
+        let reader = ProcessedElementIterator::new(path)?;
         let weights = Graph::weights()?;
 
         info!("Ingesting...");

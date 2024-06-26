@@ -15,7 +15,7 @@ where
 {
     type Rejection = (StatusCode, String);
 
-    async fn from_request(req: axum::extract::Request, state: &B) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: axum::extract::Request, _: &B) -> Result<Self, Self::Rejection> {
         let uri = req.uri();
         let query = uri.query().ok_or_else(|| {
             (

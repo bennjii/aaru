@@ -71,6 +71,6 @@ impl osm::Way {
             .zip(self.vals.iter())
             .map(|(&k, &v)| (make_string(k as usize, block), make_string(v as usize, block)))
             .find(|(key, value)| key == "highway" && VALID_ROADWAYS.contains(&value.as_str()))
-            .map(|(key, value)| value)
+            .map(|(_, value)| value)
     }
 }

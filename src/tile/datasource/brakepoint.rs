@@ -31,7 +31,7 @@ use crate::tile::querier::repositories::big_table::BigTableRepository;
 
 const PREFIX: &str = "bp";
 const STORAGE_ZOOM: u8 = 19;
-const MIN_ZOOM: u8 = 16;
+const MIN_ZOOM: u8 = 14;
 
 impl Point<Value, 2> for Brakepoint {
     fn id(&self) -> u64 {
@@ -53,11 +53,8 @@ impl Point<Value, 2> for Brakepoint {
 
 impl Brakepoint {
     fn from_cell(cell: RowCell) -> Result<Self, TileError> {
-        // TODO: Check this.
-        // let qual = cell.qualifier.as_slice();
-        // let seconds = i64::from_be_bytes(qual.try_into().unwrap_or_default());
-
-        Brakepoint::decode(cell.value.as_slice()).map_err(TileError::ProtoDecode)
+        Brakepoint::decode(cell.value.as_slice())
+            .map_err(TileError::ProtoDecode)
     }
 }
 
@@ -146,9 +143,6 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
         Fragment::new(z, x, y)
             .detail(STORAGE_ZOOM)
             .into_iter()
-            .inspect(|fragment| {
-                debug!("Obtaining fragment data: {:?}", fragment)
-            })
             .map(|t| RowRange {
                 start_key: Some(StartKey::StartKeyClosed(format_key(
                     &start_date,
@@ -179,10 +173,9 @@ impl Brakepoint {
         Path((z, x, y)): Path<(u8, u32, u32)>,
         QueryParams(params): QueryParams<BrakepointParams>
     ) -> Result<Tile, TileError> {
-        event!(Level::TRACE, "query::spawn", loc=(z,x,y), params=params);
+        event!(Level::TRACE, name="query::invoke", ?z, ?x, ?y, ?params);
 
         if z < MIN_ZOOM || z > STORAGE_ZOOM {
-            event!(Level::ERROR, "zoom::unsupported", zoom=%z);
             return Err(TileError::UnsupportedZoom(z));
         }
 

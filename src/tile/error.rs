@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use bigtable_rs::bigtable::Error;
 use prost::DecodeError;
-use tracing::error;
+use tracing::{error, event, Level, trace};
 
 use crate::codec::mvt::Tile;
 
@@ -26,7 +26,7 @@ impl From<bigtable_rs::bigtable::Error> for TileError {
 
 impl IntoResponse for TileError {
     fn into_response(self) -> Response {
-        error!("{:?}", self);
+        event!(Level::ERROR, name=?self);
 
         let code = match self {
             TileError::NoTilesFound => StatusCode::NO_CONTENT,

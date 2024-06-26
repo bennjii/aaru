@@ -3,7 +3,7 @@ use tracing::debug;
 use crate::geo::coord::point::Point;
 use crate::codec::mvt::{Feature, GeomType, Layer, Value};
 use crate::tile::project::Project;
-use crate::tile::project::projections::WebMercator;
+use crate::tile::project::projections::{SlippyTile, WebMercator};
 
 pub const MVT_EXTENT: u32 = 4096;
 pub const MVT_VERSION: u32 = 2;
@@ -48,7 +48,7 @@ impl<T> From<(usize, u8, &T)> for Feature where T: Point<Value, 2> {
     fn from((index, zoom, value): (usize, u8, &T)) -> Self {
         let key_length: u32 = T::keys().len() as u32;
 
-        let (_, px, py) = WebMercator::project(value, zoom);
+        let SlippyTile((_, px), (_, py)) = SlippyTile::project(value, zoom);
 
         fn zig(value: u32) -> u32 {
             (value << 1) ^ (value >> 31)
