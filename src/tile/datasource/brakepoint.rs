@@ -7,7 +7,7 @@ use axum_macros::debug_handler;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use scc::hash_map::OccupiedEntry;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 use prost::Message;
 use serde::Deserialize;
 
@@ -33,8 +33,6 @@ const STORAGE_ZOOM: u8 = 19;
 const MIN_ZOOM: u8 = 16;
 
 impl Point<Value, 2> for Brakepoint {
-    const ZOOM: u8 = 0;
-
     fn id(&self) -> u64 {
         self.speed as u64
     }
@@ -54,8 +52,9 @@ impl Point<Value, 2> for Brakepoint {
 
 impl Brakepoint {
     fn from_cell(cell: RowCell) -> Result<Self, TileError> {
-        let qual = cell.qualifier.as_slice();
-        let seconds = i64::from_be_bytes(qual.try_into().unwrap_or_default());
+        // TODO: Check this.
+        // let qual = cell.qualifier.as_slice();
+        // let seconds = i64::from_be_bytes(qual.try_into().unwrap_or_default());
 
         Brakepoint::decode(cell.value.as_slice()).map_err(TileError::ProtoDecode)
     }
@@ -103,7 +102,7 @@ pub struct BrakepointParams {
 impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
     type Item = Brakepoint;
     type Error = TileError;
-    type Parameters = BrakepointParams;
+    type Parameters = (BrakepointParams, u8);
     type Connection<'a> = OccupiedEntry<'a, String, Repo>;
 
     // TODO: Implement Me!
@@ -114,6 +113,7 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
         let rows = connection.query(input).await?;
 
         if rows.len() == 0 {
+            info!("Found no tile data.");
             return Err(TileError::NoTilesFound)
         }
 
@@ -122,15 +122,14 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
             .flat_map(|r| r.1)
             .map(Brakepoint::from_cell)
             .filter_map(|r| r.ok())
-            .inspect(|point| debug!("Got point: LAT:{} LON:{}", point.latitude, point.longitude))
             .filter(|point| self.filter(&parameters, point))
             .collect();
 
-        Ok(Tile::from(Layer::from(points)))
+        Ok(Tile::from(Layer::from((points, parameters.1))))
     }
 
-    fn batch(&self, query: Query<BrakepointParams, (u8, u32, u32)>) -> Vec<RowRange> {
-        let (start_date, end_date) = query.params().date.split();
+    fn batch(&self, query: Query<Self::Parameters, (u8, u32, u32)>) -> Vec<RowRange> {
+        let (start_date, end_date) = query.params().0.date.split();
         let (z, x, y) = query.filter();
 
         let format_key = |date: &DateTime<Utc>, hid: u64| {
@@ -156,7 +155,7 @@ impl Queryable<Vec<RowRange>, RowFilter, Tile> for QuerySet {
             .collect()
     }
 
-    fn filter(&self, filter: &Self::Parameters, item: &Self::Item) -> bool {
+    fn filter(&self, (filter, _): &Self::Parameters, item: &Self::Item) -> bool {
         filter.gforce.within(item.gforce)
             && filter.speed.within(item.speed)
     }
@@ -176,11 +175,16 @@ impl Brakepoint {
         info!("Got query parameters: {x} {y} :: {z} :: {:?}", params);
 
         if z < MIN_ZOOM || z > STORAGE_ZOOM {
+            error!("Unsupported zoom level, {z}");
             return Err(TileError::UnsupportedZoom(z));
         }
 
-        let rows = state.batch(Query::new(params, (z, x, y)));
-        info!("Querying for {} rows", rows.len());
-        state.query(Query::new(rows, None), params).await
+        let rows = state.batch(Query::new((params, z), (z, x, y)));
+        let row_size = rows.len();
+
+        info!("Querying for {row_size} rows");
+        let query = state.query(Query::new(rows, None), (params, z)).await;
+        info!("Query for {row_size} rows complete.");
+        query
     }
 }

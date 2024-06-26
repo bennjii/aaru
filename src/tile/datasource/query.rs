@@ -1,6 +1,5 @@
 use bigtable_rs::google::bigtable::v2::{ReadRowsRequest, RowFilter, RowRange, RowSet};
 use crate::tile::querier::DEFAULT_APP_PROFILE;
-use crate::tile::querier::repositories::big_table::BigTableRepository;
 
 pub struct Query<T, F> {
     parameters: T,
@@ -10,6 +9,10 @@ pub struct Query<T, F> {
 impl<T, F> Query<T, F> {
     pub fn new(parameters: T, filter: F) -> Self {
         Query { parameters, filter }
+    }
+
+    pub fn add_param<K>(self, new_param: K) -> Query<(T, K), F> {
+        Query { parameters: (self.parameters, new_param), filter: self.filter }
     }
 
     pub fn params(&self) -> &T {
@@ -35,11 +38,12 @@ pub trait Queryable<In, Filter, Out> {
     fn connection(&self) -> Result<Self::Connection<'_>, Self::Error>;
 }
 
-impl From<Query<Vec<RowRange>, Option<RowFilter>>> for ReadRowsRequest {
-    fn from(value: Query<Vec<RowRange>, Option<RowFilter>>) -> ReadRowsRequest {
+impl From<Query<(Vec<RowRange>, String), Option<RowFilter>>> for ReadRowsRequest {
+    fn from(value: Query<(Vec<RowRange>, String), Option<RowFilter>>) -> ReadRowsRequest {
+        let (row_ranges, table_name) = value.parameters;
+
         ReadRowsRequest {
-            // TODO: Assign a table name
-            table_name: "".to_string(),
+            table_name,
             app_profile_id: DEFAULT_APP_PROFILE.to_string(),
             request_stats_view: 0, // new field, not sure what to do
             rows_limit: 0,         // boundless rows, implement limit via row filter / row-ranges
@@ -47,7 +51,7 @@ impl From<Query<Vec<RowRange>, Option<RowFilter>>> for ReadRowsRequest {
             filter: value.filter,
             rows: Some(RowSet {
                 row_keys: vec![],
-                row_ranges: value.parameters,
+                row_ranges,
             }),
             reversed: false,
         }

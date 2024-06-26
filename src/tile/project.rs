@@ -3,7 +3,7 @@ use crate::geo::coord::point::Point;
 use crate::tile::layer::MVT_EXTENT;
 
 pub trait Project {
-    fn project<G, T, const N: usize>(value: &T) -> (LatLng, u32, u32) where T: Point<G, N>;
+    fn project<G, T, const N: usize>(value: &T, zoom: u8) -> (LatLng, u32, u32) where T: Point<G, N>;
 }
 
 pub mod projections {
@@ -12,7 +12,7 @@ pub mod projections {
 
 impl Project for projections::WebMercator {
     // TODO: Refactor the return type to latlng/offset/... when known
-    fn project<G, T, const N: usize>(value: &T) -> (LatLng, u32, u32)
+    fn project<G, T, const N: usize>(value: &T, zoom: u8) -> (LatLng, u32, u32)
     where
         T: Point<G, N>,
     {
@@ -22,7 +22,6 @@ impl Project for projections::WebMercator {
             (n, offset)
         };
 
-        let zoom = T::ZOOM;
         let (lat, lng) = value.lat_lng().expand();
 
         let shl_zoom = 1 << zoom;

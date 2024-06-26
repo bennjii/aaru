@@ -18,25 +18,25 @@ use tracing_subscriber::util::SubscriberInitExt;
 /// not log traces.
 pub fn initialize_tracer() {
     // The remote server to log to...
-    let exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
-        .with_tls_config(Default::default());
+    // let exporter = opentelemetry_otlp::new_exporter()
+    //     .tonic()
+    //     .with_tls_config(Default::default());
 
     // Initialize OpenTelemetry OLTP Protoc Pipeline
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(exporter)
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Couldn't create OTLP tracer");
+    // let tracer = opentelemetry_otlp::new_pipeline()
+    //     .tracing()
+    //     .with_exporter(exporter)
+    //     .install_batch(opentelemetry_sdk::runtime::Tokio)
+    //     .expect("Couldn't create OTLP tracer");
 
     // Link OTEL and STDOUT subscribers
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+    // let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
     let fmt_layer = tracing_subscriber::fmt::layer();
 
     // Initialise tracing with subscribers and environment filter
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(fmt_layer)
-        .with(otel_layer)
+        // .with(otel_layer)
         .init();
 }

@@ -19,29 +19,22 @@ impl<const N: usize> TileLayer<N> {
     }
 }
 
-impl<T> From<Vec<T>> for Layer
+impl<T> From<(Vec<T>, u8)> for Layer
     where T: Point<Value, 2>
 {
-    fn from(value: Vec<T>) -> Self {
+    fn from((value, zoom): (Vec<T>, u8)) -> Self {
         let keys = T::keys();
         let values = value.iter().flat_map(|v| v.values()).collect();
 
         let features = value
             .iter()
             .enumerate()
-            .map(|point| {
-                Feature::from(point)
-                // let (lng, lat) = point.lnglat();
-                // let (_, _, px, py) = slippy_mvt(zoom, lng, lat);
-                // let tags = create_tags(index as u32, keys.len() as u32);
-                // Feature::from_point(Some(point.id()), px, py, tags)
-            })
-            .inspect(|v| debug!("Introspective Point: {:?}", v))
+            .map(|(index, value)| Feature::from((index, zoom, value)))
             .collect();
 
         Layer {
             // TODO: Implement-Me properly
-            name: "".to_string(),
+            name: "brakepoint_layer".to_string(),
             values,
             features,
             extent: Some(MVT_EXTENT),
@@ -51,11 +44,11 @@ impl<T> From<Vec<T>> for Layer
     }
 }
 
-impl<T> From<(usize, &T)> for Feature where T: Point<Value, 2> {
-    fn from((index, value): (usize, &T)) -> Self {
+impl<T> From<(usize, u8, &T)> for Feature where T: Point<Value, 2> {
+    fn from((index, zoom, value): (usize, u8, &T)) -> Self {
         let key_length: u32 = T::keys().len() as u32;
 
-        let (_, px, py) = WebMercator::project(value);
+        let (_, px, py) = WebMercator::project(value, zoom);
 
         fn zig(value: u32) -> u32 {
             (value << 1) ^ (value >> 31)
