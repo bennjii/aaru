@@ -50,7 +50,7 @@ impl Parallel for ProcessedElementIterator {
             )
     }
 
-    fn par_red<Reduce, Identity, Combine, T>(mut self, fold_op: Reduce, ident: Identity, combine: Combine) -> T
+    fn par_red<Reduce, Identity, Combine, T>(mut self, fold_op: Reduce, combine: Combine, ident: Identity) -> T
         where
             Reduce: Fn(T, ProcessedElement) -> T + Send + Sync,
             Identity: Fn() -> T + Send + Sync,

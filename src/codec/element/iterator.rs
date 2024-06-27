@@ -58,8 +58,8 @@ impl Parallel for ElementIterator {
     fn par_red<Reduce, Identity, Combine, T>(
         mut self,
         fold_op: Reduce,
+        combine: Combine,
         ident: Identity,
-        combine: Combine
     ) -> T
         where
             Reduce: for<'a> Fn(T, Element<'a>) -> T + Send + Sync,

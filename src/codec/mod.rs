@@ -33,6 +33,8 @@ pub use block::item::BlockItem;
 pub use element::item::Element;
 #[doc(hidden)]
 pub use crate::geo::coord::latlng::LatLng;
+#[doc(hidden)]
+pub use parallel::Parallel;
 
 pub mod osm {
     //! OpenStreetMaps Protobuf Definitions

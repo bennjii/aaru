@@ -99,4 +99,31 @@ OSM wiki itself, [here](https://wiki.openstreetmap.org/wiki/PBF_Format#Definitio
 
 Lastly, we have elements themselves. These are served in two
 variants. The first has no extra parsing performed, this is
-more suited to applications which do not require 
+more suited to applications which do not require small memory
+footprints, or does not need access to every node. Which is
+likely an uncommon use-case, hence why we have processed elements.
+
+The processed variant unpacks `DenseNodes` into a vector of
+nodes, as well as reformatting `Way`s to drop unnecessary 
+information, which keeps the memory footprint small as we don't
+allocate the entire file, instead only the current segments
+we are working on.
+
+If we were to use the [`ProcessedElementIterator`], it would
+look as follows.
+
+```rust,no_run
+let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+let iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
+
+let nodes = iter.map_red(|item| {
+    match item {
+        ProcessedElement::Way(_) => 0,
+        ProcessedElement::Node(_) => 1,
+    }
+}, |a, b| a + b, || 0);
+```
+
+Notice, we have non-standard functions that we can perform.
+These are different from `map/red/...`. They can be found
+in the [`Parallel`] trait.
