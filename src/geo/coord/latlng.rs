@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use crate::geo::error::GeoError;
 
 use crate::codec::osm::{PrimitiveBlock};
-#[cfg(feature="server")]
+#[cfg(feature="grpc_server")]
 use crate::server::route::router_service::Coordinate;
 
 pub type NanoDegree = i64;
@@ -22,7 +22,7 @@ pub struct LatLng {
     pub lat: NanoDegree,
 }
 
-#[cfg(feature="server")]
+#[cfg(feature="grpc_server")]
 impl TryFrom<Coordinate> for LatLng {
     type Error = GeoError;
 
@@ -44,7 +44,7 @@ impl LatLng {
         LatLng { lat, lng }
     }
 
-    #[cfg(feature="server")]
+    #[cfg(feature="grpc_server")]
     /// Converts from `LatLng` into the `Coordinate` proto message
     pub fn coordinate(&self) -> Coordinate {
         Coordinate {

@@ -6,7 +6,7 @@ readme = "readme.md"
 
 [[bin]]
 name = "route"
-required-features = ["route"]
+required-features = ["route", "grpc_server"]
 path = "src/bin/route.rs"
 
 [[bin]]
@@ -72,7 +72,7 @@ mmap = ["memmap2"]
 
 tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]
 
-grpc_server = ["tonic-reflection", "tokio"]
+grpc_server = ["tracing", "tonic", "tonic-reflection", "tokio"]
 http_server = ["tower-http", "axum", "axum-macros", "serde_qs"]
 
 tile = ["http_server", "fast_hilbert", "bigtable_rs"]

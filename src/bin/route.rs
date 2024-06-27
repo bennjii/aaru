@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv()?;
 
     // Create the tracer first.
-    aaru::server::trace::initialize_tracer();
+    aaru::util::trace::initialize_tracer();
 
     // Create the router
     tracing::info!("Creating Router");
