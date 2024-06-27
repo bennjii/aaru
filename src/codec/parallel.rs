@@ -1,5 +1,3 @@
-/// `Parallel`
-///
 /// Defines the set of functions available on a
 /// parallel iterator. This allows for more
 /// efficient traversal of elements within
@@ -10,8 +8,6 @@
 pub trait Parallel {
     type Item<'a>;
 
-    /// `for_each()`
-    ///
     /// Allows immutable linear traversal over the given iterator.
     ///
     /// The traversing function must be
@@ -21,8 +17,6 @@ pub trait Parallel {
             F: for<'a> Fn(Self::Item<'_>) + Send + Sync;
 
 
-    /// `map_red(map, red, ident)`
-    ///
     /// Allows for a map and reduce over the provided iterator.
     ///
     /// There are three functions required as input:
@@ -67,8 +61,6 @@ pub trait Parallel {
             Identity: Fn() -> T + Send + Sync,
             T: Send;
 
-    /// `par_red(map, red, ident)`
-    ///
     /// Allows for a reduce over the provided iterator, in parallel.
     ///
     /// There are three functions required as input:

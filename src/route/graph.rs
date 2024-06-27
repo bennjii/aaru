@@ -94,7 +94,6 @@ impl Graph {
 
                 (graph, tree)
             },
-            || (DiGraphMap::new(), Vec::new()),
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Add `Graph` merge optimisations
                 for (start, end, weight) in b_graph.all_edges() {
@@ -104,6 +103,7 @@ impl Graph {
                 a_tree.extend(b_tree);
                 (a_graph, a_tree)
             },
+            || (DiGraphMap::new(), Vec::new()),
         );
 
         let filtered = index

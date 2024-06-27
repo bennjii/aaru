@@ -1,11 +1,13 @@
 #![doc = include_str!("../../docs/codec.md")]
 
+// Exposed modules
 pub mod element;
 pub mod blob;
 pub mod block;
+
+// Hidden modules
 #[doc(hidden)]
 pub mod parallel;
-
 #[doc(hidden)]
 pub mod test;
 #[doc(hidden)]
@@ -13,6 +15,7 @@ pub mod error;
 #[doc(hidden)]
 pub mod consts;
 
+// Inlined structs
 #[doc(inline)]
 pub use element::processed_iterator::ProcessedElementIterator;
 #[doc(inline)]
@@ -33,9 +36,10 @@ pub use block::item::BlockItem;
 pub use element::item::Element;
 #[doc(hidden)]
 pub use crate::geo::coord::latlng::LatLng;
-#[doc(hidden)]
+#[doc(inline)]
 pub use parallel::Parallel;
 
+// Protocol Buffer Includes
 pub mod osm {
     //! OpenStreetMaps Protobuf Definitions
     include!(concat!(env!("OUT_DIR"), "/osmpbf.rs"));

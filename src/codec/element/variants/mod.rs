@@ -1,3 +1,5 @@
+//! Processed element variants
+
 pub mod node;
 pub mod way;
 

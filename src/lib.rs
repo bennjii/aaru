@@ -6,12 +6,14 @@ use crate::route::error::RouteError;
 use crate::geo::error::GeoError;
 use crate::tile::error::TileError;
 
+#[doc(hidden)]
 pub mod util;
+#[doc(hidden)] // Until documented
+pub mod server;
 pub mod tile;
 pub mod codec;
 pub mod route;
 pub mod geo;
-pub mod server;
 
 #[derive(Debug)]
 pub enum Error {
