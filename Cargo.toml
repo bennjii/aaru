@@ -2,7 +2,7 @@
 name = "aaru"
 version = "0.1.0"
 edition = "2021"
-readme = "README.md"
+readme = "readme.md"
 
 [[bin]]
 name = "route"

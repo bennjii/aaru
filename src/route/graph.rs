@@ -17,6 +17,8 @@ use crate::route::error::RouteError;
 
 const MAX_WEIGHT: u32 = 999;
 
+/// Routing graph, can be ingested from an `.osm.pbf` file,
+/// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
     graph: DiGraphMap<i64, u32>,
     index: RTree<Node>,
@@ -30,6 +32,7 @@ impl Debug for Graph {
 }
 
 impl Graph {
+    /// The weighting mapping of node keys to weight.
     pub fn weights<'a>() -> Result<HashMap<&'a str, u32>, RouteError> {
         let weights = HashMap::new();
 
@@ -50,6 +53,7 @@ impl Graph {
         Ok(weights)
     }
 
+    /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
     pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
         let path = PathBuf::from(filename);
 
@@ -124,10 +128,13 @@ impl Graph {
         Ok(Graph { graph, index: tree, hash })
     }
 
+    /// Finds the nearest node to a lat/lng position
     pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
         self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
     }
 
+    /// Finds the optimal route between a start and end point.
+    /// Returns the weight and routing node vector.
     #[tracing::instrument]
     pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
         let start_node = self.nearest_node(start).unwrap();
