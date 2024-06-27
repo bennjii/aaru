@@ -8,7 +8,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "proto/osm/fileformat.proto",
         "proto/osm/osmformat.proto",
         "proto/mvt/mvt.proto",
-        "proto/cvt/tile.proto"
     ];
 
     let includes = [

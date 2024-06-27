@@ -1,3 +1,4 @@
+#![doc = include_str!("../readme.md")]
 #![allow(dead_code)]
 
 use crate::codec::error::CodecError;

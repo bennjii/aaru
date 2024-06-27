@@ -3,7 +3,7 @@
 use std::cmp::min;
 use crate::codec::osm::BlobHeader;
 
-pub(crate) struct BlobItem {
+pub struct BlobItem {
     pub(crate) start: u64,
     pub item: BlobHeader,
 }

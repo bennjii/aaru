@@ -1,7 +1,13 @@
+//! MVT (Mapbox Vector Tile)
+//!
+//! Contains the required implementation logic to convert
+//! tile data from `Value` items into a `Tile`.
+
 use axum::http::{HeaderValue, StatusCode};
 use axum::http::header::CONTENT_TYPE;
 use axum::response::{IntoResponse, Response};
 use prost::Message;
+
 use crate::codec::mvt::{Layer, Tile, Value};
 
 const MVT_CONTENT_TYPE: &str = "application/vnd.mapbox-vector-tile";

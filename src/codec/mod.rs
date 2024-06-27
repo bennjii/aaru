@@ -1,19 +1,45 @@
+#![doc = include_str!("../../docs/codec.md")]
+
 pub mod element;
-pub(crate) mod blob;
-pub(crate) mod block;
-pub mod test;
-pub mod error;
+pub mod blob;
+pub mod block;
+#[doc(hidden)]
 pub mod parallel;
+
+#[doc(hidden)]
+pub mod test;
+#[doc(hidden)]
+pub mod error;
+#[doc(hidden)]
 pub mod consts;
 
+#[doc(inline)]
+pub use element::processed_iterator::ProcessedElementIterator;
+#[doc(inline)]
+pub use element::iterator::ElementIterator;
+#[doc(inline)]
+pub use block::iterator::BlockIterator;
+#[doc(inline)]
+pub use blob::iterator::BlobIterator;
+
+// Doc-Linking
+#[doc(hidden)]
+pub use osm::*;
+#[doc(hidden)]
+pub use blob::item::BlobItem;
+#[doc(hidden)]
+pub use block::item::BlockItem;
+#[doc(hidden)]
+pub use element::item::Element;
+#[doc(hidden)]
+pub use crate::geo::coord::latlng::LatLng;
+
 pub mod osm {
+    //! OpenStreetMaps Protobuf Definitions
     include!(concat!(env!("OUT_DIR"), "/osmpbf.rs"));
 }
 
 pub mod mvt {
+    //! MapboxVectorTile Protobuf Definitions
     include!(concat!(env!("OUT_DIR"), "/mvt.rs"));
-}
-
-pub mod cvt {
-    include!(concat!(env!("OUT_DIR"), "/cvt.rs"));
 }

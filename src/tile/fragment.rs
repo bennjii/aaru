@@ -31,7 +31,7 @@ impl Fragment {
     ///
     /// We want to determine the tiles visible
     /// at a specific zoom level,
-    pub(crate) fn detail(self, z: u8) -> Vec<Fragment> {
+    pub fn detail(self, z: u8) -> Vec<Fragment> {
         let mut target_tiles = vec![];
         let mut tiles_to_pop = vec![self];
 
@@ -50,7 +50,7 @@ impl Fragment {
     ///
     /// Will segment the fragment into four sub-fragments.
     /// This continues until u8::MAX.
-    fn segment(&self) -> Option<[Fragment; 4]> {
+    pub fn segment(&self) -> Option<[Fragment; 4]> {
         match self.zoom {
             24 => None,
             _ => {

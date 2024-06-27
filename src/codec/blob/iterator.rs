@@ -14,7 +14,7 @@ use crate::codec::osm::BlobHeader;
 
 const HEADER_LEN_SIZE: usize = 4;
 
-pub(crate) struct BlobIterator {
+pub struct BlobIterator {
     pub(crate) file: File,
 
     #[cfg(feature = "mmap")]

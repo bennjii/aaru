@@ -9,7 +9,6 @@ use axum::routing::get;
 use dotenv::dotenv;
 use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 
-use aaru::codec::cvt::Brakepoint;
 use aaru::tile::datasource::bigquery::init_bq;
 use aaru::tile::querier::{QuerySet};
 use axum::http::StatusCode;
@@ -76,7 +75,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/", get(health_check))
-        .route("/brakepoint/:z/:x/:y", get(Brakepoint::query))
         .layer(cors(allowed_origins))
         .with_state(Arc::new(state));
 

@@ -1,8 +1,11 @@
-mod fragment;
-mod mvt;
-mod layer;
-mod project;
+/// `tile`
+///
+/// ...
+///
 pub mod datasource;
 pub mod querier;
 pub mod error;
-mod params;
+pub mod fragment;
+pub mod project;
+pub mod layer;
+pub mod mvt;

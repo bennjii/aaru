@@ -98,7 +98,7 @@ impl LatLng {
     }
 
     /// Offsets the `LatLng` from the given parent primitive.
-    /// According to: https://arc.net/l/quote/ccrekhxu
+    /// According to: <https://arc.net/l/quote/ccrekhxu>
     pub fn offset(&mut self, group: &PrimitiveBlock) -> &mut Self {
         let granularity = group.granularity.unwrap_or(1) as NanoDegree;
 
