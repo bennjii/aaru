@@ -2,11 +2,9 @@ use std::marker::PhantomData;
 
 use crate::geo::coord::point::Point;
 use crate::codec::mvt::{Feature, GeomType, Layer, Value};
+use crate::geo::{MVT_EXTENT, MVT_VERSION};
 use crate::geo::project::Project;
 use crate::geo::project::projections::SlippyTile;
-
-pub const MVT_EXTENT: u32 = 4096;
-pub const MVT_VERSION: u32 = 2;
 
 struct TileLayer<const N: usize> {
     layer: Layer,

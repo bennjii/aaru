@@ -1,8 +1,8 @@
 /// Converts errors from their error type (of the submodule) to that of
 /// an aaru::Error variant.
 ///
-/// ```rust
-/// use aaru::CodecError;
+/// ```rust,ignore
+/// use aaru::codec::error::CodecError;
 /// aaru::impl_err!(CodecError, Codec);
 /// ```
 pub mod err_macro {

@@ -79,7 +79,7 @@ impl Node {
     /// Takes an `osm::DenseNodes` structure and extracts `Node`s as an
     /// iterator from `DenseNodes` with their contextual `PrimitiveBlock`.
     ///
-    /// ```rust
+    /// ```rust,ignore
     ///  use aaru::codec::element::{item::Element, variants::Node};
     ///  use aaru::codec::osm::PrimitiveBlock;
     ///

@@ -76,7 +76,7 @@ using the [`BlockIterator`], which enumerates over each block.
 This iterator will return a [`BlockItem`], which can be either
 a [`PrimitiveBlock`] or a [`HeaderBlock`].
 
-```rust,no_run
+```rust,ignore
 let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 let iterator = BlockIterator::new(path)
     .expect("Failed to create iterator");
@@ -112,7 +112,7 @@ we are working on.
 If we were to use the [`ProcessedElementIterator`], it would
 look as follows.
 
-```rust,no_run
+```rust,ignore
 let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 let iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
 

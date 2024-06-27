@@ -1,5 +1,8 @@
 #![doc = include_str!("../../docs/geo.md")]
 
+pub const MVT_EXTENT: u32 = 4096;
+pub const MVT_VERSION: u32 = 2;
+
 #[doc(hidden)]
 pub mod coord;
 #[doc(hidden)]

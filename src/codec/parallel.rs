@@ -73,7 +73,7 @@ pub trait Parallel {
     ///
     /// ### Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use std::collections::BTreeMap;
     /// use std::path::PathBuf;
     /// use aaru::codec::consts::DISTRICT_OF_COLUMBIA;

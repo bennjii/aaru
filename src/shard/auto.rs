@@ -1,5 +1,4 @@
 use std::hash::{Hash};
-use geo::Coord;
 use scc::HashIndex;
 
 use crate::osm;

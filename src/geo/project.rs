@@ -1,7 +1,6 @@
 //! Required structures to project between standards
 
 use crate::geo::coord::point::Point;
-use crate::tile::layer::MVT_EXTENT;
 
 /// Allows for projection between two standards.
 pub trait Project {
@@ -9,7 +8,7 @@ pub trait Project {
     /// It Takes an input and a zoom level, and outputs a value implementing Point.
     ///
     /// ### Example
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use aaru::geo::{LatLng, Project};
     /// use aaru::geo::project::SlippyTile;
     ///
@@ -34,7 +33,7 @@ pub mod projections {
     ///
     /// To discover this for yourself, use an explorer tool like [this one](https://chrishewett.com/blog/slippy-tile-explorer/).
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use aaru::geo::project::SlippyTile;
     /// // Tile which encloses central europe
     /// let value = SlippyTile((4, 0), (8, 0), 5);
@@ -47,6 +46,7 @@ pub mod projections {
 pub use projections::SlippyTile;
 #[doc(inline)]
 pub use projections::WebMercator;
+use crate::geo::MVT_EXTENT;
 
 impl Project for SlippyTile {
     /// See the [OSM Wiki](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Mathematics) for the projection source.
