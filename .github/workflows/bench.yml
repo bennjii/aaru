@@ -7,12 +7,20 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+env:
+  PROTOC_VERSION: 3.20.3
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v1
+
+      - name: install protoc
+        uses: taiki-e/install-action@v2
+        with:
+          tool: protoc@${{ env.PROTOC_VERSION }}
 
       - name: Cache cargo registry
         uses: actions/cache@v1
