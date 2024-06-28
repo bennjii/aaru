@@ -55,7 +55,6 @@ dotenv = "0.15.0"
 chrono = "0.4.38"
 flate2 = { version = "1.0.30", features = ["zlib-ng"], optional = true }
 memmap2 = { version = "0.9.4", optional = true }
-bigtable_rs = { version = "0.2.10", optional = true }
 fast_hilbert = {  version = "2.0.0", optional = true }
 scc = { version = "2.1.1", optional = true }
 
@@ -75,7 +74,7 @@ tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_
 grpc_server = ["tracing", "tonic", "tonic-reflection", "tokio"]
 http_server = ["tower-http", "axum", "axum-macros", "serde_qs"]
 
-tile = ["http_server", "fast_hilbert", "bigtable_rs"]
+tile = ["http_server", "fast_hilbert"]
 route = ["scc", "codec"]
 codec = ["flate2"]
 

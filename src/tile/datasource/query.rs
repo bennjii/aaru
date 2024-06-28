@@ -1,10 +1,8 @@
 use axum::async_trait;
-use bigtable_rs::google::bigtable::v2::{ReadRowsRequest, RowFilter, RowRange, RowSet};
-use crate::tile::querier::DEFAULT_APP_PROFILE;
 
 pub struct Query<T, F> {
-    parameters: T,
-    filter: F
+    pub parameters: T,
+    pub filter: F
 }
 
 impl<T, F> Query<T, F> {
@@ -40,22 +38,3 @@ pub trait Queryable<In, Filter, Out> {
     fn connection(&self) -> Result<Self::Connection<'_>, Self::Error>;
 }
 
-impl From<Query<(Vec<RowRange>, String), Option<RowFilter>>> for ReadRowsRequest {
-    fn from(value: Query<(Vec<RowRange>, String), Option<RowFilter>>) -> ReadRowsRequest {
-        let (row_ranges, table_name) = value.parameters;
-
-        ReadRowsRequest {
-            table_name,
-            app_profile_id: DEFAULT_APP_PROFILE.to_string(),
-            request_stats_view: 0, // new field, not sure what to do
-            rows_limit: 0,         // boundless rows, implement limit via row filter / row-ranges
-
-            filter: value.filter,
-            rows: Some(RowSet {
-                row_keys: vec![],
-                row_ranges,
-            }),
-            reversed: false,
-        }
-    }
-}

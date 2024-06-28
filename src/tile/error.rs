@@ -3,24 +3,17 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
 use tracing::{event, Level};
-use bigtable_rs::bigtable::Error;
 use prost::DecodeError;
 
 #[derive(Debug)]
 pub enum TileError {
-    BigTableError(bigtable_rs::bigtable::Error),
+    DataSourceError(String),
     AttachRepository(String),
     ProtoDecode(DecodeError),
     MissingEnvironment(String),
     NoTilesFound,
     UnsupportedZoom(u8),
     NoMatchingRepository
-}
-
-impl From<bigtable_rs::bigtable::Error> for TileError {
-    fn from(value: Error) -> Self {
-        Self::BigTableError(value)
-    }
 }
 
 impl IntoResponse for TileError {

@@ -10,10 +10,10 @@ use dotenv::dotenv;
 use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 
 use aaru::tile::datasource::bigquery::init_bq;
-use aaru::tile::querier::{QuerySet};
+use aaru::tile::repositories::{RepositorySet};
 use axum::http::StatusCode;
 
-async fn health_check(State(_state): State<Arc<QuerySet>>) -> Response {
+async fn health_check(State(_state): State<Arc<RepositorySet>>) -> Response {
     // let mut set = JoinSet::new();
     //
     // for (id, repo) in &state.repositories {
@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or::<&str>(Ok("".to_string())).unwrap();
 
     // Create the tracer first.
-    aaru::server::trace::initialize_tracer();
+    aaru::util::trace::initialize_tracer();
 
     // Set the address to serve from
     let addr = tokio::net::TcpListener::bind(format!("localhost:{port}")).await?;
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let big_table = init_bq().await.expect("Could not initialize BigTable");
 
-    let state = QuerySet::new()
+    let state = RepositorySet::new()
         .attach(big_table, "big_table");
 
     let app = Router::new()

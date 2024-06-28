@@ -1,7 +1,7 @@
 #![doc = include_str!("../../docs/tile.md")]
 
 pub mod datasource;
-pub mod querier;
+pub mod repositories;
 pub mod fragment;
 pub mod layer;
 
@@ -11,7 +11,7 @@ pub mod mvt;
 pub mod error;
 
 #[doc(inline)]
-pub use querier::QuerySet;
+pub use repositories::RepositorySet;
 #[doc(inline)]
 pub use datasource::query::Query;
 #[doc(inline)]
