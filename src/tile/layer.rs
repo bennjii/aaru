@@ -17,8 +17,11 @@ impl<const N: usize> TileLayer<N> {
     }
 }
 
-impl<T> From<(Vec<T>, u8)> for Layer
-    where T: Point<Value, 2>
+pub struct MVTFeature<const N: usize>(pub Feature);
+pub struct MVTLayer<const N: usize>(pub Layer);
+
+impl<T, const N: usize> From<(Vec<T>, u8)> for MVTLayer<N>
+    where T: Point<Value, N>
 {
     fn from((value, zoom): (Vec<T>, u8)) -> Self {
         let keys = T::keys();
@@ -27,10 +30,10 @@ impl<T> From<(Vec<T>, u8)> for Layer
         let features = value
             .iter()
             .enumerate()
-            .map(|(index, value)| Feature::from((index, zoom, value)))
+            .map(|(index, value)| MVTFeature::from((index, zoom, value)).0)
             .collect();
 
-        Layer {
+        MVTLayer(Layer {
             // TODO: Implement-Me properly
             name: "brakepoint_layer".to_string(),
             values,
@@ -38,11 +41,11 @@ impl<T> From<(Vec<T>, u8)> for Layer
             extent: Some(MVT_EXTENT),
             version: MVT_VERSION,
             keys: keys.iter().map(|k| k.to_string()).collect()
-        }
+        })
     }
 }
 
-impl<T> From<(usize, u8, &T)> for Feature where T: Point<Value, 2> {
+impl<T, const N: usize> From<(usize, u8, &T)> for MVTFeature<N> where T: Point<Value, N> {
     fn from((index, zoom, value): (usize, u8, &T)) -> Self {
         let key_length: u32 = T::keys().len() as u32;
 
@@ -54,7 +57,7 @@ impl<T> From<(usize, u8, &T)> for Feature where T: Point<Value, 2> {
             (value << 1) ^ (value >> 31)
         }
 
-        Self {
+        Self(Feature {
             id: Some(value.id()),
             tags: (0..key_length)
                 .into_iter()
@@ -62,6 +65,6 @@ impl<T> From<(usize, u8, &T)> for Feature where T: Point<Value, 2> {
                 .collect(),
             r#type: Some(i32::from(GeomType::Point)),
             geometry: vec![(1 & 0x7) | (1 << 3), zig(px), zig(py)]
-        }
+        })
     }
 }

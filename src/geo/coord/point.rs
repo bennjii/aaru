@@ -13,7 +13,7 @@ pub trait Point<T, const N: usize> {
     fn lat_lng(&self) -> LatLng;
 
     /// Outputs the sized string array
-    fn keys() -> [String; N];
+    fn keys<'a>() -> [&'a str; N];
 
     /// Outputs the sized `T` array of values
     fn values(&self) -> [T; N];

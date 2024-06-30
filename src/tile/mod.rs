@@ -15,4 +15,4 @@ pub use repositories::RepositorySet;
 #[doc(inline)]
 pub use datasource::query::Query;
 #[doc(inline)]
-pub use datasource::query::Queryable;
+pub use datasource::query::TileQuery;

@@ -2,6 +2,7 @@ use axum::body::Body;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
+#[cfg(feature = "tracing")]
 use tracing::{event, Level};
 use prost::DecodeError;
 
@@ -18,6 +19,7 @@ pub enum TileError {
 
 impl IntoResponse for TileError {
     fn into_response(self) -> Response {
+        #[cfg(feature = "tracing")]
         event!(Level::ERROR, name=?self);
 
         let code = match self {

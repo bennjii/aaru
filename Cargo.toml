@@ -3,6 +3,7 @@ name = "aaru"
 version = "0.1.0"
 edition = "2021"
 readme = "readme.md"
+include = ["/docs", "readme.md"]
 
 [[bin]]
 name = "route"
@@ -72,7 +73,7 @@ mmap = ["memmap2"]
 tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]
 
 grpc_server = ["tracing", "tonic", "tonic-reflection", "tokio"]
-http_server = ["tower-http", "axum", "axum-macros", "serde_qs"]
+http_server = ["tower-http", "axum", "axum-macros", "serde_qs", "tokio"]
 
 tile = ["http_server", "fast_hilbert"]
 route = ["scc", "codec"]
