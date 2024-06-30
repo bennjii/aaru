@@ -1,50 +1,45 @@
-pub use shard::*;
-pub use codec::*;
-pub use route::*;
-pub use geo::*;
-pub use server::*;
+#![doc = include_str!("../readme.md")]
+#![allow(dead_code)]
 
-use crate::codec::error::CodecError;
 use crate::geo::error::GeoError;
+#[cfg(feature = "codec")]
+use crate::codec::error::CodecError;
+#[cfg(feature = "route")]
 use crate::route::error::RouteError;
-use crate::shard::error::ShardError;
+#[cfg(feature = "tile")]
+use crate::tile::error::TileError;
 
-pub mod shard;
-pub mod codec;
-pub mod route;
-pub mod geo;
+#[doc(hidden)]
+pub mod util;
+#[cfg(feature = "grpc_server")]
+#[doc(hidden)]
 pub mod server;
+#[cfg(feature = "tile")]
+pub mod tile;
+#[cfg(feature = "route")]
+pub mod route;
+#[cfg(feature = "codec")]
+pub mod codec;
+pub mod geo;
 
 #[derive(Debug)]
 pub enum Error {
-    Shard(ShardError),
+    #[cfg(feature = "codec")]
     Codec(CodecError),
+    #[cfg(feature = "route")]
     Route(RouteError),
-    Geo(GeoError)
+    #[cfg(feature = "tile")]
+    Tile(TileError),
+    Geo(GeoError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
 
-impl From<RouteError> for Error {
-    fn from(value: RouteError) -> Self {
-        Error::Route(value)
-    }
-}
+impl_err!(GeoError, Geo);
+#[cfg(feature = "codec")]
+impl_err!(CodecError, Codec);
+#[cfg(feature = "route")]
+impl_err!(RouteError, Route);
+#[cfg(feature = "tile")]
+impl_err!(TileError, Tile);
 
-impl From<GeoError> for Error {
-    fn from(value: GeoError) -> Self {
-        Error::Geo(value)
-    }
-}
-
-impl From<CodecError> for Error {
-    fn from(value: CodecError) -> Self {
-        Error::Codec(value)
-    }
-}
-
-impl From<ShardError> for Error {
-    fn from(value: ShardError) -> Self {
-        Error::Shard(value)
-    }
-}

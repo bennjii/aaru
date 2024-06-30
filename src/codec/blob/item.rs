@@ -1,12 +1,15 @@
 //! Describes the `BlobItem`, which holds the file reference for an `Element`
 
+#[cfg(feature = "mmap")]
 use std::cmp::min;
+#[cfg(not(feature = "mmap"))]
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
-use log::trace;
-use crate::osm::BlobHeader;
+#[cfg(not(feature = "mmap"))]
+use std::io::{Seek, SeekFrom, Read};
 
-pub(crate) struct BlobItem {
+use crate::codec::osm::BlobHeader;
+
+pub struct BlobItem {
     pub(crate) start: u64,
     pub item: BlobHeader,
 }

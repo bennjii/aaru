@@ -3,9 +3,9 @@
 //! derived item, in the primitive entity.
 
 use std::vec;
-use crate::osm;
-use crate::element::variants::{Node, Way};
-use crate::osm::{PrimitiveBlock, PrimitiveGroup};
+use crate::codec::osm;
+use crate::codec::element::variants::{Node, Way};
+use crate::codec::osm::{PrimitiveBlock, PrimitiveGroup};
 
 #[derive(Clone)]
 pub enum Element<'a> {
@@ -25,7 +25,7 @@ impl ProcessedElement {
     pub(crate) fn from_raw(element: Element, block: &PrimitiveBlock) -> Vec<ProcessedElement>{
         match element {
             Element::DenseNodes(dense_nodes) => {
-                Node::from_dense(dense_nodes, block)
+                Node::from_dense(dense_nodes)
                     .map(|node| ProcessedElement::Node(node))
                     .collect()
             },

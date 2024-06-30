@@ -1,28 +1,24 @@
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-use std::sync::Mutex;
 use log::{debug, info};
 
-use petgraph::data::Build;
-use petgraph::Directed;
-use petgraph::graphmap::{DiGraphMap, GraphMap};
-use petgraph::prelude::{EdgeRef, NodeIndex};
-use petgraph::visit::IntoNodeReferences;
+use petgraph::graphmap::{DiGraphMap};
+use petgraph::prelude::{EdgeRef};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rstar::{RTree};
 use scc::HashMap;
-use tonic::codegen::Body;
 
-use crate::coord::latlng::LatLng;
-use crate::element::item::{Element, ProcessedElement};
-use crate::element::iterator::ElementIterator;
-use crate::element::processed_iterator::ProcessedElementIterator;
-use crate::element::variants::Node;
-use crate::parallel::Parallel;
+use crate::geo::coord::latlng::LatLng;
+use crate::codec::element::item::{ProcessedElement};
+use crate::codec::element::processed_iterator::ProcessedElementIterator;
+use crate::codec::element::variants::Node;
+use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 
 const MAX_WEIGHT: u32 = 999;
 
+/// Routing graph, can be ingested from an `.osm.pbf` file,
+/// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
     graph: DiGraphMap<i64, u32>,
     index: RTree<Node>,
@@ -36,8 +32,9 @@ impl Debug for Graph {
 }
 
 impl Graph {
+    /// The weighting mapping of node keys to weight.
     pub fn weights<'a>() -> Result<HashMap<&'a str, u32>, RouteError> {
-        let mut weights = HashMap::new();
+        let weights = HashMap::new();
 
         weights.insert("motorway", 1)?;
         weights.insert("motorway_link", 2)?;
@@ -56,10 +53,11 @@ impl Graph {
         Ok(weights)
     }
 
+    /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
     pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
         let path = PathBuf::from(filename);
 
-        let mut reader = ProcessedElementIterator::new(path)?;
+        let reader = ProcessedElementIterator::new(path)?;
         let weights = Graph::weights()?;
 
         info!("Ingesting...");
@@ -100,7 +98,6 @@ impl Graph {
 
                 (graph, tree)
             },
-            || (DiGraphMap::new(), Vec::new()),
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Add `Graph` merge optimisations
                 for (start, end, weight) in b_graph.all_edges() {
@@ -110,6 +107,7 @@ impl Graph {
                 a_tree.extend(b_tree);
                 (a_graph, a_tree)
             },
+            || (DiGraphMap::new(), Vec::new()),
         );
 
         let filtered = index
@@ -130,10 +128,13 @@ impl Graph {
         Ok(Graph { graph, index: tree, hash })
     }
 
+    /// Finds the nearest node to a lat/lng position
     pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
         self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
     }
 
+    /// Finds the optimal route between a start and end point.
+    /// Returns the weight and routing node vector.
     #[tracing::instrument]
     pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
         let start_node = self.nearest_node(start).unwrap();

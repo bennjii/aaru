@@ -4,8 +4,11 @@ use tonic::{Request, Response, Status};
 use router_service::{RouteRequest, RouteResponse};
 use router_service::router_server::Router;
 
-use crate::coord::latlng::{LatLng};
-use crate::Graph;
+#[cfg(feature = "grpc_server")]
+use tracing::Level;
+
+use crate::geo::coord::latlng::{LatLng};
+use crate::route::Graph;
 use crate::server::route::router_service::Coordinate;
 
 pub mod router_service {

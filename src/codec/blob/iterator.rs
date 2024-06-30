@@ -3,16 +3,19 @@
 
 use std::fs::File;
 use std::io;
-use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::io::Cursor;
+#[cfg(not(feature = "mmap"))]
+use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
-use log::{trace, warn};
 use prost::Message;
-use crate::blob::item::BlobItem;
-use crate::osm::BlobHeader;
+use log::{warn};
+
+use crate::codec::blob::item::BlobItem;
+use crate::codec::osm::BlobHeader;
 
 const HEADER_LEN_SIZE: usize = 4;
 
-pub(crate) struct BlobIterator {
+pub struct BlobIterator {
     pub(crate) file: File,
 
     #[cfg(feature = "mmap")]

@@ -7,7 +7,7 @@ use rayon::iter::{ParallelIterator};
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
 use crate::codec::error::CodecError;
-use crate::parallel::Parallel;
+use crate::codec::parallel::Parallel;
 
 pub struct ElementIterator {
     iter: BlockIterator,
@@ -58,8 +58,8 @@ impl Parallel for ElementIterator {
     fn par_red<Reduce, Identity, Combine, T>(
         mut self,
         fold_op: Reduce,
+        combine: Combine,
         ident: Identity,
-        combine: Combine
     ) -> T
         where
             Reduce: for<'a> Fn(T, Element<'a>) -> T + Send + Sync,

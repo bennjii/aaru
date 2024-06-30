@@ -1,12 +1,13 @@
+#![cfg(test)]
+
+#[cfg(not(feature = "mmap"))]
 use std::fs::File;
 use std::path::PathBuf;
-use log::{error, info, warn};
+use log::{error, info};
 
-use rayon::iter::{IntoParallelRefIterator, ParallelBridge};
 use rayon::iter::ParallelIterator;
 
-use crate::blob::item::BlobItem;
-use crate::blob::iterator::BlobIterator;
+use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::block::item::BlockItem;
 use crate::codec::consts::DISTRICT_OF_COLUMBIA;
@@ -42,8 +43,8 @@ fn iterate_blocks_each() {
         Ok(iter) => {
             for block in iter {
                 match block {
-                    BlockItem::HeaderBlock(header) => header_blocks += 1,
-                    BlockItem::PrimitiveBlock(primitive) => primitive_blocks += 1
+                    BlockItem::HeaderBlock(_) => header_blocks += 1,
+                    BlockItem::PrimitiveBlock(_) => primitive_blocks += 1
                 }
             }
         },
@@ -77,7 +78,7 @@ fn parallel_iterate_blocks_each() {
     assert_eq!(elements, (237, 1));
 }
 
-#[test_log::test]
+#[test]
 fn compare_to_osmpbf() {
     use osmpbf::{BlobReader, BlobType};
 

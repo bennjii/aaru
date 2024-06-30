@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Formatter};
-use crate::codec::error::CodecError;
 use crate::geo::error::GeoError;
 
-use crate::osm::{PrimitiveBlock};
+use crate::codec::osm::{PrimitiveBlock};
+#[cfg(feature="grpc_server")]
 use crate::server::route::router_service::Coordinate;
 
 pub type NanoDegree = i64;
@@ -11,8 +11,8 @@ pub type Degree = f64;
 /// `LatLng`
 /// The latitude, longitude pair structure, geotags an item with a location.
 ///
-/// ```rust
-/// use aaru::coord::latlng::LatLng;
+/// ```rust,ignore
+/// use aaru::geo::coord::latlng::LatLng;
 /// let latlng = LatLng::new(10, 10);
 /// println!("Position: {}", latlng);
 /// ```
@@ -22,6 +22,7 @@ pub struct LatLng {
     pub lat: NanoDegree,
 }
 
+#[cfg(feature="grpc_server")]
 impl TryFrom<Coordinate> for LatLng {
     type Error = GeoError;
 
@@ -43,6 +44,7 @@ impl LatLng {
         LatLng { lat, lng }
     }
 
+    #[cfg(feature="grpc_server")]
     /// Converts from `LatLng` into the `Coordinate` proto message
     pub fn coordinate(&self) -> Coordinate {
         Coordinate {
@@ -55,7 +57,7 @@ impl LatLng {
         if !(lat > -90f64 && lat < 90f64) {
             return Err(
                 GeoError::InvalidCoordinate(
-                    format!("Lattitude must be greater than -90 and less than 90. Given: {}", lat)
+                    format!("Latitude must be greater than -90 and less than 90. Given: {}", lat)
                 )
             );
         }
@@ -68,10 +70,14 @@ impl LatLng {
             );
         }
 
-        Ok(LatLng {
+        Ok(Self::from_degree_unchecked(lat, lng))
+    }
+
+    pub fn from_degree_unchecked(lat: Degree, lng: Degree) -> Self {
+        LatLng {
             lat: (lat * 1e7) as i64,
             lng: (lng * 1e7) as i64
-        })
+        }
     }
 
     pub fn lat(&self) -> Degree {
@@ -90,8 +96,12 @@ impl LatLng {
         self.lng as i64
     }
 
+    pub fn expand(&self) -> (Degree, Degree) {
+        (self.lat(), self.lng())
+    }
+
     /// Offsets the `LatLng` from the given parent primitive.
-    /// According to: https://arc.net/l/quote/ccrekhxu
+    /// According to: <https://arc.net/l/quote/ccrekhxu>
     pub fn offset(&mut self, group: &PrimitiveBlock) -> &mut Self {
         let granularity = group.granularity.unwrap_or(1) as NanoDegree;
 
