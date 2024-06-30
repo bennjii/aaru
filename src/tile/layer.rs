@@ -20,22 +20,24 @@ impl<const N: usize> TileLayer<N> {
 pub struct MVTFeature<const N: usize>(pub Feature);
 pub struct MVTLayer<const N: usize>(pub Layer);
 
-impl<T, const N: usize> From<(Vec<T>, u8)> for MVTLayer<N>
+impl<T, const N: usize> From<(Vec<T>, u8, String)> for MVTLayer<N>
     where T: Point<Value, N>
 {
-    fn from((value, zoom): (Vec<T>, u8)) -> Self {
+    fn from((value, zoom, name): (Vec<T>, u8, String)) -> Self {
         let keys = T::keys();
         let values = value.iter().flat_map(|v| v.values()).collect();
 
         let features = value
             .iter()
             .enumerate()
-            .map(|(index, value)| MVTFeature::from((index, zoom, value)).0)
+            .map(|(index, value)|
+                MVTFeature::from((index, zoom, value)).0
+            )
             .collect();
 
         MVTLayer(Layer {
             // TODO: Implement-Me properly
-            name: "brakepoint_layer".to_string(),
+            name,
             values,
             features,
             extent: Some(MVT_EXTENT),

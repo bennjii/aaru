@@ -26,13 +26,13 @@ impl<T, F> Query<T, F> {
 #[async_trait]
 pub trait TileQuery<In, Filter, Out, Item> {
     type Error;
-    type Parameters;
+    type Parameters<'a> where Self: 'a;
     type Connection<'a> where Self: 'a;
 
     const QUERY_TABLE: &'static str;
 
-    async fn query(input: Query<In, Option<Filter>>, params: Self::Parameters, conn: Self::Connection<'_>) -> Result<Out, Self::Error>;
-    fn batch(query: Query<Self::Parameters, (u8, u32, u32)>) -> In;
-    fn filter(filter: &Self::Parameters, item: &Item) -> bool;
+    async fn query(input: Query<In, Option<Filter>>, params: Self::Parameters<'_>, conn: Self::Connection<'_>) -> Result<Out, Self::Error>;
+    fn batch(query: Query<Self::Parameters<'_>, (u8, u32, u32)>) -> In;
+    fn filter(filter: &Self::Parameters<'_>, item: &Item) -> bool;
 }
 
