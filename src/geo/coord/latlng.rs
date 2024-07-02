@@ -2,6 +2,8 @@ use std::fmt::{Debug, Formatter};
 use crate::geo::error::GeoError;
 
 use crate::codec::osm::{PrimitiveBlock};
+use crate::geo::{Project, SRID3857_MAX_LNG};
+use crate::geo::project::SlippyTile;
 #[cfg(feature="grpc_server")]
 use crate::server::route::router_service::Coordinate;
 
@@ -98,6 +100,17 @@ impl LatLng {
 
     pub fn expand(&self) -> (Degree, Degree) {
         (self.lat(), self.lng())
+    }
+
+    pub fn slice(&self) -> [Degree; 2] {
+        [self.lat(), self.lng()]
+    }
+
+    pub fn hash(&self, zoom: u8) -> u32 {
+        let SlippyTile((_, px), (_, py), zoom) = SlippyTile::project(self, zoom);
+
+        let hash_size = (SRID3857_MAX_LNG / 2) / 2_u32.pow(zoom as u32);
+        hash_size * ((SRID3857_MAX_LNG + px) / hash_size) + ((SRID3857_MAX_LNG + py) / hash_size)
     }
 
     /// Offsets the `LatLng` from the given parent primitive.

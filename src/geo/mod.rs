@@ -3,11 +3,15 @@
 pub const MVT_EXTENT: u32 = 4096;
 pub const MVT_VERSION: u32 = 2;
 
+const MEAN_EARTH_RADIUS: f64 = 6371008.8;
+const SRID3857_MAX_LNG: u32 = 20026377;
+
 #[doc(hidden)]
 pub mod coord;
 #[doc(hidden)]
 pub mod error;
 pub mod project;
+pub mod cluster;
 
 #[doc(inline)]
 pub use coord::latlng::LatLng;
