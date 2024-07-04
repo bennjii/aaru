@@ -16,6 +16,6 @@ pub mod cluster;
 #[doc(inline)]
 pub use coord::latlng::LatLng;
 #[doc(inline)]
-pub use coord::point::Point;
+pub use coord::point::TileItem;
 #[doc(inline)]
 pub use project::Project;

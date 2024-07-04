@@ -1,6 +1,6 @@
-use crate::geo::{MEAN_EARTH_RADIUS, Point};
+use crate::geo::{MEAN_EARTH_RADIUS, TileItem};
 
-pub fn haversine_distance<const N: usize, P, T: Point<P, N>>(lhs: &T, rhs: &T) -> f64 {
+pub fn haversine_distance<const N: usize, P, T: TileItem<P, N>>(lhs: &T, rhs: &T) -> f64 {
     let (l_lat, l_lng) = lhs.lat_lng().expand();
     let (r_lat, r_lng) = rhs.lat_lng().expand();
 

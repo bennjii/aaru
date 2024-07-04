@@ -2,7 +2,7 @@ use crate::geo::coord::latlng::LatLng;
 
 /// A generic trait used for tiling a point
 /// using the `MVT` schema.
-pub trait Point<T, const N: usize> {
+pub trait TileItem<T, const N: usize> {
     /// Returns the identifier of the location pointed to.
     /// This has different representative meaning, according
     /// to where it is located, and what it represents.
@@ -19,7 +19,7 @@ pub trait Point<T, const N: usize> {
     fn values(&self) -> [T; N];
 }
 
-impl Point<(), 0> for LatLng {
+impl TileItem<(), 0> for LatLng {
     fn id(&self) -> u64 {
         todo!()
     }

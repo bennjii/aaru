@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use geo::{Centroid, ConvexHull, LineString, Polygon};
+use wkt::ToWkt;
 
+use crate::codec::mvt::Value;
 use crate::geo::cluster::haversine::haversine_distance;
-use crate::geo::{LatLng, Point};
+use crate::geo::{LatLng, TileItem};
 use crate::geo::error::GeoError;
 
 #[derive(PartialEq, Clone)]
@@ -13,7 +15,7 @@ pub enum Classification {
     Noise,
 }
 
-pub struct Clustered<const N: usize, P, T: Point<P, N>> {
+pub struct Clustered<const N: usize, P, T: TileItem<P, N>> {
     pub id: u32,
     pub points: Vec<T>,
 
@@ -23,7 +25,7 @@ pub struct Clustered<const N: usize, P, T: Point<P, N>> {
     phantom_data: PhantomData<P>
 }
 
-pub struct Cluster<const N: usize, P, T: Point<P, N>> {
+pub struct Cluster<const N: usize, P, T: TileItem<P, N>> {
     // a.k.a Spillage
     pub noise: Vec<T>,
     pub clustered: Vec<Clustered<N, P, T>>,
@@ -31,7 +33,29 @@ pub struct Cluster<const N: usize, P, T: Point<P, N>> {
     phantom_data: PhantomData<P>
 }
 
-impl<const N: usize, P, T: Point<P, N>> TryFrom<(Vec<T>, u8)> for Clustered<N, P, T> {
+#[cfg(feature = "tile")]
+impl<const N: usize, T: TileItem<Value, N>> TileItem<Value, 2> for Clustered<N, Value, T> {
+    fn id(&self) -> u64 {
+        self.id as u64
+    }
+
+    fn lat_lng(&self) -> LatLng {
+        self.centroid
+    }
+
+    fn keys<'a>() -> [&'a str; 2] {
+        ["npoints", "hull"]
+    }
+
+    fn values(&self) -> [Value; 2] {
+        [
+            Value::from_int(self.points.len() as i64),
+            Value::from_string(self.convex_hull.to_wkt().to_string()),
+        ]
+    }
+}
+
+impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<T>, u8)> for Clustered<N, P, T> {
     type Error = GeoError;
 
     fn try_from((value, zoom): (Vec<T>, u8)) -> Result<Self, Self::Error> {
@@ -55,7 +79,7 @@ impl<const N: usize, P, T: Point<P, N>> TryFrom<(Vec<T>, u8)> for Clustered<N, P
     }
 }
 
-impl<const N: usize, P, T: Point<P, N>> From<Vec<T>> for Cluster<N, P, T> {
+impl<const N: usize, P, T: TileItem<P, N>> From<Vec<T>> for Cluster<N, P, T> {
     fn from(value: Vec<T>) -> Self {
         Self {
             noise: value,
@@ -65,7 +89,7 @@ impl<const N: usize, P, T: Point<P, N>> From<Vec<T>> for Cluster<N, P, T> {
     }
 }
 
-impl<const N: usize, P, T: Point<P, N>> TryFrom<(Vec<(u32, T)>, u8)> for Cluster<N, P, T> {
+impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<(u32, T)>, u8)> for Cluster<N, P, T> {
     type Error = GeoError;
 
     fn try_from((value, zoom): (Vec<(u32, T)>, u8)) -> Result<Self, GeoError> {
@@ -98,7 +122,7 @@ impl<const N: usize, P, T: Point<P, N>> TryFrom<(Vec<(u32, T)>, u8)> for Cluster
     }
 }
 
-pub struct IntoCluster<const N: usize, P, T: Point<P, N>> {
+pub struct IntoCluster<const N: usize, P, T: TileItem<P, N>> {
     pub epsilon: f64,
     pub c_capacity: usize,
 
@@ -109,7 +133,7 @@ pub struct IntoCluster<const N: usize, P, T: Point<P, N>> {
     phantom_data: PhantomData<P>
 }
 
-impl<const N: usize, P, T: Point<P, N>> Default for IntoCluster<N, P, T> {
+impl<const N: usize, P, T: TileItem<P, N>> Default for IntoCluster<N, P, T> {
     fn default() -> Self {
         IntoCluster {
             epsilon: 1.0,
@@ -122,7 +146,7 @@ impl<const N: usize, P, T: Point<P, N>> Default for IntoCluster<N, P, T> {
     }
 }
 
-impl<const N: usize, P, T: Point<P, N>> IntoCluster<N, P, T> {
+impl<const N: usize, P, T: TileItem<P, N>> IntoCluster<N, P, T> {
     pub fn new() -> Self {
         IntoCluster::default()
     }
