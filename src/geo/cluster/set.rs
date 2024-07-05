@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use geo::{Centroid, ConvexHull, LineString, Polygon};
+use log::{error, info};
 use wkt::ToWkt;
 
 use crate::codec::mvt::Value;
@@ -50,7 +51,7 @@ impl<const N: usize, T: TileItem<Value, N>> TileItem<Value, 2> for Clustered<N, 
     fn values(&self) -> [Value; 2] {
         [
             Value::from_int(self.points.len() as i64),
-            Value::from_string(self.convex_hull.to_wkt().to_string()),
+            Value::from_string(self.convex_hull.wkt_string()),
         ]
     }
 }
@@ -65,8 +66,12 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<T>, u8)> for Clustered<N
         );
 
         let convex_hull = polygon.convex_hull();
-        let centroid = convex_hull.centroid().ok_or(GeoError::InvalidCoordinate("".to_string()))?;
-        let lat_lng = LatLng::from_degree(centroid.x(), centroid.y())?;
+        info!("Polygon: {:?}", convex_hull.wkt_string());
+
+        let centroid = convex_hull.centroid()
+            .ok_or(GeoError::InvalidCoordinate("".to_string()))?;
+
+        let lat_lng = LatLng::from_degree(centroid.y(), centroid.x())?;
 
         Ok(Self {
             id: lat_lng.hash(zoom),
@@ -110,11 +115,14 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<(u32, T)>, u8)> for Clus
             .into_iter()
             .for_each(|mut group| {
                 if group.len() >= 3 {
-                    if let Ok(cluster) = Clustered::try_from((group, zoom)) {
-                        clustered.push(cluster);
+                    match Clustered::try_from((group, zoom)) {
+                        Ok(cluster) => clustered.push(cluster),
+                        Err(error) => {
+                            error!("Failed to cluster, {:?}", error)
+                        }
                     }
                 } else {
-                    noise.push(group.remove(0));
+                    noise.extend(group);
                 }
             });
 
@@ -222,7 +230,7 @@ impl<const N: usize, P, T: TileItem<P, N>> IntoCluster<N, P, T> {
             }
         }
 
-        let points = self.c
+        let points: Vec<(u32, _)> = self.c
             .iter()
             .zip(population)
             .map(|(p, c)| match p {
@@ -230,6 +238,8 @@ impl<const N: usize, P, T: TileItem<P, N>> IntoCluster<N, P, T> {
                 _ => (0, c),
             })
             .collect();
+
+        info!("Trying to transform into cluster, {:?} points", points.len());
 
         Cluster::try_from((points, zoom))
     }

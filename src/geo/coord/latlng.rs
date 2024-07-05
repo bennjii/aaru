@@ -102,8 +102,9 @@ impl LatLng {
         (self.lat(), self.lng())
     }
 
+    // Returns a [`lng`, `lat`] pair
     pub fn slice(&self) -> [Degree; 2] {
-        [self.lat(), self.lng()]
+        [self.lng(), self.lat()]
     }
 
     pub fn hash(&self, zoom: u8) -> u32 {
