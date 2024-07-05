@@ -9,6 +9,8 @@ use crate::geo::cluster::haversine::haversine_distance;
 use crate::geo::{LatLng, TileItem};
 use crate::geo::error::GeoError;
 
+pub const CLUSTER_KEYS: usize = 2;
+
 #[derive(PartialEq, Clone)]
 pub enum Classification {
     Core(usize),
@@ -35,7 +37,7 @@ pub struct Cluster<const N: usize, P, T: TileItem<P, N>> {
 }
 
 #[cfg(feature = "tile")]
-impl<const N: usize, T: TileItem<Value, N>> TileItem<Value, 2> for Clustered<N, Value, T> {
+impl<const N: usize, T: TileItem<Value, N>> TileItem<Value, CLUSTER_KEYS> for Clustered<N, Value, T> {
     fn id(&self) -> u64 {
         self.id as u64
     }
@@ -44,11 +46,11 @@ impl<const N: usize, T: TileItem<Value, N>> TileItem<Value, 2> for Clustered<N, 
         self.centroid
     }
 
-    fn keys<'a>() -> [&'a str; 2] {
+    fn keys<'a>() -> [&'a str; CLUSTER_KEYS] {
         ["npoints", "hull"]
     }
 
-    fn values(&self) -> [Value; 2] {
+    fn values(&self) -> [Value; CLUSTER_KEYS] {
         [
             Value::from_int(self.points.len() as i64),
             Value::from_string(self.convex_hull.wkt_string()),
@@ -113,7 +115,7 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<(u32, T)>, u8)> for Clus
 
         grouped
             .into_iter()
-            .for_each(|mut group| {
+            .for_each(|group| {
                 if group.len() >= 3 {
                     match Clustered::try_from((group, zoom)) {
                         Ok(cluster) => clustered.push(cluster),
@@ -238,8 +240,6 @@ impl<const N: usize, P, T: TileItem<P, N>> IntoCluster<N, P, T> {
                 _ => (0, c),
             })
             .collect();
-
-        info!("Trying to transform into cluster, {:?} points", points.len());
 
         Cluster::try_from((points, zoom))
     }
