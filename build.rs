@@ -1,10 +1,7 @@
 use std::env;
 use std::path::PathBuf;
-use prost_build::Config;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tonic_build::compile_protos("proto/aaru.proto")?;
-
     let protos = [
         "proto/osm/fileformat.proto",
         "proto/osm/osmformat.proto",
@@ -15,7 +12,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "proto"
     ];
 
-    prost_build::compile_protos(&protos, &includes)?;
+    prost_build::Config::new()
+        .protoc_arg("--experimental_allow_proto3_optional")
+        .compile_protos(&protos, &includes)?;
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     tonic_build::configure()
