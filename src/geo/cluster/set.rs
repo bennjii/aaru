@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use geo::{Centroid, ConvexHull, LineString, Polygon};
-use log::{error, info};
+use log::{error};
 use wkt::ToWkt;
 
 use crate::codec::mvt::Value;
@@ -68,8 +68,6 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<T>, u8)> for Clustered<N
         );
 
         let convex_hull = polygon.convex_hull();
-        info!("Polygon: {:?}", convex_hull.wkt_string());
-
         let centroid = convex_hull.centroid()
             .ok_or(GeoError::InvalidCoordinate("".to_string()))?;
 
