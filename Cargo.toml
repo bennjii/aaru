@@ -1,6 +1,6 @@
 [package]
 name = "aaru"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 readme = "readme.md"
 description = "Actionable Area Routing Utilities for OSM and MVT"
@@ -8,8 +8,8 @@ license = "MIT"
 include = ["/docs", "readme.md"]
 
 [lib]
-crate-type = ["staticlib"]
-path = "src/lib.rs"
+#crate-type = ["staticlib"]
+#path = "lib.rs"
 
 [[example]]
 name = "route"
