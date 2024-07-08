@@ -5,7 +5,7 @@ edition = "2021"
 readme = "readme.md"
 description = "Actionable Area Routing Utilities for OSM and MVT"
 license = "MIT"
-include = ["/docs", "readme.md"]
+include = ["docs", "src/**/*", "proto/**/*", "build.rs", "readme.md"]
 
 [lib]
 name = "aaru"
