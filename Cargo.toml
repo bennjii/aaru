@@ -1,6 +1,6 @@
 [package]
 name = "aaru"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 readme = "readme.md"
 description = "Actionable Area Routing Utilities for OSM and MVT"
