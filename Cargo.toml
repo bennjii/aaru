@@ -7,15 +7,18 @@ description = "Actionable Area Routing Utilities for OSM and MVT"
 license = "MIT"
 include = ["/docs", "readme.md"]
 
-[[bin]]
+[lib]
+crate-type = ["staticlib"]
+
+[[example]]
 name = "route"
 required-features = ["route", "grpc_server"]
-path = "src/bin/route.rs"
+path = "examples/route.rs"
 
-[[bin]]
+[[example]]
 name = "tile"
 required-features = ["tile"]
-path = "src/bin/tile.rs"
+path = "examples/tile.rs"
 
 [dependencies]
 # Algorithm
