@@ -1,6 +1,6 @@
 [package]
 name = "aaru"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 readme = "readme.md"
 description = "Actionable Area Routing Utilities for OSM and MVT"
@@ -30,7 +30,7 @@ petgraph = { version = "0.6.5", features = ["serde-1", "graphmap", "rayon"] }
 serde = { version = "1.0.200", features = ["derive"] }
 
 # Logging Utility
-log = "0.4.20"
+log = { version = "0.4.20", features = [] }
 env_logger = "0.10.0"
 test-log = { version = "0.2.16", features = ["log"] }
 
