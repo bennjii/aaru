@@ -9,6 +9,7 @@ include = ["/docs", "readme.md"]
 
 [lib]
 crate-type = ["staticlib"]
+path = "src/lib.rs"
 
 [[example]]
 name = "route"
