@@ -1,6 +1,6 @@
 [package]
 name = "aaru"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 readme = "readme.md"
 description = "Actionable Area Routing Utilities for OSM and MVT"
@@ -86,6 +86,9 @@ http_server = ["tower-http", "axum", "axum-macros", "serde_qs", "tokio"]
 tile = ["http_server", "fast_hilbert"]
 route = ["scc", "codec"]
 codec = ["flate2"]
+
+[package.metadata.docs.rs]
+features = ["tile", "route", "codec"]
 
 [profile.release]
 opt-level = 3

@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "aaru"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "axum 0.7.5",
  "axum-macros",
