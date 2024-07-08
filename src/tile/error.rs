@@ -17,14 +17,14 @@ pub enum TileError {
     NoMatchingRepository
 }
 
-impl IntoResponse for TileError {
+impl IntoResponse for crate::Error {
     fn into_response(self) -> Response {
         #[cfg(feature = "tracing")]
         event!(Level::ERROR, name=?self);
 
         let code = match self {
-            TileError::NoTilesFound => StatusCode::NO_CONTENT,
-            TileError::NoMatchingRepository => StatusCode::NOT_FOUND,
+            crate::Error::Tile(TileError::NoTilesFound) => StatusCode::NO_CONTENT,
+            crate::Error::Tile(TileError::NoMatchingRepository) => StatusCode::NOT_FOUND,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

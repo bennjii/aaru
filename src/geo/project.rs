@@ -1,6 +1,6 @@
 //! Required structures to project between standards
 
-use crate::geo::coord::point::Point;
+use crate::geo::coord::point::TileItem;
 
 /// Allows for projection between two standards.
 pub trait Project {
@@ -16,7 +16,7 @@ pub trait Project {
     /// let SlippyTile((x, px), (y, py), z) = SlippyTile::project(&value, 19);
     /// // We now have the slippy tile coordinate of the original lat/lng.
     /// ```
-    fn project<G, T, const N: usize>(value: &T, zoom: u8) -> Self where T: Point<G, N>;
+    fn project<G, T, const N: usize>(value: &T, zoom: u8) -> Self where T: TileItem<G, N>;
 }
 
 #[doc(hidden)]
@@ -52,7 +52,7 @@ impl Project for SlippyTile {
     /// See the [OSM Wiki](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Mathematics) for the projection source.
     fn project<G, T, const N: usize>(value: &T, zoom: u8) -> Self
     where
-        T: Point<G, N>,
+        T: TileItem<G, N>,
     {
         let offset = |value: f64| {
             let n = value.floor() as u32;
@@ -81,7 +81,7 @@ impl Project for SlippyTile {
 impl Project for WebMercator {
     fn project<G, T, const N: usize>(value: &T, _: u8) -> Self
     where
-        T: Point<G, N>,
+        T: TileItem<G, N>,
     {
         WebMercator(value.lat_lng())
     }
