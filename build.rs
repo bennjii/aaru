@@ -1,5 +1,6 @@
 use std::env;
 use std::path::PathBuf;
+use prost_build::Config;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::compile_protos("proto/aaru.proto")?;
@@ -19,6 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     tonic_build::configure()
         .file_descriptor_set_path(out_dir.join("aaru_descriptor.bin"))
+        .protoc_arg("--experimental_allow_proto3_optional")
         .compile(&["proto/aaru.proto"], &["proto"])
         .unwrap();
 
