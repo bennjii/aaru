@@ -3,6 +3,8 @@ name = "aaru"
 version = "0.1.0"
 edition = "2021"
 readme = "readme.md"
+description = "Actionable Area Routing Utilities for OSM and MVT"
+license = "MIT"
 include = ["/docs", "readme.md"]
 
 [[bin]]
