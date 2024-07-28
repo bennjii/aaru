@@ -10,6 +10,7 @@
 //! OTEL_SERVICE_NAME=aaru
 //! ```
 
+use opentelemetry::trace::TracerProvider;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -29,7 +30,8 @@ pub fn initialize_tracer() {
         .tracing()
         .with_exporter(exporter)
         .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Couldn't create OTLP tracer");
+        .expect("Couldn't create OTLP tracer")
+        .tracer("aaru");
 
     // Link OTEL and STDOUT subscribers
     #[cfg(feature = "grpc_server")]
