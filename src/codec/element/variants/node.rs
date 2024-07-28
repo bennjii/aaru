@@ -2,26 +2,26 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use rstar::{Point};
+use rstar::Point;
 
-use crate::geo::coord::latlng::{LatLng, NanoDegree};
 use crate::codec::osm;
 use crate::codec::osm::DenseNodes;
+use crate::geo::coord::latlng::{LatLng, NanoDegree};
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Node {
     pub id: i64,
-    pub position: LatLng
+    pub position: LatLng,
 }
 
 pub struct Distance {
-    meter_value: u32
+    meter_value: u32,
 }
 
 impl Distance {
     pub fn from_meters(meters: u32) -> Self {
         Distance {
-            meter_value: meters
+            meter_value: meters,
         }
     }
 
@@ -41,7 +41,7 @@ impl Point for Node {
     fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
         Node {
             id: 0,
-            position: LatLng::new(generator(1), generator(0))
+            position: LatLng::new(generator(1), generator(0)),
         }
     }
 
@@ -65,10 +65,7 @@ impl Point for Node {
 impl Node {
     /// Constructs a `Node` from a given `LatLng` and `id`.
     pub(crate) fn new(position: LatLng, id: &i64) -> Self {
-        Node {
-            position,
-            id: id.clone()
-        }
+        Node { position, id: *id }
     }
 
     /// Returns the identifier for the node
@@ -91,19 +88,19 @@ impl Node {
     ///     }
     ///  }
     /// ```
-    pub fn from_dense<'a>(value: &'a DenseNodes) -> impl Iterator<Item=Self> + 'a {
-        value.lat.iter()
+    pub fn from_dense<'a>(value: &'a DenseNodes) -> impl Iterator<Item = Self> + 'a {
+        value
+            .lat
+            .iter()
             .zip(value.lon.iter())
             .zip(value.id.iter())
             .fold(vec![], |mut curr: Vec<Self>, ((lat, lng), id)| {
                 let new_node = match &curr.last() {
-                    Some(prior_node) => {
-                        Node::new(
-                            LatLng::delta(lat, lng, prior_node.position),
-                            &(id + prior_node.id)
-                        )
-                    },
-                    None => Node::new(LatLng::from((lat, lng)), id)
+                    Some(prior_node) => Node::new(
+                        LatLng::delta(lat, lng, prior_node.position),
+                        &(id + prior_node.id),
+                    ),
+                    None => Node::new(LatLng::from((lat, lng)), id),
                 };
 
                 curr.push(new_node);
@@ -116,7 +113,8 @@ impl Node {
         let lat: f64 = (self.position.lat() - other.position.lat()) * 1e-2;
         let lng: f64 = (self.position.lng() - other.position.lng()) * 1e-2;
 
-        let a = (lng / 2.0f64).sin().powi(2) + self.position.lat().cos() * other.position.lat().cos() * (lat / 2.0f64).sin().powi(2);
+        let a = (lng / 2.0f64).sin().powi(2)
+            + self.position.lat().cos() * other.position.lat().cos() * (lat / 2.0f64).sin().powi(2);
         let c = 2f64 * a.sqrt().asin();
         Distance::from_meters((6371008.8 * c) as u32)
     }
@@ -126,8 +124,7 @@ impl From<&osm::Node> for Node {
     fn from(value: &osm::Node) -> Self {
         Node {
             id: value.id,
-            position: LatLng::new(value.lat, value.lon)
+            position: LatLng::new(value.lat, value.lon),
         }
     }
 }
-

@@ -41,11 +41,11 @@ impl Way {
 }
 
 fn make_string(k: usize, block: &PrimitiveBlock) -> String {
-    let cow = String::from_utf8_lossy(&*block.stringtable.s[k]);
+    let cow = String::from_utf8_lossy(&block.stringtable.s[k]);
 
     match cow {
         Cow::Borrowed(s) => String::from(s),
-        Cow::Owned(s) => String::from(s),
+        Cow::Owned(s) => s,
     }
 }
 
@@ -69,7 +69,12 @@ impl osm::Way {
         self.keys
             .iter()
             .zip(self.vals.iter())
-            .map(|(&k, &v)| (make_string(k as usize, block), make_string(v as usize, block)))
+            .map(|(&k, &v)| {
+                (
+                    make_string(k as usize, block),
+                    make_string(v as usize, block),
+                )
+            })
             .find(|(key, value)| key == "highway" && VALID_ROADWAYS.contains(&value.as_str()))
             .map(|(_, value)| value)
     }

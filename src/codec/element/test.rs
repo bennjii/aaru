@@ -1,14 +1,14 @@
 #![cfg(test)]
 
-use std::path::PathBuf;
 use log::info;
+use std::path::PathBuf;
 
-use crate::codec::parallel::Parallel;
-use crate::codec::element::item::Element;
-use crate::codec::element::iterator::ElementIterator;
 use crate::codec::consts::DISTRICT_OF_COLUMBIA;
+use crate::codec::element::item::Element;
 use crate::codec::element::item::ProcessedElement;
+use crate::codec::element::iterator::ElementIterator;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
+use crate::codec::parallel::Parallel;
 
 #[test]
 fn try_into_iter() {
@@ -25,29 +25,33 @@ fn iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iter = ElementIterator::new(path).expect("Could not create iterator");
 
-    let nodes = iter.map_red(|item| {
-        match item {
+    let nodes = iter.map_red(
+        |item| match item {
             Element::Way(_) => 0,
             Element::Node(_) => 1,
             Element::Relation(_) => 0,
-            Element::DenseNodes(_) => 0
-        }
-    }, |a, b| a + b, || 0);
+            Element::DenseNodes(_) => 0,
+        },
+        |a, b| a + b,
+        || 0,
+    );
 
     info!("There are {nodes} nodes");
 }
 
 #[test]
-fn iter_count_processed() {
+fn processed_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
 
-    let nodes = iter.map_red(|item| {
-        match item {
+    let nodes = iter.map_red(
+        |item| match item {
             ProcessedElement::Way(_) => 0,
             ProcessedElement::Node(_) => 1,
-        }
-    }, |a, b| a + b, || 0);
+        },
+        |a, b| a + b,
+        || 0,
+    );
 
     info!("There are {nodes} nodes");
 }

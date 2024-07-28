@@ -1,18 +1,18 @@
+use log::{debug, info};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-use log::{debug, info};
 
-use petgraph::graphmap::{DiGraphMap};
-use petgraph::prelude::{EdgeRef};
+use petgraph::graphmap::DiGraphMap;
+use petgraph::prelude::EdgeRef;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rstar::{RTree};
+use rstar::RTree;
 use scc::HashMap;
 
-use crate::geo::coord::latlng::LatLng;
-use crate::codec::element::item::{ProcessedElement};
+use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
+use crate::geo::coord::latlng::LatLng;
 use crate::route::error::RouteError;
 
 const MAX_WEIGHT: u32 = 999;
@@ -22,7 +22,7 @@ const MAX_WEIGHT: u32 = 999;
 pub struct Graph {
     graph: DiGraphMap<i64, u32>,
     index: RTree<Node>,
-    hash: std::collections::HashMap<i64, Node>
+    hash: std::collections::HashMap<i64, Node>,
 }
 
 impl Debug for Graph {
@@ -55,6 +55,7 @@ impl Graph {
 
     /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
     pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
+        let start_time = std::time::Instant::now();
         let path = PathBuf::from(filename);
 
         let reader = ProcessedElementIterator::new(path)?;
@@ -63,7 +64,8 @@ impl Graph {
         info!("Ingesting...");
 
         let (graph, index): (DiGraphMap<i64, u32>, Vec<Node>) = reader.par_red(
-            |(mut graph, mut tree): (DiGraphMap<i64, u32>, Vec<Node>), element: ProcessedElement| {
+            |(mut graph, mut tree): (DiGraphMap<i64, u32>, Vec<Node>),
+             element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         if !way.is_road() {
@@ -72,23 +74,21 @@ impl Graph {
 
                         // Get the weight from the weight table
                         let weight = match way.r#type() {
-                            Some(weight) =>
-                                weights.get(weight.as_str())
-                                    .map(|v| v.get().clone())
-                                    .unwrap_or(MAX_WEIGHT),
-                            None => MAX_WEIGHT
+                            Some(weight) => weights
+                                .get(weight.as_str())
+                                .map(|v| v.get().clone())
+                                .unwrap_or(MAX_WEIGHT),
+                            None => MAX_WEIGHT,
                         };
 
                         // Update with all adjacent nodes
-                        way.refs()
-                            .windows(2)
-                            .for_each(|edge| {
-                                if let [a, b] = edge {
-                                    graph.add_edge(*a, *b, weight);
-                                } else {
-                                    debug!("Edge windowing produced odd-sized entry: {:?}", edge);
-                                }
-                            });
+                        way.refs().windows(2).for_each(|edge| {
+                            if let [a, b] = edge {
+                                graph.add_edge(*a, *b, weight);
+                            } else {
+                                debug!("Edge windowing produced odd-sized entry: {:?}", edge);
+                            }
+                        });
                     }
                     ProcessedElement::Node(node) => {
                         // Add the node to the graph
@@ -123,9 +123,14 @@ impl Graph {
         }
 
         let tree = RTree::bulk_load(filtered.clone());
+        let time_passed = start_time.elapsed().as_millis();
 
-        info!("Ingested {:?} nodes.", tree.size());
-        Ok(Graph { graph, index: tree, hash })
+        info!("Ingested {:?} nodes in {}ms", tree.size(), time_passed);
+        Ok(Graph {
+            graph,
+            index: tree,
+            hash,
+        })
     }
 
     /// Finds the nearest node to a lat/lng position
@@ -135,7 +140,7 @@ impl Graph {
 
     /// Finds the optimal route between a start and end point.
     /// Returns the weight and routing node vector.
-    #[tracing::instrument]
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
         let start_node = self.nearest_node(start).unwrap();
         let finish_node = self.nearest_node(finish).unwrap();

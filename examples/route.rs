@@ -1,7 +1,7 @@
 use dotenv::dotenv;
-use tonic::transport::{Server};
+use tonic::transport::Server;
 
-use aaru::codec::consts::SYDNEY;
+use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 use aaru::server::route::router_service::router_server::RouterServer;
 use aaru::server::route::{router_service, RouteService};
 
@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create the router
     tracing::info!("Creating Router");
-    let router = RouteService::from_file(SYDNEY).expect("-");
+    let router = RouteService::from_file(DISTRICT_OF_COLUMBIA).expect("-");
     tracing::info!("Router Created");
 
     // Initialize the reflector
