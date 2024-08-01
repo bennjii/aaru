@@ -73,6 +73,15 @@ prost-build = { version = "0.13.1"}
 
 [dev-dependencies]
 osmpbf = { version = "0.3.3", features = ["zlib-ng"], default-features = false }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "codec_sweep"
+harness = false
+
+[[bench]]
+name = "codec_target"
+harness = false
 
 [features]
 default = ["codec", "mmap"]
