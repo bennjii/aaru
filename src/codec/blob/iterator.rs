@@ -8,7 +8,9 @@ use std::io::Cursor;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 use prost::Message;
-use log::{warn};
+
+#[cfg(feature = "mmap")]
+use log::warn;
 
 use crate::codec::blob::item::BlobItem;
 use crate::codec::osm::BlobHeader;
@@ -98,11 +100,11 @@ impl Iterator for BlobIterator {
 
         self.offset += blob_header_length as u64;
 
-        let start = self.offset;
+        // let start = self.offset;
         let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
         self.offset += header.datasize as u64;
 
-        let blob = BlobItem::new(self.index, start, header);
+        let blob = BlobItem::new(self.index, header);
         self.index += 1;
 
         Some(blob)

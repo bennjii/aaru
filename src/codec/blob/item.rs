@@ -6,7 +6,7 @@ use std::cmp::min;
 use std::fs::File;
 #[cfg(not(feature = "mmap"))]
 use std::io::{Seek, SeekFrom, Read};
-
+use std::sync::Arc;
 use crate::codec::osm::BlobHeader;
 
 pub struct BlobItem {
@@ -23,7 +23,9 @@ impl BlobItem {
     }
 
     #[cfg(not(feature = "mmap"))]
-    pub(crate) fn data(&self, file: &mut File) -> Option<Vec<u8>> {
+    pub(crate) fn data(&self, _file: &Arc<File>) -> Option<Vec<u8>> {
+        let mut file = _file.clone();
+
         file.seek(SeekFrom::Start(self.start)).ok()?;
         let mut blob_buffer = vec![0; self.item.datasize as usize];
         file.read_exact(blob_buffer.as_mut_slice()).ok()?;

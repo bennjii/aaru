@@ -12,6 +12,8 @@ use log::{info, trace, warn};
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Read;
+#[cfg(not(feature = "mmap"))]
+use std::sync::Arc;
 
 use crate::codec::blob::item::BlobItem;
 use crate::codec::element::item::Element;
@@ -39,7 +41,7 @@ impl BlockItem {
 
     #[cfg(not(feature = "mmap"))]
     #[inline]
-    pub(crate) fn from_blob_item(blob: &BlobItem, file: &mut File) -> Option<Self> {
+    pub(crate) fn from_blob_item(blob: &BlobItem, file: &Arc<File>) -> Option<Self> {
         trace!(
             "Decoding blob: {}. Size: {}",
             blob.start,

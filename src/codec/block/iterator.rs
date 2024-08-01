@@ -1,65 +1,102 @@
 //! Iterates over `BlockItem`s in the file
 
-use std::fs::File;
 use std::io;
 use std::path::PathBuf;
-use log::warn;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
+use rayon::prelude::ParallelBridge;
 use crate::codec::blob::item::BlobItem;
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::item::BlockItem;
+use crate::codec::Parallel;
 
 pub struct BlockIterator {
-    blobs: Vec<BlobItem>,
+    iter: BlobIterator,
     index: usize,
-    #[cfg(feature = "mmap")]
-    map: memmap2::Mmap,
-    #[allow(unused)]
-    file: File
 }
 
 impl BlockIterator {
     pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
         let iter = BlobIterator::new(path)?;
 
-        let file = iter.file.try_clone().expect("");
-
-        #[cfg(feature = "mmap")]
-        let map = unsafe { memmap2::Mmap::map(&file)? };
-
-        #[cfg(feature = "mmap")]
-        if let Err(err) = map.advise(memmap2::Advice::WillNeed) {
-            warn!("Could not advise memory. Encountered: {}", err);
-        }
-
-        #[cfg(feature = "mmap")]
-        if let Err(err) = map.advise(memmap2::Advice::Random) {
-            warn!("Could not advise memory. Encountered: {}", err);
-        }
-
-        let blobs: Vec<BlobItem> = iter.collect();
-
         Ok(BlockIterator {
-            blobs,
             index: 0,
-            #[cfg(feature = "mmap")]
-            map,
-            file,
+            iter,
         })
     }
 }
 
-impl BlockIterator {
-    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=BlockItem> + '_ {
-        self.blobs
-            .par_iter()
-            .map(|blob| {
-                #[cfg(feature = "mmap")]
-                return BlockItem::from_blob_item(blob, &self.map);
-                #[cfg(not(feature = "mmap"))]
-                return BlockItem::from_blob_item(blob, &mut self.file);
+impl Parallel for BlockIterator {
+    type Item<'a> = BlockItem;
+
+    fn for_each<F>(self, f: F) -> ()
+    where
+        F: for<'a> Fn(Self::Item<'_>) + Send + Sync,
+    {
+        self.iter
+            .into_iter()
+            .for_each(|blob| {
+                if let Some(block) = self.take_blob(&blob) {
+                    f(block)
+                }
             })
+    }
+
+    fn map_red<Map, Reduce, Identity, T>(self, map_op: Map, red_op: Reduce, ident: Identity) -> T
+    where
+        Map: for<'a> Fn(Self::Item<'_>) -> T + Send + Sync,
+        Reduce: Fn(T, T) -> T + Send + Sync,
+        Identity: Fn() -> T + Send + Sync,
+        T: Send,
+    {
+        self.iter
+            .into_iter()
+            .par_bridge()
+            .filter_map(|blob| self.take_blob(&blob))
+            .map(|mut block| {
+                block.raw_par_iter().map(&map_op).reduce(&ident, &red_op)
+            })
+            .reduce(
+                &ident,
+                &red_op,
+            )
+    }
+
+    fn par_red<Reduce, Identity, Combine, T>(self, fold_op: Reduce, combine: Combine, ident: Identity) -> T
+    where
+        Reduce: for<'a> Fn(T, Self::Item<'_>) -> T + Send + Sync,
+        Identity: Fn() -> T + Send + Sync,
+        Combine: Fn(T, T) -> T + Send + Sync,
+        T: Send,
+    {
+        self.iter
+            .into_iter()
+            .par_bridge()
+            .filter_map(|blob| self.take_blob(&blob))
+            .map(|mut block| {
+                block.raw_par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
+            })
+            .reduce(&ident, &combine)
+    }
+}
+
+impl BlockIterator {
+    pub fn take_blob(&self, blob: &BlobItem) -> Option<BlockItem> {
+        #[cfg(feature = "mmap")]
+        let block = BlockItem::from_blob_item(blob, &self.iter.map);
+        #[cfg(not(feature = "mmap"))]
+        let block = BlockItem::from_blob_item(blob, &self.iter.file);
+
+        return block
+    }
+}
+
+impl BlockIterator {
+    pub fn par_iter(mut self) -> impl ParallelIterator<Item=BlockItem> + '_ {
+        self.iter
+            .into_iter()
+            .par_bridge()
+            .map(|blob| self.take_blob(&blob))
             .filter(|e| e.is_some())
             .map(|e| e.unwrap())
     }
@@ -68,21 +105,17 @@ impl BlockIterator {
 impl Iterator for BlockIterator {
     type Item = BlockItem;
 
-    #[cfg(feature = "mmap")]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.blobs.len() {
-            return None;
+        match self.iter.next() {
+            Some(blob) => self.take_blob(&blob),
+            None => None
         }
-
-        let blob_desc = &self.blobs[self.index];
-        self.index += 1;
-        BlockItem::from_blob_item(blob_desc, &self.map)
     }
 
-    #[cfg(not(feature = "mmap"))]
-    fn next(&mut self) -> Option<Self::Item> {
-        let blob_desc = self.blobs[self.index];
-        self.index += 1;
-        BlockItem::from_blob_item(&blob_desc, &mut self.file)
-    }
+    // #[cfg(not(feature = "mmap"))]
+    // fn next(&mut self) -> Option<Self::Item> {
+    //     let blob_desc = &self.blobs[self.index];
+    //     self.index += 1;
+    //     BlockItem::from_blob_item(blob_desc, &mut self.file)
+    // }
 }
