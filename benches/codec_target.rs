@@ -1,37 +1,13 @@
-#![cfg(test)]
-
 #[cfg(not(feature = "mmap"))]
 use std::fs::File;
 use std::path::PathBuf;
-use log::{error, info};
+use criterion::criterion_main;
+use log::{error};
 
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::ParallelIterator;
+use aaru::codec::{BlockItem, BlockIterator};
+use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 
-use crate::codec::blob::iterator::BlobIterator;
-use crate::codec::block::iterator::BlockIterator;
-use crate::codec::block::item::BlockItem;
-use crate::codec::consts::DISTRICT_OF_COLUMBIA;
-
-#[test]
-fn iterate_blobs_each() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
-    let iterator = BlobIterator::new(path.clone());
-
-    match iterator {
-        Ok(iter) => {
-            for blob in iter {
-                info!("Have blob: {}. Type: {}", blob.item.datasize, blob.item.r#type);
-            }
-        },
-        Err(err) => {
-            error!("Failed to load file, {:?}. Got error: {err}", path.as_os_str().to_str());
-        }
-    }
-
-    info!("Test Complete.");
-}
-
-#[test]
 fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iterator = BlockIterator::new(path.clone());
@@ -57,13 +33,12 @@ fn iterate_blocks_each() {
     assert_eq!(primitive_blocks, 237);
 }
 
-#[test]
 fn parallel_iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
     let mut block_iter = BlockIterator::new(path).unwrap();
 
-    let elements = block_iter.into_par_iter()
+    let elements = block_iter.par_iter()
         .map(|block| {
             match block {
                 BlockItem::HeaderBlock(_) => (0, 1),
@@ -78,14 +53,11 @@ fn parallel_iterate_blocks_each() {
     assert_eq!(elements, (237, 1));
 }
 
-#[test]
 fn compare_to_osmpbf() {
     use osmpbf::{BlobReader, BlobType};
 
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let reader = BlobReader::from_path(path).unwrap();
-
-    println!("Counting...");
 
     let mut primitive_blocks = 0;
     let mut header_blocks = 0;
@@ -114,3 +86,12 @@ fn compare_to_osmpbf() {
     assert_eq!(header_blocks, 1);
     assert_eq!(primitive_blocks, 237);
 }
+
+fn target_benchmark(c: &mut criterion::Criterion) {
+    c.bench_function("iterate_blocks_each", |b| b.iter(|| iterate_blocks_each()));
+    c.bench_function("parallel_iterate_blocks_each", |b| b.iter(|| parallel_iterate_blocks_each()));
+    c.bench_function("compared_to_osmpbf", |b| b.iter(|| compare_to_osmpbf()));
+}
+
+criterion::criterion_group!(targeted_benches, target_benchmark);
+criterion_main!(targeted_benches);

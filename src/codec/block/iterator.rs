@@ -1,88 +1,81 @@
 //! Iterates over `BlockItem`s in the file
 
-use std::fs::File;
 use std::io;
 use std::path::PathBuf;
-use log::warn;
+use lending_iterator::HKT;
+use lending_iterator::LendingIterator;
+use log::info;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-
-use crate::codec::blob::item::BlobItem;
+use rayon::prelude::ParallelBridge;
+use std::borrow::BorrowMut;
+use std::sync::Arc;
+use crossbeam::channel;
+use rayon::iter::plumbing::{Consumer, UnindexedConsumer};
 use crate::codec::blob::iterator::BlobIterator;
+use crate::codec::BlobItem;
 use crate::codec::block::item::BlockItem;
 
 pub struct BlockIterator {
-    blobs: Vec<BlobItem>,
+    iter: BlobIterator,
     index: usize,
-    #[cfg(feature = "mmap")]
-    map: memmap2::Mmap,
-    #[allow(unused)]
-    file: File
 }
 
 impl BlockIterator {
     pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
         let iter = BlobIterator::new(path)?;
 
-        let file = iter.file.try_clone().expect("");
-
-        #[cfg(feature = "mmap")]
-        let map = unsafe { memmap2::Mmap::map(&file)? };
-
-        #[cfg(feature = "mmap")]
-        if let Err(err) = map.advise(memmap2::Advice::WillNeed) {
-            warn!("Could not advise memory. Encountered: {}", err);
-        }
-
-        #[cfg(feature = "mmap")]
-        if let Err(err) = map.advise(memmap2::Advice::Random) {
-            warn!("Could not advise memory. Encountered: {}", err);
-        }
-
-        let blobs: Vec<BlobItem> = iter.collect();
-
         Ok(BlockIterator {
-            blobs,
             index: 0,
-            #[cfg(feature = "mmap")]
-            map,
-            file,
+            iter,
         })
     }
 }
 
 impl BlockIterator {
-    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=BlockItem> + '_ {
-        self.blobs
-            .par_iter()
-            .map(|blob| {
-                #[cfg(feature = "mmap")]
-                return BlockItem::from_blob_item(blob, &self.map);
-                #[cfg(not(feature = "mmap"))]
-                return BlockItem::from_blob_item(blob, &mut self.file);
-            })
-            .filter(|e| e.is_some())
-            .map(|e| e.unwrap())
+    pub fn iter<'a>(mut self) -> impl Iterator<Item=BlockItem> + 'a {
+        self.iter
+            .filter_map_into_iter::<_, BlockItem>(|blob| BlockItem::from_blob_item(&blob))
     }
 }
 
-impl Iterator for BlockIterator {
+impl ParallelIterator for BlockIterator {
     type Item = BlockItem;
 
-    #[cfg(feature = "mmap")]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.blobs.len() {
-            return None;
-        }
+    fn drive_unindexed<C>(self, consumer: C) -> C::Result
+    where
+        C: UnindexedConsumer<BlockItem> + Consumer<BlockItem>,
+    {
+        let (sender, receiver) = channel::unbounded();
 
-        let blob_desc = &self.blobs[self.index];
-        self.index += 1;
-        BlockItem::from_blob_item(blob_desc, &self.map)
-    }
+        // Spawn a thread to feed items into the channel
+        std::thread::spawn(move || {
+            let mut raw = self.iter();
 
-    #[cfg(not(feature = "mmap"))]
-    fn next(&mut self) -> Option<Self::Item> {
-        let blob_desc = self.blobs[self.index];
-        self.index += 1;
-        BlockItem::from_blob_item(&blob_desc, &mut self.file)
+            for item in raw.by_ref() {
+                if sender.send(item).is_err() {
+                    break;
+                }
+            }
+        });
+
+        receiver.into_iter().par_bridge().drive_unindexed(consumer)
     }
 }
+
+// impl<'a> Iterator for BlockIterator {
+//     type Item = BlockItem;
+//
+//     fn next(&mut self) -> Option<Self::Item> {
+//         match self.iter.next() {
+//             Some(blob) => BlockItem::from_blob_item(&blob),
+//             None => None
+//         }
+//     }
+//
+//     // #[cfg(not(feature = "mmap"))]
+//     // fn next(&mut self) -> Option<Self::Item> {
+//     //     let blob_desc = &self.blobs[self.index];
+//     //     self.index += 1;
+//     //     BlockItem::from_blob_item(blob_desc, &mut self.file)
+//     // }
+// }

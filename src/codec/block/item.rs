@@ -12,6 +12,8 @@ use log::{info, trace, warn};
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Read;
+#[cfg(not(feature = "mmap"))]
+use std::sync::Arc;
 
 use crate::codec::blob::item::BlobItem;
 use crate::codec::element::item::Element;
@@ -25,34 +27,20 @@ pub enum BlockItem {
 }
 
 impl BlockItem {
-    #[cfg(feature = "mmap")]
     #[inline]
-    pub(crate) fn from_blob_item(blob: &BlobItem, mmap: &memmap2::Mmap) -> Option<Self> {
+    pub(crate) fn from_blob_item(blob: &BlobItem) -> Option<Self> {
         trace!(
             "Decoding blob: {}. Size: {}",
             blob.start,
             blob.item.datasize
         );
-        let block_data = blob.data(mmap)?;
-        BlockItem::from_raw(block_data, blob)
-    }
-
-    #[cfg(not(feature = "mmap"))]
-    #[inline]
-    pub(crate) fn from_blob_item(blob: &BlobItem, file: &mut File) -> Option<Self> {
-        trace!(
-            "Decoding blob: {}. Size: {}",
-            blob.start,
-            blob.item.datasize
-        );
-        let block_data = blob.data(file)?;
-        BlockItem::from_raw(block_data.as_slice(), &blob)
+        BlockItem::from_raw(blob)
     }
 
     #[inline]
-    fn from_raw(data: &[u8], blob_item: &BlobItem) -> Option<Self> {
-        trace!("Partial Block: {:?}", data[0..5].to_vec());
-        let blob = Blob::decode(data).expect("Parse Failed");
+    fn from_raw(blob_item: &BlobItem) -> Option<Self> {
+        trace!("Partial Block: {:?}", blob_item.data[0..5].to_vec());
+        let blob = Blob::decode(blob_item.data).expect("Parse Failed");
 
         // Convert raw into actual. Handles ZLIB encoding.
         let data = BlockItem::from_blob(blob)?;
