@@ -67,6 +67,7 @@ scc = { version = "2.1.1", optional = true }
 geo = "0.28.0"
 wkt = "0.11.0"
 lending-iterator = "0.1.7"
+crossbeam = "0.8.4"
 
 [build-dependencies]
 tonic-build = { version = "0.12.1", features = ["prost"] }

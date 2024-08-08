@@ -2,7 +2,7 @@
 //! ignoring header blocks
 
 use std::path::PathBuf;
-use rayon::iter::{ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::error::CodecError;
@@ -29,7 +29,7 @@ impl Parallel for ProcessedElementIterator {
             F: Fn(ProcessedElement) + Send + Sync,
     {
         self.iter
-            .par_iter()
+            .into_par_iter()
             .for_each(|mut block| {
                 block.par_iter().for_each(&f);
             })
@@ -43,7 +43,7 @@ impl Parallel for ProcessedElementIterator {
             T: Send
     {
         self.iter
-            .par_iter()
+            .into_par_iter()
             .map(|mut block| {
                 block.par_iter().map(&map_op).reduce(&ident, &red_op)
             })
@@ -61,7 +61,7 @@ impl Parallel for ProcessedElementIterator {
             T: Send
     {
         self.iter
-            .par_iter()
+            .into_par_iter()
             .map(|mut block| {
                 block.par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
             })
