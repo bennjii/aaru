@@ -41,6 +41,11 @@ impl BlobIterator {
             warn!("Could not advise memory. Encountered: {}", err);
         }
 
+        #[cfg(feature = "mmap")]
+        if let Err(err) = map.advise(memmap2::Advice::WillNeed) {
+            warn!("Could not advise memory. Encountered: {}", err);
+        }
+
         Ok(BlobIterator {
             #[cfg(feature = "mmap")]
             map,

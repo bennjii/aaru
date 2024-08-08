@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use lending_iterator::HKT;
 use lending_iterator::LendingIterator;
 use log::info;
-use rayon::iter::{ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rayon::prelude::ParallelBridge;
 use std::borrow::BorrowMut;
 
@@ -29,80 +29,11 @@ impl BlockIterator {
     }
 }
 
-// impl Parallel for BlockIterator {
-//     type Item<'a> = BlockItem;
-//
-//     fn for_each<F>(self, f: F) -> ()
-//     where
-//         F: for<'a> Fn(Self::Item<'_>) + Send + Sync,
-//     {
-//         self.iter
-//             .for_each(|blob| {
-//                 if let Some(block) = self.take_blob(&blob) {
-//                     f(block)
-//                 }
-//             })
-//     }
-//
-//     fn map_red<Map, Reduce, Identity, T>(self, map_op: Map, red_op: Reduce, ident: Identity) -> T
-//     where
-//         Map: for<'a> Fn(Self::Item<'_>) -> T + Send + Sync,
-//         Reduce: Fn(T, T) -> T + Send + Sync,
-//         Identity: Fn() -> T + Send + Sync,
-//         T: Send,
-//     {
-//         self.iter
-//             .into_iter()
-//             .par_bridge()
-//             .filter_map(|blob| self.take_blob(&blob))
-//             .map(|mut block| {
-//                 block.raw_par_iter().map(&map_op).reduce(&ident, &red_op)
-//             })
-//             .reduce(
-//                 &ident,
-//                 &red_op,
-//             )
-//     }
-//
-//     fn par_red<Reduce, Identity, Combine, T>(self, fold_op: Reduce, combine: Combine, ident: Identity) -> T
-//     where
-//         Reduce: for<'a> Fn(T, Self::Item<'_>) -> T + Send + Sync,
-//         Identity: Fn() -> T + Send + Sync,
-//         Combine: Fn(T, T) -> T + Send + Sync,
-//         T: Send,
-//     {
-//         self.iter
-//             .into_iter()
-//             .par_bridge()
-//             .filter_map(|blob| self.take_blob(&blob))
-//             .map(|mut block| {
-//                 block.raw_par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
-//             })
-//             .reduce(&ident, &combine)
-//     }
-// }
-
-
 impl BlockIterator {
     pub fn par_iter<'a>(mut self) -> impl ParallelIterator<Item=BlockItem> + 'a {
-        let mut lended = self.iter;
-
-        while let Some(next) = lended.next() {
-            let block = BlockItem::from_blob_item(&next);
-            info!("block::{}", block.is_some());
-        }
-
-        vec![].into_iter().par_bridge()
-
-        // self.iter // let iterator: Vec<BlockItem> =
-         //    .lend()
-         //    .filter_map::<HKT!(BlockItem), _>(
-         //        |_, blob| {
-         //            BlockItem::from_blob_item(blob)
-         //        }
-         //    )
-         //    .into_iter()
-         //    .par_bridge()
+        self.iter
+            .filter_map_into_iter::<_, BlockItem>(|blob| BlockItem::from_blob_item(&blob))
+            .par_bridge()
     }
 }
 
