@@ -69,7 +69,6 @@ impl BlobIterator {
 impl LendingIterator for BlobIterator {
     type Item<'next> where Self: 'next = BlobItem<'next>;
 
-
     fn next(self: &mut Self) -> Option<Item<'_, Self>> {
         if self.map.len() < self.offset as usize + HEADER_LEN_SIZE {
             return None;
@@ -101,22 +100,6 @@ impl LendingIterator for BlobIterator {
 
 
 impl BlobIterator {
-    //  impl '_ + LendingIteratorDyn<Item = HKT!(<'next> => BlobItem<'next>)>
-    // pub fn lend<'n>(&mut self) ->
-    //       impl '_ +
-    //       Send + Sync +
-    //       LendingIterator +
-    //       LendingIteratorDyn<Item = HKT!(BlobItem<'n>)>
-    // {
-    //     lending_iterator::FromFn::<HKT!(BlobItem<'n>), &mut BlobIterator, _> {
-    //         state: self,
-    //         next: |b| {
-    //             b.next()
-    //         },
-    //         _phantom: Default::default()
-    //     };
-    // }
-
     #[cfg(feature = "mmap")]
     pub fn _next(&mut self) -> Option<BlobItem> {
         if self.map.len() < self.offset as usize + HEADER_LEN_SIZE {

@@ -17,7 +17,7 @@ fn iterate_blocks_each() {
 
     match iterator {
         Ok(iter) => {
-            for block in iter {
+            for block in iter.iter() {
                 match block {
                     BlockItem::HeaderBlock(_) => header_blocks += 1,
                     BlockItem::PrimitiveBlock(_) => primitive_blocks += 1

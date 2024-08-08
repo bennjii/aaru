@@ -5,7 +5,7 @@ use std::fs::File;
 use std::path::PathBuf;
 use log::{error, info};
 
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
@@ -41,7 +41,7 @@ fn iterate_blocks_each() {
 
     match iterator {
         Ok(iter) => {
-            for block in iter {
+            for block in iter.iter() {
                 match block {
                     BlockItem::HeaderBlock(_) => header_blocks += 1,
                     BlockItem::PrimitiveBlock(_) => primitive_blocks += 1
@@ -63,7 +63,7 @@ fn parallel_iterate_blocks_each() {
 
     let mut block_iter = BlockIterator::new(path).unwrap();
 
-    let elements = block_iter.par_iter()
+    let elements = block_iter.into_par_iter()
         .map(|block| {
             match block {
                 BlockItem::HeaderBlock(_) => (0, 1),
