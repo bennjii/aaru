@@ -12,7 +12,7 @@ fn block_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let mut iter = BlockIterator::new(path).expect("Could not create iterator");
 
-    iter.par_iter().for_each(|item| {
+    iter.for_each(|item| {
         info!("Block: {:?}", item.type_id());
     });
 }

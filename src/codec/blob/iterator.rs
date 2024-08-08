@@ -6,13 +6,15 @@ use std::io;
 use std::io::Cursor;
 #[cfg(not(feature = "mmap"))]
 use std::io::{Read, Seek, SeekFrom};
+use std::ops::Deref;
 use std::path::PathBuf;
+use ::lending_iterator::prelude::*;
 use prost::Message;
 
 #[cfg(feature = "mmap")]
 use log::warn;
-
 use crate::codec::blob::item::BlobItem;
+use crate::codec::BlockItem;
 use crate::codec::osm::BlobHeader;
 
 const HEADER_LEN_SIZE: usize = 4;
@@ -47,13 +49,23 @@ impl BlobIterator {
             index: 0,
         })
     }
+
+    pub fn make_block(&self, blob: &BlobItem) -> Option<BlockItem> {
+        #[cfg(feature = "mmap")]
+        let block = BlockItem::from_blob_item(blob);
+        #[cfg(not(feature = "mmap"))]
+        let block = BlockItem::from_blob_item(blob);
+
+        return block
+    }
 }
 
-impl Iterator for BlobIterator {
-    type Item = BlobItem;
+#[gat]
+impl LendingIterator for BlobIterator {
+    type Item<'next> where Self: 'next = BlobItem<'next>;
 
-    #[cfg(feature = "mmap")]
-    fn next(&mut self) -> Option<Self::Item> {
+
+    fn next(self: &mut Self) -> Option<Item<'_, Self>> {
         if self.map.len() < self.offset as usize + HEADER_LEN_SIZE {
             return None;
         }
@@ -75,14 +87,62 @@ impl Iterator for BlobIterator {
         let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
         self.offset += header.datasize as u64;
 
-        let blob = BlobItem::new(start, header);
+        let blob = BlobItem::new(start, header, &self.map)?;
+        self.index += 1;
+
+        Some(blob)
+    }
+}
+
+
+impl BlobIterator {
+    //  impl '_ + LendingIteratorDyn<Item = HKT!(<'next> => BlobItem<'next>)>
+    // pub fn lend<'n>(&mut self) ->
+    //       impl '_ +
+    //       Send + Sync +
+    //       LendingIterator +
+    //       LendingIteratorDyn<Item = HKT!(BlobItem<'n>)>
+    // {
+    //     lending_iterator::FromFn::<HKT!(BlobItem<'n>), &mut BlobIterator, _> {
+    //         state: self,
+    //         next: |b| {
+    //             b.next()
+    //         },
+    //         _phantom: Default::default()
+    //     };
+    // }
+
+    #[cfg(feature = "mmap")]
+    pub fn _next(&mut self) -> Option<BlobItem> {
+        if self.map.len() < self.offset as usize + HEADER_LEN_SIZE {
+            return None;
+        }
+
+        let header_len_buffer = &self.map[self.offset as usize..self.offset as usize + HEADER_LEN_SIZE];
+        self.offset += HEADER_LEN_SIZE as u64;
+
+        // Translate to i32 (Big Endian)
+        let blob_header_length = i32::from_be_bytes(header_len_buffer.try_into().unwrap()) as usize;
+
+        if self.map.len() < self.offset as usize + blob_header_length {
+            return None;
+        }
+
+        let blob_header_buffer = &self.map[self.offset as usize..self.offset as usize + blob_header_length];
+        self.offset += blob_header_length as u64;
+
+        let start = self.offset;
+        let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
+        self.offset += header.datasize as u64;
+
+        let blob = BlobItem::new(start, header, &self.map)?;
         self.index += 1;
 
         Some(blob)
     }
 
     #[cfg(not(feature = "mmap"))]
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn _next(&mut self) -> Option<BlobItem> {
         // Move to the location of the item
         self.file.seek(SeekFrom::Start(self.offset)).ok()?;
 
@@ -100,11 +160,11 @@ impl Iterator for BlobIterator {
 
         self.offset += blob_header_length as u64;
 
-        // let start = self.offset;
+        let start = self.offset;
         let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
         self.offset += header.datasize as u64;
 
-        let blob = BlobItem::new(self.index, header);
+        let blob = BlobItem::new(start, header, &mut self.file)?;
         self.index += 1;
 
         Some(blob)

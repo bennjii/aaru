@@ -46,9 +46,10 @@ impl Parallel for ElementIterator {
             T: Send
     {
         self.iter
-            .par_iter().map(|mut block| {
-            block.raw_par_iter().map(&map_op).reduce(&ident, &red_op)
-        })
+            .par_iter()
+            .map(|mut block| {
+                block.raw_par_iter().map(&map_op).reduce(&ident, &red_op)
+            })
             .reduce(
                 &ident,
                 &red_op,
@@ -68,9 +69,10 @@ impl Parallel for ElementIterator {
             T: Send
     {
         self.iter
-            .par_iter().map(|mut block| {
-            block.raw_par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
-        })
+            .par_iter()
+            .map(|mut block| {
+                block.raw_par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
+            })
             .reduce(&ident, &combine)
     }
 }

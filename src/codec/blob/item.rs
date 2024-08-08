@@ -6,38 +6,40 @@ use std::cmp::min;
 use std::fs::File;
 #[cfg(not(feature = "mmap"))]
 use std::io::{Seek, SeekFrom, Read};
-use std::sync::Arc;
 use crate::codec::osm::BlobHeader;
 
-pub struct BlobItem {
+pub struct BlobItem<'a> {
     pub(crate) start: u64,
+    pub(crate) data: &'a [u8],
     pub item: BlobHeader,
 }
 
-impl BlobItem {
-    pub(crate) fn new(start: u64, item: BlobHeader) -> Self {
-        BlobItem {
-            start,
-            item
-        }
-    }
-
+impl BlobItem<'_> {
     #[cfg(not(feature = "mmap"))]
-    pub(crate) fn data(&self, _file: &Arc<File>) -> Option<Vec<u8>> {
-        let mut file = _file.clone();
-
-        file.seek(SeekFrom::Start(self.start)).ok()?;
-        let mut blob_buffer = vec![0; self.item.datasize as usize];
+    #[inline]
+    pub(crate) fn new(start: u64, item: BlobHeader, file: &mut File) -> Option<BlobItem> {
+        file.seek(SeekFrom::Start(start)).ok()?;
+        let mut blob_buffer = vec![0; item.datasize as usize];
         file.read_exact(blob_buffer.as_mut_slice()).ok()?;
-        Some(blob_buffer)
+
+        Some(BlobItem {
+            start,
+            item,
+            data: blob_buffer.as_slice()
+        })
     }
 
     #[cfg(feature = "mmap")]
-    pub(crate) fn data<'a>(&self, map: &'a memmap2::Mmap) -> Option<&'a [u8]> {
-        let start = self.start as usize;
-        let end = min(start + self.item.datasize as usize, map.len());
-        let blob_buffer = (*map).get(start..end)?;
+    #[inline]
+    pub(crate) fn new<'a>(start: u64, item: BlobHeader, map: &'a memmap2::Mmap) -> Option<BlobItem> {
+        let u_start = start as usize;
+        let end = min(u_start + item.datasize as usize, map.len());
+        let blob_buffer = (*map).get(u_start..end)?;
 
-        Some(blob_buffer)
+        Some(BlobItem {
+            start,
+            item,
+            data: blob_buffer
+        })
     }
 }
