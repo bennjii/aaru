@@ -23,8 +23,6 @@ impl BlockIterator {
     pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
         let iter = BlobIterator::new(path)?;
 
-        let file = iter.file.try_clone().expect("");
-
         #[cfg(feature = "mmap")]
         let map = unsafe { memmap2::Mmap::map(&file)? };
 
@@ -81,7 +79,7 @@ impl Iterator for BlockIterator {
 
     #[cfg(not(feature = "mmap"))]
     fn next(&mut self) -> Option<Self::Item> {
-        let blob_desc = self.blobs[self.index];
+        let blob_desc = &self.blobs[self.index];
         self.index += 1;
         BlockItem::from_blob_item(&blob_desc, &mut self.file)
     }

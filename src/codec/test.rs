@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use log::{error, info};
 
 use rayon::iter::ParallelIterator;
+use console_subscriber;
 
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
@@ -59,6 +60,7 @@ fn iterate_blocks_each() {
 
 #[test]
 fn parallel_iterate_blocks_each() {
+    console_subscriber::init();
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
     let mut block_iter = BlockIterator::new(path).unwrap();

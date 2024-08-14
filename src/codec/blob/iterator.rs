@@ -3,20 +3,24 @@
 
 use std::fs::File;
 use std::io;
-use std::io::Cursor;
+use std::io::{BufReader, Cursor};
 #[cfg(not(feature = "mmap"))]
 use std::io::{Read, Seek, SeekFrom};
+use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use prost::Message;
 use log::{warn};
-
+use rayon::iter::{IndexedParallelIterator, ParallelIterator};
+use rayon::iter::plumbing::{bridge, UnindexedConsumer};
+use tokio::time::Instant;
 use crate::codec::blob::item::BlobItem;
 use crate::codec::osm::BlobHeader;
 
 const HEADER_LEN_SIZE: usize = 4;
 
 pub struct BlobIterator {
-    pub(crate) file: File,
+    pub(crate) buf: Vec<u8>,
+    pub(crate) file: BufReader<File>,
 
     #[cfg(feature = "mmap")]
     pub(crate) map: memmap2::Mmap,
@@ -37,10 +41,20 @@ impl BlobIterator {
             warn!("Could not advise memory. Encountered: {}", err);
         }
 
+        #[cfg(feature = "mmap")]
+        if let Err(err) = map.advise(memmap2::Advice::WillNeed) {
+            warn!("Could not advise memory. Encountered: {}", err);
+        }
+
+        let mut reader = BufReader::new(file);
+        let mut buf = vec![0; file.metadata()?.size() as usize];
+        reader.read_to_end(&mut buf)?;
+
         Ok(BlobIterator {
+            buf,
             #[cfg(feature = "mmap")]
             map,
-            file,
+            file: reader,
             offset: 0,
             index: 0,
         })
@@ -51,35 +65,52 @@ impl Iterator for BlobIterator {
     type Item = BlobItem;
 
     #[cfg(feature = "mmap")]
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.map.len() < self.offset as usize + HEADER_LEN_SIZE {
+        if self.buf.len() < self.offset as usize + HEADER_LEN_SIZE {
             return None;
         }
 
-        let header_len_buffer = &self.map[self.offset as usize..self.offset as usize + HEADER_LEN_SIZE];
+        let now = Instant::now();
+
+        let header_len_buffer: &[u8] = &self.buf.get(self.offset as usize..self.offset as usize + HEADER_LEN_SIZE)?;
         self.offset += HEADER_LEN_SIZE as u64;
+        println!("Buffer: {:?}", header_len_buffer);
+
+        println!("=> Reading Buffer: {}us", now.elapsed().as_micros());
 
         // Translate to i32 (Big Endian)
-        let blob_header_length = i32::from_be_bytes(header_len_buffer.try_into().unwrap()) as usize;
+        let blob_header_length = i32::from_be_bytes(header_len_buffer.try_into().ok()?) as usize;
 
-        if self.map.len() < self.offset as usize + blob_header_length {
+        // let blob_header_length = i32::from_be_bytes(header_len_buffer.try_into().unwrap()) as usize;
+        println!("=> To i32: {}us", now.elapsed().as_micros());
+
+        if self.buf.len() < self.offset as usize + blob_header_length {
             return None;
         }
 
-        let blob_header_buffer = &self.map[self.offset as usize..self.offset as usize + blob_header_length];
+        let blob_header_buffer = &self.buf[self.offset as usize..self.offset as usize + blob_header_length];
         self.offset += blob_header_length as u64;
 
+        println!("=> Header Buffer: {}us", now.elapsed().as_micros());
+
         let start = self.offset;
-        let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
+        let header = BlobHeader::decode(blob_header_buffer).ok()?;
+        // let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
         self.offset += header.datasize as u64;
+
+        println!("=> Decoding Blob: {}us", now.elapsed().as_micros());
 
         let blob = BlobItem::new(start, header);
         self.index += 1;
+
+        println!("=> Sum: {}us", now.elapsed().as_micros());
 
         Some(blob)
     }
 
     #[cfg(not(feature = "mmap"))]
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // Move to the location of the item
         self.file.seek(SeekFrom::Start(self.offset)).ok()?;
@@ -102,7 +133,7 @@ impl Iterator for BlobIterator {
         let header = BlobHeader::decode(&mut Cursor::new(blob_header_buffer)).ok()?;
         self.offset += header.datasize as u64;
 
-        let blob = BlobItem::new(self.index, start, header);
+        let blob = BlobItem::new(start, header);
         self.index += 1;
 
         Some(blob)
