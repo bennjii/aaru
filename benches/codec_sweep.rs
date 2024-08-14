@@ -4,12 +4,12 @@ use criterion::criterion_main;
 use log::info;
 
 use rayon::iter::ParallelIterator;
-use aaru::codec::consts::{AUSTRALIA, BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA};
+use aaru::codec::consts::{DISTRICT_OF_COLUMBIA};
 use aaru::codec::element::ProcessedElement;
 use aaru::codec::{BlockIterator, Element, ElementIterator, Parallel, ProcessedElementIterator};
 
 fn block_iter_count() {
-    let path = PathBuf::from(BADEN_WUERTTEMBERG);
+    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let mut iter = BlockIterator::new(path).expect("Could not create iterator");
 
     iter.for_each(|item| {
@@ -18,7 +18,7 @@ fn block_iter_count() {
 }
 
 fn element_iter_count() {
-    let path = PathBuf::from(BADEN_WUERTTEMBERG);
+    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iter = ElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(
@@ -36,7 +36,7 @@ fn element_iter_count() {
 }
 
 fn processed_iter_count() {
-    let path = PathBuf::from(BADEN_WUERTTEMBERG);
+    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(
