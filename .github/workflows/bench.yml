@@ -39,13 +39,13 @@ jobs:
           toolchain: stable
           override: true
 
-      - uses: actions-rs/cargo@v1.0.1
-        with:
-          command: build
-          args: --release
-
-      - name: test
-        run: cargo test
+#      - uses: actions-rs/cargo@v1.0.1
+#        with:
+#          command: build
+#          args: --release
+#
+#      - name: test
+#        run: cargo test
 
       - name: bench
         run: cargo bench
