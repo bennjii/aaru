@@ -3,6 +3,7 @@
 #[cfg(not(feature = "mmap"))]
 use std::fs::File;
 use std::path::PathBuf;
+use lending_iterator::LendingIterator;
 use log::{error, info};
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -19,9 +20,9 @@ fn iterate_blobs_each() {
 
     match iterator {
         Ok(iter) => {
-            for blob in iter {
-                info!("Have blob: {}. Type: {}", blob.item.datasize, blob.item.r#type);
-            }
+            iter.filter_map_into_iter::<_, String>(|blob| {
+                Some(format!("Have blob: {}. Type: {}", blob.item.datasize, blob.item.r#type))
+            }).map(|v| println!("{}", v)).collect()
         },
         Err(err) => {
             error!("Failed to load file, {:?}. Got error: {err}", path.as_os_str().to_str());
