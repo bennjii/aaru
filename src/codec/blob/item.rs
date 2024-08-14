@@ -31,7 +31,7 @@ impl BlobItem<'_> {
 
     #[cfg(feature = "mmap")]
     #[inline]
-    pub(crate) fn new<'a>(start: u64, item: BlobHeader, map: &'a memmap2::Mmap) -> Option<BlobItem> {
+    pub(crate) fn new<'a>(start: u64, item: BlobHeader, map: &'a Vec<u8>) -> Option<BlobItem> {
         let u_start = start as usize;
         let end = min(u_start + item.datasize as usize, map.len());
         let blob_buffer = (*map).get(u_start..end)?;
