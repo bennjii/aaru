@@ -41,7 +41,8 @@ jobs:
 
       - uses: actions-rs/cargo@v1.0.1
         with:
-          command: check
+          command: build
+          args: --release
 
       - name: test
         run: cargo test
