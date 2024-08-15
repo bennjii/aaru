@@ -2,7 +2,7 @@
 //! ignoring header blocks
 
 use std::path::PathBuf;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
@@ -28,9 +28,12 @@ impl Parallel for ElementIterator {
         where
             F: for<'a> Fn(Element<'a>) + Send + Sync,
     {
-        self.iter.into_par_iter().for_each(|mut block| {
-            block.raw_par_iter().for_each(&f);
-        })
+        self.iter
+            .into_iter()
+            .par_bridge()
+            .for_each(|mut block| {
+                block.raw_par_iter().for_each(&f);
+            })
     }
 
     fn map_red<Map, Reduce, Identity, T>(
@@ -46,7 +49,8 @@ impl Parallel for ElementIterator {
             T: Send
     {
         self.iter
-            .into_par_iter()
+            .into_iter()
+            .par_bridge()
             .map(|mut block| {
                 block.raw_par_iter().map(&map_op).reduce(&ident, &red_op)
             })
@@ -69,7 +73,8 @@ impl Parallel for ElementIterator {
             T: Send
     {
         self.iter
-            .into_par_iter()
+            .into_iter()
+            .par_bridge()
             .map(|mut block| {
                 block.raw_par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
             })

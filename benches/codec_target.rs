@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use criterion::criterion_main;
 use log::{error};
 
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use aaru::codec::{BlockItem, BlockIterator};
 use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 
@@ -17,7 +17,7 @@ fn iterate_blocks_each() {
 
     match iterator {
         Ok(iter) => {
-            for block in iter.iter() {
+            for block in iter {
                 match block {
                     BlockItem::HeaderBlock(_) => header_blocks += 1,
                     BlockItem::PrimitiveBlock(_) => primitive_blocks += 1
@@ -38,7 +38,9 @@ fn parallel_iterate_blocks_each() {
 
     let block_iter = BlockIterator::new(path).unwrap();
 
-    let elements = block_iter.into_par_iter()
+    let elements = block_iter
+        .into_iter()
+        .par_bridge()
         .map(|block| {
             match block {
                 BlockItem::HeaderBlock(_) => (0, 1),

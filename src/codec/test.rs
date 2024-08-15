@@ -3,10 +3,9 @@
 #[cfg(not(feature = "mmap"))]
 use std::fs::File;
 use std::path::PathBuf;
-use lending_iterator::LendingIterator;
 use log::{error, info};
 
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
@@ -20,9 +19,12 @@ fn iterate_blobs_each() {
 
     match iterator {
         Ok(iter) => {
-            iter.filter_map_into_iter::<_, String>(|blob| {
-                Some(format!("Have blob: {}. Type: {}", blob.item.datasize, blob.item.r#type))
-            }).map(|v| println!("{}", v)).collect()
+            for blob in iter {
+                println!("Have blob: {}. Type: {}", blob.header.datasize, blob.header.r#type);
+            }
+            // iter.filter_map_into_iter::<_, String>(|blob| {
+            //     Some(format!("Have blob: {}. Type: {}", blob.header.datasize, blob.header.r#type))
+            // }).map(|v| println!("{}", v)).collect()
         },
         Err(err) => {
             error!("Failed to load file, {:?}. Got error: {err}", path.as_os_str().to_str());
@@ -32,7 +34,7 @@ fn iterate_blobs_each() {
     info!("Test Complete.");
 }
 
-#[test]
+#[test_log::test]
 fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iterator = BlockIterator::new(path.clone());
@@ -42,7 +44,7 @@ fn iterate_blocks_each() {
 
     match iterator {
         Ok(iter) => {
-            for block in iter.iter() {
+            for block in iter {
                 match block {
                     BlockItem::HeaderBlock(_) => header_blocks += 1,
                     BlockItem::PrimitiveBlock(_) => primitive_blocks += 1
@@ -64,7 +66,9 @@ fn parallel_iterate_blocks_each() {
 
     let block_iter = BlockIterator::new(path).unwrap();
 
-    let elements = block_iter.into_par_iter()
+    let elements = block_iter
+        .into_iter()
+        .par_bridge()
         .map(|block| {
             match block {
                 BlockItem::HeaderBlock(_) => (0, 1),

@@ -28,19 +28,22 @@ pub enum BlockItem {
 
 impl BlockItem {
     #[inline]
-    pub(crate) fn from_blob_item(blob: &BlobItem) -> Option<Self> {
+    pub(crate) fn from_blob_item(blob: &BlobItem, buf: &Vec<u8>) -> Option<Self> {
         trace!(
-            "Decoding blob: {}. Size: {}",
-            blob.start,
-            blob.item.datasize
+            "Decoding blob: {:?}. Size: {}",
+            blob.range,
+            blob.header.datasize
         );
-        BlockItem::from_raw(blob)
+
+        BlockItem::from_raw(blob, buf)
     }
 
     #[inline]
-    fn from_raw(blob_item: &BlobItem) -> Option<Self> {
-        trace!("Partial Block");
-        let blob = Blob::decode(blob_item.data).expect("Parse Failed");
+    fn from_raw(blob_item: &BlobItem, buf: &Vec<u8>) -> Option<Self> {
+        let data = buf.get(blob_item.range.clone())?;
+        trace!("Partial Block: {:?}", &data[0..5]);
+
+        let blob = Blob::decode(data).expect("Parse Failed");
 
         // Convert raw into actual. Handles ZLIB encoding.
         let data = BlockItem::from_blob(blob)?;
@@ -59,7 +62,7 @@ impl BlockItem {
 
     #[inline]
     fn from_data(data: &[u8], blob: &BlobItem) -> Option<Self> {
-        match blob.item.r#type.as_str() {
+        match blob.header.r#type.as_str() {
             "OSMData" => Some(BlockItem::PrimitiveBlock(
                 PrimitiveBlock::decode(data).ok()?,
             )),

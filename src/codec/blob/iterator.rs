@@ -6,8 +6,7 @@ use std::io;
 use std::io::{BufReader};
 use std::io::{Read};
 use std::path::PathBuf;
-use ::lending_iterator::prelude::*;
-use log::{info, trace};
+use log::{trace};
 use prost::Message;
 
 use crate::codec::blob::item::BlobItem;
@@ -22,6 +21,7 @@ pub struct BlobIterator {
     pub(crate) index: u64,
     offset: u64,
 }
+
 
 impl BlobIterator {
     pub fn new(path: PathBuf) -> Result<BlobIterator, io::Error> {
@@ -39,15 +39,12 @@ impl BlobIterator {
     }
 
     pub fn make_block(&self, blob: &BlobItem) -> Option<BlockItem> {
-        BlockItem::from_blob_item(blob)
+        BlockItem::from_blob_item(blob, &self.buf)
     }
 }
 
-#[gat]
-impl LendingIterator for BlobIterator {
-    type Item<'next> where Self: 'next = BlobItem<'next>;
-
-    fn next(self: &mut Self) -> Option<Item<'_, Self>> {
+impl BlobIterator {
+    fn take_next(self: &mut Self) -> Option<BlobItem> {
         if self.buf.len() < self.offset as usize + HEADER_LEN_SIZE {
             return None;
         }
@@ -70,9 +67,26 @@ impl LendingIterator for BlobIterator {
         let header = BlobHeader::decode(blob_header_buffer).ok()?;
         self.offset += header.datasize as u64;
 
-        let blob = BlobItem::new(start, header, &self.buf)?;
+        let blob = BlobItem::new(start as usize, header)?;
         self.index += 1;
 
         Some(blob)
     }
 }
+
+impl Iterator for BlobIterator {
+    type Item = BlobItem;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.take_next()
+    }
+}
+
+// #[gat]
+// impl LendingIterator for BlobIterator {
+//     type Item<'next> where Self: 'next = BlobItem<'next>;
+//
+//     fn next(self: &mut Self) -> Option<Item<'_, Self>> {
+//         self.take_next()
+//     }
+// }
