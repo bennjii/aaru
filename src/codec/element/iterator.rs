@@ -24,7 +24,7 @@ impl ElementIterator {
 impl Parallel for ElementIterator {
     type Item<'a> = Element<'a>;
 
-    fn for_each<F>(mut self, f: F) -> ()
+    fn for_each<F>(self, f: F) -> ()
         where
             F: for<'a> Fn(Element<'a>) + Send + Sync,
     {
@@ -34,7 +34,7 @@ impl Parallel for ElementIterator {
     }
 
     fn map_red<Map, Reduce, Identity, T>(
-        mut self,
+        self,
         map_op: Map,
         red_op: Reduce,
         ident: Identity
@@ -57,7 +57,7 @@ impl Parallel for ElementIterator {
     }
 
     fn par_red<Reduce, Identity, Combine, T>(
-        mut self,
+        self,
         fold_op: Reduce,
         combine: Combine,
         ident: Identity,

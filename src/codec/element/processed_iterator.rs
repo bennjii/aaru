@@ -24,7 +24,7 @@ impl<'a> ProcessedElementIterator {
 impl Parallel for ProcessedElementIterator {
     type Item<'a> = ProcessedElement;
 
-    fn for_each<F>(mut self, f: F) -> ()
+    fn for_each<F>(self, f: F) -> ()
         where
             F: Fn(ProcessedElement) + Send + Sync,
     {
@@ -35,7 +35,7 @@ impl Parallel for ProcessedElementIterator {
             })
     }
 
-    fn map_red<Map, Reduce, Identity, T>(mut self, map_op: Map, red_op: Reduce, ident: Identity) -> T
+    fn map_red<Map, Reduce, Identity, T>(self, map_op: Map, red_op: Reduce, ident: Identity) -> T
         where
             Map: Fn(ProcessedElement) -> T + Send + Sync,
             Reduce: Fn(T, T) -> T + Send + Sync,
@@ -53,7 +53,7 @@ impl Parallel for ProcessedElementIterator {
             )
     }
 
-    fn par_red<Reduce, Identity, Combine, T>(mut self, fold_op: Reduce, combine: Combine, ident: Identity) -> T
+    fn par_red<Reduce, Identity, Combine, T>(self, fold_op: Reduce, combine: Combine, ident: Identity) -> T
         where
             Reduce: Fn(T, ProcessedElement) -> T + Send + Sync,
             Identity: Fn() -> T + Send + Sync,

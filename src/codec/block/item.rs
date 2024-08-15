@@ -39,7 +39,7 @@ impl BlockItem {
 
     #[inline]
     fn from_raw(blob_item: &BlobItem) -> Option<Self> {
-        trace!("Partial Block: {:?}", blob_item.data[0..5].to_vec());
+        trace!("Partial Block");
         let blob = Blob::decode(blob_item.data).expect("Parse Failed");
 
         // Convert raw into actual. Handles ZLIB encoding.

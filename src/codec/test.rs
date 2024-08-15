@@ -11,7 +11,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::block::item::BlockItem;
-use crate::codec::consts::DISTRICT_OF_COLUMBIA;
+use crate::codec::consts::{DISTRICT_OF_COLUMBIA};
 
 #[test]
 fn iterate_blobs_each() {
@@ -58,11 +58,11 @@ fn iterate_blocks_each() {
     assert_eq!(primitive_blocks, 237);
 }
 
-#[test]
+#[test_log::test]
 fn parallel_iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
-    let mut block_iter = BlockIterator::new(path).unwrap();
+    let block_iter = BlockIterator::new(path).unwrap();
 
     let elements = block_iter.into_par_iter()
         .map(|block| {

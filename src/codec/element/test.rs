@@ -2,7 +2,7 @@
 
 use log::info;
 use std::path::PathBuf;
-use criterion::criterion_main;
+
 use crate::codec::consts::DISTRICT_OF_COLUMBIA;
 use crate::codec::element::item::Element;
 use crate::codec::element::item::ProcessedElement;

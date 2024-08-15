@@ -2,17 +2,15 @@
 
 use std::io;
 use std::path::PathBuf;
-use lending_iterator::HKT;
 use lending_iterator::LendingIterator;
-use log::info;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+
+use rayon::iter::{ParallelIterator};
 use rayon::prelude::ParallelBridge;
-use std::borrow::BorrowMut;
-use std::sync::Arc;
+
 use crossbeam::channel;
 use rayon::iter::plumbing::{Consumer, UnindexedConsumer};
+
 use crate::codec::blob::iterator::BlobIterator;
-use crate::codec::BlobItem;
 use crate::codec::block::item::BlockItem;
 
 pub struct BlockIterator {
@@ -32,9 +30,11 @@ impl BlockIterator {
 }
 
 impl BlockIterator {
-    pub fn iter<'a>(mut self) -> impl Iterator<Item=BlockItem> + 'a {
+    pub fn iter<'a>(self) -> impl Iterator<Item=BlockItem> + 'a {
         self.iter
-            .filter_map_into_iter::<_, BlockItem>(|blob| BlockItem::from_blob_item(&blob))
+            .filter_map_into_iter::<_, BlockItem>(|blob|
+                BlockItem::from_blob_item(&blob)
+            )
     }
 }
 
