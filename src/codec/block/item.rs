@@ -12,6 +12,7 @@ use log::{info, trace, warn};
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Read;
+use std::slice::SliceIndex;
 #[cfg(not(feature = "mmap"))]
 use std::sync::Arc;
 
@@ -28,7 +29,7 @@ pub enum BlockItem {
 
 impl BlockItem {
     #[inline]
-    pub(crate) fn from_blob_item(blob: &BlobItem, buf: &Vec<u8>) -> Option<Self> {
+    pub(crate) fn from_blob_item(blob: &BlobItem, buf: &[u8]) -> Option<Self> {
         trace!(
             "Decoding blob: {:?}. Size: {}",
             blob.range,
@@ -39,7 +40,7 @@ impl BlockItem {
     }
 
     #[inline]
-    fn from_raw(blob_item: &BlobItem, buf: &Vec<u8>) -> Option<Self> {
+    fn from_raw(blob_item: &BlobItem, buf: &[u8]) -> Option<Self> {
         let data = buf.get(blob_item.range.clone())?;
         trace!("Partial Block: {:?}", &data[0..5]);
 

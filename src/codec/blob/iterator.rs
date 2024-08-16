@@ -16,7 +16,7 @@ use crate::codec::osm::BlobHeader;
 const HEADER_LEN_SIZE: usize = 4;
 
 pub struct BlobIterator {
-    pub(crate) buf: Vec<u8>,
+    pub(crate) buf: Box<Vec<u8>>,
 
     pub(crate) index: u64,
     offset: u64,
@@ -30,6 +30,20 @@ impl BlobIterator {
         let mut buf = Vec::new(); // vec![0; file.metadata()?.size() as usize];
         let mut reader = BufReader::new(file);
         reader.read_to_end(&mut buf)?;
+
+        Ok(BlobIterator {
+            buf: Box::new(buf),
+            offset: 0,
+            index: 0,
+        })
+    }
+
+    pub fn with_existing(buf: Box<Vec<u8>>) -> Result<BlobIterator, io::Error> {
+        // let file = File::open(path)?;
+
+        // let mut buf = Vec::new(); // vec![0; file.metadata()?.size() as usize];
+        // let mut reader = BufReader::new(file);
+        // reader.read_to_end(&mut buf)?;
 
         Ok(BlobIterator {
             buf,

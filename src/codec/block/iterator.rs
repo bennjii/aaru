@@ -1,45 +1,57 @@
 //! Iterates over `BlockItem`s in the file
 
+use std::fs::File;
 use std::io;
+use std::io::{BufReader, Read};
 use std::path::PathBuf;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::BlobItem;
 use crate::codec::block::item::BlockItem;
 
 pub struct BlockIterator {
-    iter: BlobIterator,
-    // blobs: Vec<BlobItem>,
+    blobs: Vec<BlobItem>,
+    buf: Box<Vec<u8>>,
     index: usize,
 }
 
 impl BlockIterator {
     pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
-        let iter = BlobIterator::new(path)?;
-        // let blobs = iter.collect::<Vec<_>>();
+        let file = File::open(path)?;
+
+        let mut buf = Box::new(Vec::new()); // vec![0; file.metadata()?.size() as usize];
+        let mut reader = BufReader::new(file);
+        reader.read_to_end(&mut buf)?;
+
+        let iter = BlobIterator::with_existing(buf.clone())?;
+        let blobs: Vec<BlobItem> = iter.collect();
 
         Ok(BlockIterator {
             index: 0,
-            iter,
-            // blobs
+            blobs,
+            buf,
         })
     }
-}
 
-// impl BlockIterator {
-//     pub fn iter<'a>(self) -> impl Iterator<Item=BlockItem> + 'a {
-//         self.iter
-//             .filter_map_into_iter::<_, BlockItem>(|blob|
-//                 BlockItem::from_blob_item(&blob, &self.iter.buf)
-//             )
-//     }
-// }
+    pub fn par_iter<'a>(&'a mut self) -> impl ParallelIterator<Item=BlockItem> + 'a {
+        // let buffer = self.buf.as_slice();
+
+        self.blobs
+            .par_iter()
+            .filter_map(|blob| {
+                BlockItem::from_blob_item(&blob, self.buf.as_slice())
+            })
+    }
+}
 
 impl Iterator for BlockIterator {
     type Item = BlockItem;
 
     fn next(&mut self) -> Option<Self::Item> {
-        BlockItem::from_blob_item(&self.iter.next()?, &self.iter.buf)
+        let blob = self.blobs.get(self.index)?;
+        let block = BlockItem::from_blob_item(blob, &self.buf);
+        self.index += 1;
+        block
     }
 }
 
