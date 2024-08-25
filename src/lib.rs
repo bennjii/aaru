@@ -1,4 +1,4 @@
-#![doc = include_str!("../readme.md")]
+#![doc = include_str!("../docs/head.md")]
 #![allow(dead_code)]
 
 use crate::geo::error::GeoError;

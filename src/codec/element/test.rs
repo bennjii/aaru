@@ -2,7 +2,7 @@
 
 use log::info;
 use std::path::PathBuf;
-
+use std::time::Instant;
 use crate::codec::consts::DISTRICT_OF_COLUMBIA;
 use crate::codec::element::item::Element;
 use crate::codec::element::item::ProcessedElement;
@@ -24,6 +24,7 @@ fn try_into_iter() {
 fn iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iter = ElementIterator::new(path).expect("Could not create iterator");
+    let now = Instant::now();
 
     let nodes = iter.map_red(
         |item| match item {
@@ -36,13 +37,16 @@ fn iter_count() {
         || 0,
     );
 
-    info!("There are {nodes} nodes");
+    println!("There are {nodes} nodes");
+    println!("Took: {}ms", now.elapsed().as_micros() / 1000)
 }
 
 #[test]
 fn processed_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
+
+    let now = Instant::now();
 
     let nodes = iter.map_red(
         |item| match item {
@@ -53,5 +57,6 @@ fn processed_iter_count() {
         || 0,
     );
 
-    info!("There are {nodes} nodes");
+    println!("There are {nodes} nodes");
+    println!("Took: {}ms", now.elapsed().as_micros() / 1000)
 }

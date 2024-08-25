@@ -12,6 +12,8 @@ use log::{info, trace, warn};
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Read;
+#[cfg(not(feature = "mmap"))]
+use std::sync::Arc;
 
 use crate::codec::blob::item::BlobItem;
 use crate::codec::element::item::Element;
@@ -25,34 +27,21 @@ pub enum BlockItem {
 }
 
 impl BlockItem {
-    #[cfg(feature = "mmap")]
     #[inline]
-    pub(crate) fn from_blob_item(blob: &BlobItem, mmap: &memmap2::Mmap) -> Option<Self> {
+    pub(crate) fn from_blob_item(blob: &BlobItem, buf: &[u8]) -> Option<Self> {
         trace!(
-            "Decoding blob: {}. Size: {}",
-            blob.start,
-            blob.item.datasize
+            "Decoding blob: {:?}. Size: {}",
+            blob.range,
+            blob.header.datasize
         );
-        let block_data = blob.data(mmap)?;
-        BlockItem::from_raw(block_data, blob)
-    }
 
-    #[cfg(not(feature = "mmap"))]
-    #[inline]
-    pub(crate) fn from_blob_item(blob: &BlobItem, file: &mut File) -> Option<Self> {
-        trace!(
-            "Decoding blob: {}. Size: {}",
-            blob.start,
-            blob.item.datasize
-        );
-        let block_data = blob.data(file)?;
-        BlockItem::from_raw(block_data.as_slice(), &blob)
+        BlockItem::from_raw(blob, buf)
     }
 
     #[inline]
-    fn from_raw(data: &[u8], blob_item: &BlobItem) -> Option<Self> {
-        trace!("Partial Block: {:?}", data[0..5].to_vec());
-        let blob = Blob::decode(data).expect("Parse Failed");
+    fn from_raw(blob_item: &BlobItem, buf: &[u8]) -> Option<Self> {
+        let data = buf.get(blob_item.range.clone())?;
+        let blob = Blob::decode(data).ok()?;
 
         // Convert raw into actual. Handles ZLIB encoding.
         let data = BlockItem::from_blob(blob)?;
@@ -71,7 +60,7 @@ impl BlockItem {
 
     #[inline]
     fn from_data(data: &[u8], blob: &BlobItem) -> Option<Self> {
-        match blob.item.r#type.as_str() {
+        match blob.header.r#type.as_str() {
             "OSMData" => Some(BlockItem::PrimitiveBlock(
                 PrimitiveBlock::decode(data).ok()?,
             )),

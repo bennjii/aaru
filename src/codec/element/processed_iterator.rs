@@ -13,7 +13,7 @@ pub struct ProcessedElementIterator {
     iter: BlockIterator,
 }
 
-impl ProcessedElementIterator {
+impl<'a> ProcessedElementIterator {
     pub fn new(path: PathBuf) -> Result<ProcessedElementIterator, CodecError> {
         Ok(ProcessedElementIterator {
             iter: BlockIterator::new(path)?,
@@ -28,9 +28,11 @@ impl Parallel for ProcessedElementIterator {
         where
             F: Fn(ProcessedElement) + Send + Sync,
     {
-        self.iter.par_iter().for_each(|mut block| {
-            block.par_iter().for_each(&f);
-        })
+        self.iter
+            .par_iter()
+            .for_each(|mut block| {
+                block.par_iter().for_each(&f);
+            })
     }
 
     fn map_red<Map, Reduce, Identity, T>(mut self, map_op: Map, red_op: Reduce, ident: Identity) -> T
@@ -41,9 +43,10 @@ impl Parallel for ProcessedElementIterator {
             T: Send
     {
         self.iter
-            .par_iter().map(|mut block| {
-            block.par_iter().map(&map_op).reduce(&ident, &red_op)
-        })
+            .par_iter()
+            .map(|mut block| {
+                block.par_iter().map(&map_op).reduce(&ident, &red_op)
+            })
             .reduce(
                 &ident,
                 &red_op,
@@ -58,9 +61,10 @@ impl Parallel for ProcessedElementIterator {
             T: Send
     {
         self.iter
-            .par_iter().map(|mut block| {
-            block.par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
-        })
+            .par_iter()
+            .map(|mut block| {
+                block.par_iter().fold(&ident, &fold_op).reduce(&ident, &combine)
+            })
             .reduce(&ident, &combine)
     }
 }

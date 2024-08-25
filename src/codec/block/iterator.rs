@@ -2,87 +2,106 @@
 
 use std::fs::File;
 use std::io;
+use std::io::{BufReader, Read};
 use std::path::PathBuf;
-use log::warn;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-
-use crate::codec::blob::item::BlobItem;
 use crate::codec::blob::iterator::BlobIterator;
+use crate::codec::BlobItem;
 use crate::codec::block::item::BlockItem;
 
 pub struct BlockIterator {
     blobs: Vec<BlobItem>,
+    buf: Box<Vec<u8>>,
     index: usize,
-    #[cfg(feature = "mmap")]
-    map: memmap2::Mmap,
-    #[allow(unused)]
-    file: File
 }
 
 impl BlockIterator {
+    #[inline]
     pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
-        let iter = BlobIterator::new(path)?;
+        let file = File::open(path)?;
 
-        let file = iter.file.try_clone().expect("");
+        let mut buf = Box::new(Vec::new()); // vec![0; file.metadata()?.size() as usize];
+        let mut reader = BufReader::new(file);
+        reader.read_to_end(&mut buf)?;
 
-        #[cfg(feature = "mmap")]
-        let map = unsafe { memmap2::Mmap::map(&file)? };
-
-        #[cfg(feature = "mmap")]
-        if let Err(err) = map.advise(memmap2::Advice::WillNeed) {
-            warn!("Could not advise memory. Encountered: {}", err);
-        }
-
-        #[cfg(feature = "mmap")]
-        if let Err(err) = map.advise(memmap2::Advice::Random) {
-            warn!("Could not advise memory. Encountered: {}", err);
-        }
-
+        let iter = BlobIterator::with_existing(buf.clone())?;
         let blobs: Vec<BlobItem> = iter.collect();
 
         Ok(BlockIterator {
-            blobs,
             index: 0,
-            #[cfg(feature = "mmap")]
-            map,
-            file,
+            blobs,
+            buf,
         })
     }
-}
 
-impl BlockIterator {
-    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=BlockItem> + '_ {
+    #[inline]
+    pub fn par_iter<'a>(&'a mut self) -> impl ParallelIterator<Item=BlockItem> + 'a {
+        // let buffer = self.buf.as_slice();
+
         self.blobs
             .par_iter()
-            .map(|blob| {
-                #[cfg(feature = "mmap")]
-                return BlockItem::from_blob_item(blob, &self.map);
-                #[cfg(not(feature = "mmap"))]
-                return BlockItem::from_blob_item(blob, &mut self.file);
+            .filter_map(|blob| {
+                BlockItem::from_blob_item(&blob, self.buf.as_slice())
             })
-            .filter(|e| e.is_some())
-            .map(|e| e.unwrap())
     }
 }
 
 impl Iterator for BlockIterator {
     type Item = BlockItem;
 
-    #[cfg(feature = "mmap")]
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.blobs.len() {
-            return None;
-        }
-
-        let blob_desc = &self.blobs[self.index];
+        let blob = self.blobs.get(self.index)?;
+        let block = BlockItem::from_blob_item(blob, &self.buf);
         self.index += 1;
-        BlockItem::from_blob_item(blob_desc, &self.map)
-    }
-
-    #[cfg(not(feature = "mmap"))]
-    fn next(&mut self) -> Option<Self::Item> {
-        let blob_desc = self.blobs[self.index];
-        self.index += 1;
-        BlockItem::from_blob_item(&blob_desc, &mut self.file)
+        block
     }
 }
+
+// impl ParallelIterator for BlockIterator {
+//     fn next(&mut self) -> Option<Self::Item> {
+//
+//     }
+// }
+
+// impl ParallelIterator for BlockIterator {
+//     type Item = BlockItem;
+//
+//     fn drive_unindexed<C>(self, consumer: C) -> C::Result
+//     where
+//         C: UnindexedConsumer<BlockItem> + Consumer<BlockItem>,
+//     {
+//         let (sender, receiver) = channel::unbounded();
+//
+//         // Spawn a thread to feed items into the channel
+//         std::thread::spawn(move || {
+//             let mut raw = self.into_iter();
+//
+//             for item in raw.by_ref() {
+//                 if sender.send(item).is_err() {
+//                     break;
+//                 }
+//             }
+//         });
+//
+//         receiver.into_iter().par_bridge().drive_unindexed(consumer)
+//     }
+// }
+
+// impl<'a> Iterator for BlockIterator {
+//     type Item = BlockItem;
+//
+//     fn next(&mut self) -> Option<Self::Item> {
+//         match self.iter.next() {
+//             Some(blob) => BlockItem::from_blob_item(&blob),
+//             None => None
+//         }
+//     }
+//
+//     // #[cfg(not(feature = "mmap"))]
+//     // fn next(&mut self) -> Option<Self::Item> {
+//     //     let blob_desc = &self.blobs[self.index];
+//     //     self.index += 1;
+//     //     BlockItem::from_blob_item(blob_desc, &mut self.file)
+//     // }
+// }

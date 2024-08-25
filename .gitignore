@@ -1,5 +1,7 @@
 /target
-/resources
+/resources/*
 .DS_Store
 /.idea
 .env
+
+!district-of-columbia.osm.pbf

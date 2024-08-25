@@ -54,7 +54,7 @@ impl<'a> Element<'a> {
         elements
     }
 
-    pub(crate) fn str_type(&self) -> &str {
+    pub fn str_type(&self) -> &str {
         match self {
             Element::Node(_) => "node",
             Element::Way(_) => "way",

@@ -3,35 +3,44 @@
 #[cfg(not(feature = "mmap"))]
 use std::fs::File;
 use std::path::PathBuf;
-use log::{error, info};
+use std::time::Instant;
+use log::{error};
 
-use rayon::iter::ParallelIterator;
-
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::block::item::BlockItem;
-use crate::codec::consts::DISTRICT_OF_COLUMBIA;
+use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA};
 
 #[test]
 fn iterate_blobs_each() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = PathBuf::from(BADEN_WUERTTEMBERG);
     let iterator = BlobIterator::new(path.clone());
 
-    match iterator {
-        Ok(iter) => {
-            for blob in iter {
-                info!("Have blob: {}. Type: {}", blob.item.datasize, blob.item.r#type);
-            }
+    let now = Instant::now();
+
+    let total_data_size = iterator.map(|f| f
+        .map(|blob| {
+            // println!("Have blob: {}. Type: {}", blob.header.datasize, blob.header.r#type);
+            blob.header.datasize
+        })
+        .reduce(|a, b| a + b)
+    );
+
+    match total_data_size {
+        Ok(size) => {
+            println!("Got Size: {:?}", size)
         },
         Err(err) => {
             error!("Failed to load file, {:?}. Got error: {err}", path.as_os_str().to_str());
         }
     }
 
-    info!("Test Complete.");
+    println!("Time Taken: {}ms", now.elapsed().as_micros() / 1000);
+    println!("Test Complete.");
 }
 
-#[test]
+#[test_log::test]
 fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iterator = BlockIterator::new(path.clone());
@@ -57,13 +66,15 @@ fn iterate_blocks_each() {
     assert_eq!(primitive_blocks, 237);
 }
 
-#[test]
+#[test_log::test]
 fn parallel_iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
-    let mut block_iter = BlockIterator::new(path).unwrap();
+    let block_iter = BlockIterator::new(path).unwrap();
 
-    let elements = block_iter.par_iter()
+    let elements = block_iter
+        .into_iter()
+        .par_bridge()
         .map(|block| {
             match block {
                 BlockItem::HeaderBlock(_) => (0, 1),
