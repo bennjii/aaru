@@ -93,7 +93,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
 
 }
 
-fn sweep_benchmark(c: &mut criterion::Criterion) {
+fn target_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("iterator_target");
     group
         .significance_level(0.1)
@@ -105,8 +105,6 @@ fn sweep_benchmark(c: &mut criterion::Criterion) {
 
     group.finish();
 }
-
-
 
 criterion::criterion_group!(targeted_benches, target_benchmark);
 criterion_main!(targeted_benches);
