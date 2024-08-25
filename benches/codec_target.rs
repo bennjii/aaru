@@ -90,10 +90,23 @@ fn compare_to_osmpbf() {
 }
 
 fn target_benchmark(c: &mut criterion::Criterion) {
-    c.bench_function("iterate_blocks_each", |b| b.iter(|| iterate_blocks_each()));
-    c.bench_function("parallel_iterate_blocks_each", |b| b.iter(|| parallel_iterate_blocks_each()));
-    c.bench_function("compared_to_osmpbf", |b| b.iter(|| compare_to_osmpbf()));
+
 }
+
+fn sweep_benchmark(c: &mut criterion::Criterion) {
+    let mut group = c.benchmark_group("iterator_target");
+    group
+        .significance_level(0.1)
+        .sample_size(30);
+
+    group.bench_function("iterate_blocks_each", |b| b.iter(|| iterate_blocks_each()));
+    group.bench_function("parallel_iterate_blocks_each", |b| b.iter(|| parallel_iterate_blocks_each()));
+    group.bench_function("compared_to_osmpbf", |b| b.iter(|| compare_to_osmpbf()));
+
+    group.finish();
+}
+
+
 
 criterion::criterion_group!(targeted_benches, target_benchmark);
 criterion_main!(targeted_benches);
