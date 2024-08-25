@@ -22,23 +22,24 @@ jobs:
         with:
           tool: protoc@${{ env.PROTOC_VERSION }}
 
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Rust Cache
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
 
+      - name: 🔨 Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
 #      - uses: actions-rs/cargo@v1.0.1
 #        with:
 #          command: build
