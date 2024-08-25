@@ -41,9 +41,7 @@ impl BlockItem {
     #[inline]
     fn from_raw(blob_item: &BlobItem, buf: &[u8]) -> Option<Self> {
         let data = buf.get(blob_item.range.clone())?;
-        trace!("Partial Block: {:?}", &data[0..5]);
-
-        let blob = Blob::decode(data).expect("Parse Failed");
+        let blob = Blob::decode(data).ok()?;
 
         // Convert raw into actual. Handles ZLIB encoding.
         let data = BlockItem::from_blob(blob)?;

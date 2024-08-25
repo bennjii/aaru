@@ -63,11 +63,11 @@ impl BlobIterator {
             return None;
         }
 
-        let header_len_buffer = &self.buf[self.offset as usize..self.offset as usize + HEADER_LEN_SIZE];
+        let header_len_buffer = unsafe { self.buf.as_ptr().add(self.offset as usize) as *const [u8; HEADER_LEN_SIZE] };
         self.offset += HEADER_LEN_SIZE as u64;
 
         // Translate to i32 (Big Endian)
-        let blob_header_length = i32::from_be_bytes(header_len_buffer.try_into().unwrap()) as usize;
+        let blob_header_length = u32::from_be_bytes(unsafe { *header_len_buffer }) as usize;
         trace!("Header length: {}. Buffer: {:?}", blob_header_length, header_len_buffer);
 
         if self.buf.len() < self.offset as usize + blob_header_length {

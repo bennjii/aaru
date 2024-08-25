@@ -4,25 +4,24 @@
 use std::fs::File;
 use std::path::PathBuf;
 use std::time::Instant;
-use log::{error, info};
+use log::{error};
 
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::block::item::BlockItem;
-use crate::codec::consts::{DISTRICT_OF_COLUMBIA};
+use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA};
 
 #[test]
 fn iterate_blobs_each() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = PathBuf::from(BADEN_WUERTTEMBERG);
     let iterator = BlobIterator::new(path.clone());
 
     let now = Instant::now();
-    let mut total_space = 0;
 
     let total_data_size = iterator.map(|f| f
         .map(|blob| {
-            println!("Have blob: {}. Type: {}", blob.header.datasize, blob.header.r#type);
+            // println!("Have blob: {}. Type: {}", blob.header.datasize, blob.header.r#type);
             blob.header.datasize
         })
         .reduce(|a, b| a + b)
