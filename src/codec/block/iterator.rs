@@ -16,6 +16,7 @@ pub struct BlockIterator {
 }
 
 impl BlockIterator {
+    #[inline]
     pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
         let file = File::open(path)?;
 
@@ -33,6 +34,7 @@ impl BlockIterator {
         })
     }
 
+    #[inline]
     pub fn par_iter<'a>(&'a mut self) -> impl ParallelIterator<Item=BlockItem> + 'a {
         // let buffer = self.buf.as_slice();
 
@@ -47,6 +49,7 @@ impl BlockIterator {
 impl Iterator for BlockIterator {
     type Item = BlockItem;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let blob = self.blobs.get(self.index)?;
         let block = BlockItem::from_blob_item(blob, &self.buf);

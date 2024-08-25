@@ -12,7 +12,6 @@ use log::{info, trace, warn};
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Read;
-use std::slice::SliceIndex;
 #[cfg(not(feature = "mmap"))]
 use std::sync::Arc;
 

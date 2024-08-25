@@ -3,10 +3,10 @@
 #[cfg(not(feature = "mmap"))]
 use std::fs::File;
 use std::path::PathBuf;
+use std::time::Instant;
 use log::{error, info};
 
 use rayon::iter::{ParallelBridge, ParallelIterator};
-
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::block::item::BlockItem;
@@ -17,21 +17,28 @@ fn iterate_blobs_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
     let iterator = BlobIterator::new(path.clone());
 
-    match iterator {
-        Ok(iter) => {
-            for blob in iter {
-                println!("Have blob: {}. Type: {}", blob.header.datasize, blob.header.r#type);
-            }
-            // iter.filter_map_into_iter::<_, String>(|blob| {
-            //     Some(format!("Have blob: {}. Type: {}", blob.header.datasize, blob.header.r#type))
-            // }).map(|v| println!("{}", v)).collect()
+    let now = Instant::now();
+    let mut total_space = 0;
+
+    let total_data_size = iterator.map(|f| f
+        .map(|blob| {
+            println!("Have blob: {}. Type: {}", blob.header.datasize, blob.header.r#type);
+            blob.header.datasize
+        })
+        .reduce(|a, b| a + b)
+    );
+
+    match total_data_size {
+        Ok(size) => {
+            println!("Got Size: {:?}", size)
         },
         Err(err) => {
             error!("Failed to load file, {:?}. Got error: {err}", path.as_os_str().to_str());
         }
     }
 
-    info!("Test Complete.");
+    println!("Time Taken: {}ms", now.elapsed().as_micros() / 1000);
+    println!("Test Complete.");
 }
 
 #[test_log::test]
