@@ -90,10 +90,6 @@ fn compare_to_osmpbf() {
 }
 
 fn target_benchmark(c: &mut criterion::Criterion) {
-
-}
-
-fn target_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("iterator_target");
     group
         .significance_level(0.1)
