@@ -90,7 +90,7 @@ mmap = ["memmap2"]
 
 tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]
 
-grpc_server = ["tracing", "tonic", "tonic-reflection", "tokio"]
+grpc_server = ["tonic", "tonic-reflection", "tokio"]
 http_server = ["tower-http", "axum", "axum-macros", "serde_qs", "tokio"]
 
 tile = ["http_server", "fast_hilbert"]
