@@ -103,3 +103,7 @@ features = ["tile", "route", "codec"]
 [profile.release]
 opt-level = 3
 lto = true
+
+[profile.bench]
+opt-level = 3
+lto = true
