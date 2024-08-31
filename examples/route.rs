@@ -33,12 +33,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(message = "Starting server.", %addr);
 
      Server::builder()
-        .accept_http1(true)
+         .accept_http1(true)
          .tcp_nodelay(true)
-        .add_service(RouterServer::new(router))
-        .add_service(reflector)
-        .serve(addr)
-        .await?;
+         .add_service(RouterServer::new(router))
+         .add_service(reflector)
+         .serve(addr)
+         .await?;
 
     Ok(())
 }
