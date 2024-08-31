@@ -10,6 +10,7 @@ include = ["docs", "src/**/*", "proto/**/*", "build.rs", "readme.md"]
 [lib]
 name = "aaru"
 path = "src/lib.rs"
+bench = false
 
 [[example]]
 name = "route"
