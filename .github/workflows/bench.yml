@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
 
       - name: 🔨 Build
@@ -42,16 +42,27 @@ jobs:
           command: build
           args: --release
 
-#      - uses: actions-rs/cargo@v1.0.1
-#        with:
-#          command: build
-#          args: --release
-#
-#      - name: test
-#        run: cargo test
-
       - name: bench
-        run: cargo bench
+        run: cargo +nightly bench -- --output-format bencher | tee output.txt
+
+      - name: Download previous benchmark data
+        uses: actions/cache@v1
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          external-data-json-path: ./cache/benchmark-data.json
+          fail-on-alert: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
+          comment-always: true
+          summary-always: true
+          alert-comment-cc-users: '@bennjii'
 
       - uses: actions/upload-artifact@v1
         with:

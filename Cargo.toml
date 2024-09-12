@@ -10,6 +10,7 @@ include = ["docs", "src/**/*", "proto/**/*", "build.rs", "readme.md"]
 [lib]
 name = "aaru"
 path = "src/lib.rs"
+bench = false
 
 [[example]]
 name = "route"
@@ -90,7 +91,7 @@ mmap = ["memmap2"]
 
 tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]
 
-grpc_server = ["tracing", "tonic", "tonic-reflection", "tokio"]
+grpc_server = ["tonic", "tonic-reflection", "tokio"]
 http_server = ["tower-http", "axum", "axum-macros", "serde_qs", "tokio"]
 
 tile = ["http_server", "fast_hilbert"]
@@ -101,5 +102,9 @@ codec = ["flate2"]
 features = ["tile", "route", "codec"]
 
 [profile.release]
+opt-level = 3
+lto = true
+
+[profile.bench]
 opt-level = 3
 lto = true
