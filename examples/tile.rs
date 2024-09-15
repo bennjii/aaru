@@ -12,20 +12,24 @@ use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 use aaru::tile::datasource::bigquery::init_bq;
 use aaru::tile::repositories::{RepositorySet};
 use axum::http::StatusCode;
+use tracing::{event, Level};
 
-async fn health_check(State(_state): State<Arc<RepositorySet>>) -> Response {
-    // let mut set = JoinSet::new();
-    //
-    // for (id, repo) in &state.repositories {
-    //     event!(Level::DEBUG, name="repo::ping", ?id);
-    //     set.spawn(repo.ping());
-    // }
-    //
-    // while let Some(Ok(res)) = set.join_next().await {
-    //     if let Err(response) = res {
-    //         return response.into_response();
-    //     }
-    // }
+async fn health_check(State(state): State<Arc<RepositorySet>>) -> Response {
+    let futures: Vec<_> = state.repositories
+        .iter()
+        .map(|(id, repo)| {
+            event!(Level::DEBUG, name="repo::ping", ?id);
+            repo.ping()
+        })
+        .collect();
+
+    let results = futures::join_all(futures).await;
+
+    for result in results {
+        if let Err(response) = result.map_err(|e| aaru::Error::Tile(e)) {
+            return response.into_response();
+        }
+    }
 
     StatusCode::OK.into_response()
 }

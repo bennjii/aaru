@@ -1,11 +1,12 @@
 use log::{debug, info};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-
+use petgraph::Direction;
+use petgraph::graph::{DiGraph, Edge, EdgeReference, EdgeReferences};
 use petgraph::graphmap::DiGraphMap;
-use petgraph::prelude::EdgeRef;
+use petgraph::prelude::{EdgeRef, NodeIndex};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rstar::RTree;
+use rstar::{PointDistance, RTree};
 use scc::HashMap;
 
 use crate::codec::element::item::ProcessedElement;
@@ -20,7 +21,7 @@ const MAX_WEIGHT: u32 = 999;
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
-    graph: DiGraphMap<i64, u32>,
+    graph: DiGraph<i64, u32>,
     index: RTree<Node>,
     hash: std::collections::HashMap<i64, Node>,
 }
@@ -63,8 +64,8 @@ impl Graph {
 
         info!("Ingesting...");
 
-        let (graph, index): (DiGraphMap<i64, u32>, Vec<Node>) = reader.par_red(
-            |(mut graph, mut tree): (DiGraphMap<i64, u32>, Vec<Node>),
+        let (graph, index): (DiGraph<i64, u32>, Vec<Node>) = reader.par_red(
+            |(mut graph, mut tree): (DiGraph<i64, u32>, Vec<Node>),
              element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
@@ -84,7 +85,7 @@ impl Graph {
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
-                                graph.add_edge(*a, *b, weight);
+                                graph.add_edge(NodeIndex(*a as u32), NodeIndex(*b as u32), weight);
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
                             }
@@ -100,19 +101,20 @@ impl Graph {
             },
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Add `Graph` merge optimisations
-                for (start, end, weight) in b_graph.all_edges() {
-                    a_graph.add_edge(start, end, weight.clone());
-                }
+                a_graph.extend_with_edges(b_graph.raw_edges());
+                // for (start, end, weight) in b_graph.all_edges() {
+                //     a_graph.add_edge(start, end, *weight);
+                // }
 
                 a_tree.extend(b_tree);
                 (a_graph, a_tree)
             },
-            || (DiGraphMap::new(), Vec::new()),
+            || (DiGraph::new(), Vec::new()),
         );
 
         let filtered = index
             .iter()
-            .filter(|v| graph.contains_node(v.id))
+            // .filter(|v| graph.contains_node(v.id))
             .map(|v| v.clone())
             .collect::<Vec<Node>>();
 
@@ -133,9 +135,25 @@ impl Graph {
         })
     }
 
+    fn as_node(lat_lng: LatLng) -> Node {
+        Node::new(lat_lng, &0i64)
+    }
+
     /// Finds the nearest node to a lat/lng position
     pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
-        self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
+        self.index.nearest_neighbor(&Self::as_node(lat_lng))
+    }
+
+    pub fn nearest_edges<T: PointDistance, K: Iterator<Item=EdgeReference<u32>>>(&self, lat_lng: LatLng, distance: T) -> K {
+        // Get all nearby nodes
+        self.index.locate_within_distance(Self::as_node(lat_lng), distance)
+            .flat_map(|node|
+                // Find all outgoing edges for the given node
+                self.graph.edges_directed(NodeIndex::from(node.id as u32), Direction::Outgoing)
+            )
+        // TODO: Filter the above function to consider edges which cross the bounary
+        //       as possibly invalid
+        // TODO: use u32 instead of i64 yeah?
     }
 
     /// Finds the optimal route between a start and end point.
