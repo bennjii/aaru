@@ -3,6 +3,7 @@ use crate::geo::error::GeoError;
 
 use crate::codec::osm::{PrimitiveBlock};
 use crate::geo::{Project, SRID3857_MAX_LNG};
+use crate::geo::coord::vec::Vector;
 use crate::geo::project::SlippyTile;
 #[cfg(feature="grpc_server")]
 use crate::server::route::router_service::Coordinate;
@@ -99,7 +100,7 @@ impl LatLng {
     }
 
     pub fn expand(&self) -> (Degree, Degree) {
-        (self.lat(), self.lng())
+        (self.lng(), self.lat())
     }
 
     // Returns a [`lng`, `lat`] pair
@@ -132,10 +133,50 @@ impl LatLng {
             lng: lng + prior.nano_lng()
         }
     }
+
+    pub fn vec_to(&self, other: &LatLng) -> (Degree, Degree) {
+        (self.lng() - other.lng(), self.lat() - other.lat())
+    }
+
+    pub fn as_vec(&self) -> Vector<NanoDegree> {
+        Vector::from(self)
+    }
 }
 
 impl Debug for LatLng {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "POINT({} {})", self.lng(), self.lat())
+    }
+}
+
+impl rstar::Point for LatLng
+{
+    type Scalar = NanoDegree;
+    const DIMENSIONS: usize = 2;
+
+    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self
+    {
+        LatLng {
+            lng: generator(0),
+            lat: generator(1)
+        }
+    }
+
+    fn nth(&self, index: usize) -> Self::Scalar
+    {
+        match index {
+            0 => self.lat,
+            1 => self.lng,
+            _ => unreachable!()
+        }
+    }
+
+    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar
+    {
+        match index {
+            0 => &mut self.lat,
+            1 => &mut self.lng,
+            _ => unreachable!()
+        }
     }
 }

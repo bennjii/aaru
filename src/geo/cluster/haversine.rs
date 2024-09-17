@@ -1,8 +1,8 @@
 use crate::geo::{MEAN_EARTH_RADIUS, TileItem};
 
 pub fn haversine_distance<const N: usize, P, T: TileItem<P, N>>(lhs: &T, rhs: &T) -> f64 {
-    let (l_lat, l_lng) = lhs.lat_lng().expand();
-    let (r_lat, r_lng) = rhs.lat_lng().expand();
+    let (l_lng, l_lat) = lhs.lat_lng().expand();
+    let (r_lng, r_lat) = rhs.lat_lng().expand();
 
     let two: f64 = 1f64 + 1f64;
     let theta1 = l_lng.to_radians();

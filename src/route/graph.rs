@@ -1,12 +1,12 @@
 use log::{debug, info};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-use petgraph::Direction;
-use petgraph::graph::{DiGraph, Edge, EdgeReference, EdgeReferences};
-use petgraph::graphmap::DiGraphMap;
-use petgraph::prelude::{EdgeRef, NodeIndex};
+use petgraph::{Directed, Direction};
+use petgraph::graph::{DiGraph, EdgeReference};
+use petgraph::prelude::{NodeIndex};
+use petgraph::visit::EdgeRef;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rstar::{PointDistance, RTree};
+use rstar::RTree;
 use scc::HashMap;
 
 use crate::codec::element::item::ProcessedElement;
@@ -21,9 +21,9 @@ const MAX_WEIGHT: u32 = 999;
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
-    graph: DiGraph<i64, u32>,
+    graph: DiGraph<u32, u32, usize>,
     index: RTree<Node>,
-    hash: std::collections::HashMap<i64, Node>,
+    hash: std::collections::HashMap<NodeIndex<usize>, Node>,
 }
 
 impl Debug for Graph {
@@ -31,6 +31,8 @@ impl Debug for Graph {
         write!(f, "Graph with Nodes: {}", self.hash.len())
     }
 }
+
+struct Vector(LatLng);
 
 impl Graph {
     /// The weighting mapping of node keys to weight.
@@ -64,8 +66,8 @@ impl Graph {
 
         info!("Ingesting...");
 
-        let (graph, index): (DiGraph<i64, u32>, Vec<Node>) = reader.par_red(
-            |(mut graph, mut tree): (DiGraph<i64, u32>, Vec<Node>),
+        let (graph, index): (DiGraph<u32, u32, usize>, Vec<Node>) = reader.par_red(
+            |(mut graph, mut tree): (DiGraph<u32, u32, usize>, Vec<Node>),
              element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
@@ -85,7 +87,8 @@ impl Graph {
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
-                                graph.add_edge(NodeIndex(*a as u32), NodeIndex(*b as u32), weight);
+                                debug!("Edge Index: {}:{}", a, b);
+                                graph.add_edge(NodeIndex::new(*a as usize), NodeIndex::new(*b as usize), weight);
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
                             }
@@ -101,7 +104,9 @@ impl Graph {
             },
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Add `Graph` merge optimisations
-                a_graph.extend_with_edges(b_graph.raw_edges());
+                a_graph.extend_with_edges(
+                    b_graph.raw_edges().iter().map(|e| (e.source(), e.target(), e.weight))
+                );
                 // for (start, end, weight) in b_graph.all_edges() {
                 //     a_graph.add_edge(start, end, *weight);
                 // }
@@ -109,7 +114,7 @@ impl Graph {
                 a_tree.extend(b_tree);
                 (a_graph, a_tree)
             },
-            || (DiGraph::new(), Vec::new()),
+            || (petgraph::Graph::<u32, u32, Directed, usize>::default(), Vec::new()),
         );
 
         let filtered = index
@@ -121,7 +126,7 @@ impl Graph {
         let mut hash = std::collections::HashMap::new();
         for item in &filtered {
             // Add referenced node instead
-            hash.insert(item.id, item.clone());
+            hash.insert(NodeIndex::new(item.id as usize), item.clone());
         }
 
         let tree = RTree::bulk_load(filtered.clone());
@@ -136,7 +141,7 @@ impl Graph {
     }
 
     fn as_node(lat_lng: LatLng) -> Node {
-        Node::new(lat_lng, &0i64)
+        Node::new(lat_lng, 0i64)
     }
 
     /// Finds the nearest node to a lat/lng position
@@ -144,29 +149,56 @@ impl Graph {
         self.index.nearest_neighbor(&Self::as_node(lat_lng))
     }
 
-    pub fn nearest_edges<T: PointDistance, K: Iterator<Item=EdgeReference<u32>>>(&self, lat_lng: LatLng, distance: T) -> K {
+    pub fn nearest_edges(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=EdgeReference<u32, usize>>
+    {
         // Get all nearby nodes
         self.index.locate_within_distance(Self::as_node(lat_lng), distance)
             .flat_map(|node|
                 // Find all outgoing edges for the given node
-                self.graph.edges_directed(NodeIndex::from(node.id as u32), Direction::Outgoing)
+                self.graph.edges_directed(NodeIndex::new(node.id as usize), Direction::Outgoing)
             )
         // TODO: Filter the above function to consider edges which cross the bounary
         //       as possibly invalid
-        // TODO: use u32 instead of i64 yeah?
+        // TODO: use u32 instead of i64 as node-id yeah?
+    }
+
+    pub fn nearest_projected_nodes(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=LatLng> + '_
+    {
+        let location = |node_index: NodeIndex<usize>| {
+            self.hash.get(&node_index).unwrap().position
+        };
+
+        self.nearest_edges(lat_lng, distance)
+           .map(move |edge| {
+               let source = location(edge.source()).as_vec();
+               let target = location(edge.target()).as_vec();
+
+               // We need to project the lat-lng upon this virtual edge,
+               // visualised as a 'straight' geodesic line between the
+               // source and the target.
+
+               let to_source = lat_lng.as_vec().to(source);
+               let to_target = lat_lng.as_vec().to(target);
+
+               let scalar = (to_source.dot(&to_target) / to_target.dot(&to_target))
+                   .clamp(0, 1);
+               let out_x = source.x + (scalar * (target.x - source.x)); // Longitude
+               let out_y = source.y + (scalar * (target.y - source.y)); // Latitude
+               LatLng::from((&out_y, &out_x))
+           })
     }
 
     /// Finds the optimal route between a start and end point.
     /// Returns the weight and routing node vector.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
-        let start_node = self.nearest_node(start).unwrap();
-        let finish_node = self.nearest_node(finish).unwrap();
+        let start_node = self.nearest_node(start)?;
+        let finish_node = self.nearest_node(finish)?;
 
         let (score, path) = petgraph::algo::astar(
             &self.graph,
-            start_node.id,
-            |finish| finish == finish_node.id,
+            NodeIndex::new(start_node.id as usize),
+            |finish| finish == NodeIndex::new(finish_node.id as usize),
             |e| *e.weight(),
             |v| {
                 self.hash

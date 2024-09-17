@@ -64,8 +64,8 @@ impl Point for Node {
 
 impl Node {
     /// Constructs a `Node` from a given `LatLng` and `id`.
-    pub(crate) fn new(position: LatLng, id: &i64) -> Self {
-        Node { position, id: *id }
+    pub(crate) fn new(position: LatLng, id: i64) -> Self {
+        Node { position, id }
     }
 
     /// Returns the identifier for the node
@@ -98,9 +98,9 @@ impl Node {
                 let new_node = match &curr.last() {
                     Some(prior_node) => Node::new(
                         LatLng::delta(lat, lng, prior_node.position),
-                        &(id + prior_node.id),
+                        *id + prior_node.id,
                     ),
-                    None => Node::new(LatLng::from((lat, lng)), id),
+                    None => Node::new(LatLng::from((lat, lng)), *id),
                 };
 
                 curr.push(new_node);
