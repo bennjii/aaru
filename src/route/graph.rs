@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use petgraph::{Directed, Direction};
 use petgraph::csr::Csr;
 use petgraph::graph::{DiGraph, EdgeReference};
-use petgraph::prelude::{NodeIndex};
+use petgraph::prelude::{DiGraphMap, NodeIndex};
 use petgraph::visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rstar::RTree;
@@ -17,10 +17,14 @@ use crate::codec::parallel::Parallel;
 use crate::geo::coord::latlng::LatLng;
 use crate::route::error::RouteError;
 
-const MAX_WEIGHT: u32 = 999;
+type Weight = u8;
+type NodeIx = i64;
 
+type GraphStructure = DiGraphMap<NodeIx, Weight>;
 // type GraphStructure = Csr<(), u32, Directed, usize>; - Doesn't implement IntoEdgesDirected yet.
-type GraphStructure = DiGraph<i64, u32, usize>;
+
+const MAX_WEIGHT: Weight = 255;
+
 
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
@@ -40,8 +44,8 @@ struct Vector(LatLng);
 
 impl Graph {
     /// The weighting mapping of node keys to weight.
-    pub fn weights<'a>() -> Result<HashMap<&'a str, u32>, RouteError> {
-        let weights = HashMap::new();
+    pub fn weights<'a>() -> Result<HashMap<&'a str, u8>, RouteError> {
+        let weights: HashMap<&str, u8> = HashMap::new();
 
         weights.insert("motorway", 1)?;
         weights.insert("motorway_link", 2)?;
@@ -91,8 +95,7 @@ impl Graph {
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
-                                debug!("Edge Index: {}:{}", a, b);
-                                graph.add_edge(NodeIndex::from(*a as usize), NodeIndex::from(*b as usize), weight);
+                                graph.add_edge(*a, *b, weight);
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
                             }
@@ -108,14 +111,18 @@ impl Graph {
             },
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Add `Graph` merge optimisations
-                a_graph.extend_with_edges(
-                    b_graph.raw_edges().iter().map(|e| (e.source(), e.target(), e.weight))
-                );
+                // a_graph.extend_with_edges(
+                //     b_graph.raw_edges().iter().map(|e| (e.source(), e.target(), e.weight))
+                // );
                 // for (node, _) in b_graph.node_references() {
                 //     for petgraph::csr::EdgeReference::<'_, u32, Directed, usize> { source, target, weight, .. } in b_graph.edges(node) {
                 //         a_graph.add_edge(source, target, *weight);
                 //     }
                 // }
+
+                for (source, target, weight ) in b_graph.all_edges() {
+                    a_graph.add_edge(source, target, *weight);
+                }
 
                 a_tree.extend(b_tree);
                 (a_graph, a_tree)
@@ -125,7 +132,7 @@ impl Graph {
 
         let filtered = index
             .iter()
-            // .filter(|v| graph.contains_node(v.id))
+            .filter(|v| graph.contains_node(v.id))
             .map(|v| v.clone())
             .collect::<Vec<Node>>();
 
@@ -138,7 +145,7 @@ impl Graph {
         let tree = RTree::bulk_load(filtered.clone());
         let time_passed = start_time.elapsed().as_millis();
 
-        info!("Ingested {:?} nodes in {}ms", tree.size(), time_passed);
+        info!("Ingested {:?} nodes from {:?} nodes total in {}ms", tree.size(), index.len(), time_passed);
         Ok(Graph {
             graph,
             index: tree,
@@ -155,13 +162,13 @@ impl Graph {
         self.index.nearest_neighbor(&Self::as_node(lat_lng))
     }
 
-    pub fn nearest_edges(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=EdgeReference<u32, usize>>
+    pub fn nearest_edges(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=(NodeIx, NodeIx, &Weight)>
     {
         // Get all nearby nodes
         self.index.locate_within_distance(Self::as_node(lat_lng), distance)
             .flat_map(|node|
                 // Find all outgoing edges for the given node
-                self.graph.edges_directed(NodeIndex::from(node.id as usize), Direction::Outgoing)
+                self.graph.edges_directed(node.id, Direction::Outgoing)
             )
         // TODO: Filter the above function to consider edges which cross the bounary
         //       as possibly invalid
@@ -170,14 +177,14 @@ impl Graph {
 
     pub fn nearest_projected_nodes(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=LatLng> + '_
     {
-        let location = |node_index: NodeIndex<usize>| {
-            self.hash.get(&node_index.index()).unwrap().position
+        let location = |node_index: NodeIx| {
+            self.hash.get(&(node_index as usize)).unwrap().position
         };
 
         self.nearest_edges(lat_lng, distance)
-           .map(move |edge| {
-               let source = location(edge.source()).as_vec();
-               let target = location(edge.target()).as_vec();
+           .map(move |(source, target, _)| {
+               let source = location(source).as_vec();
+               let target = location(target).as_vec();
 
                // We need to project the lat-lng upon this virtual edge,
                // visualised as a 'straight' geodesic line between the
@@ -197,26 +204,26 @@ impl Graph {
     /// Finds the optimal route between a start and end point.
     /// Returns the weight and routing node vector.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
+    pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(Weight, Vec<Node>)> {
         let start_node = self.nearest_node(start)?;
         let finish_node = self.nearest_node(finish)?;
 
         let (score, path) = petgraph::algo::astar(
             &self.graph,
-            NodeIndex::from(start_node.id as usize),
-            |finish| finish == NodeIndex::from(finish_node.id as usize),
+            start_node.id,
+            |finish| finish == finish_node.id,
             |e| *e.weight(),
             |v| {
                 self.hash
-                    .get(&v.index())
-                    .map(|v| v.to(finish_node).as_m())
+                    .get(&(v as usize))
+                    .map(|v| v.to(finish_node).as_m() as u8)
                     .unwrap_or(0)
             },
         )?;
 
         let route = path
             .par_iter()
-            .map(|v| self.hash.get(&v.index()))
+            .map(|v| self.hash.get(&(*v as usize)))
             .filter(|v| v.is_some())
             .map(|v| v.unwrap())
             .cloned()

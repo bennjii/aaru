@@ -64,7 +64,7 @@ impl Router for RouteService {
                         })
                         .collect();
 
-                    Ok(Response::new(RouteResponse { cost, shape }))
+                    Ok(Response::new(RouteResponse { cost: cost as u32, shape }))
                 }
             )
     }
