@@ -153,19 +153,15 @@ impl Graph {
         })
     }
 
-    fn as_node(lat_lng: LatLng) -> Node {
-        Node::new(lat_lng, 0i64)
-    }
-
     /// Finds the nearest node to a lat/lng position
     pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
-        self.index.nearest_neighbor(&Self::as_node(lat_lng))
+        self.index.nearest_neighbor(&lat_lng.as_node())
     }
 
     pub fn nearest_edges(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=(NodeIx, NodeIx, &Weight)>
     {
         // Get all nearby nodes
-        self.index.locate_within_distance(Self::as_node(lat_lng), distance)
+        self.index.locate_within_distance(lat_lng.as_node(), distance)
             .flat_map(|node|
                 // Find all outgoing edges for the given node
                 self.graph.edges_directed(node.id, Direction::Outgoing)

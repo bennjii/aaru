@@ -82,4 +82,19 @@ impl Router for RouteService {
 
         Ok(Response::new(nearest_point))
     }
+
+    async fn closest_snapped_point(&self, request: Request<Coordinate>) -> Result<Response<Coordinate>, Status> {
+        let point = LatLng::try_from(request.into_inner())
+            .map_err(|err| Status::internal(format!("{:?}", err)))?;
+
+        let nearest_point = self.graph.nearest_projected_nodes(point, 15)
+            .take(1)
+            .next()
+            .map_or(
+                Err(Status::internal("Could not find appropriate point")),
+                |coord| Ok(coord.coordinate())
+            )?;
+
+        Ok(Response::new(nearest_point))
+    }
 }

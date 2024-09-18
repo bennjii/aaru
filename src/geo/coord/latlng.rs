@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use crate::codec::element::variants::Node;
 use crate::geo::error::GeoError;
 
 use crate::codec::osm::{PrimitiveBlock};
@@ -45,6 +46,10 @@ impl LatLng {
     /// Constructs a new `LatLng` from a given `lat` and `lng`.
     pub fn new(lat: NanoDegree, lng: NanoDegree) -> Self {
         LatLng { lat, lng }
+    }
+
+    pub fn as_node(self) -> Node{
+        Node::new(self, 0i64)
     }
 
     #[cfg(feature="grpc_server")]
