@@ -1,11 +1,12 @@
 use log::{debug, info};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
+use std::time::Instant;
 use geo::{coord, line_string, point, LineInterpolatePoint, LineLocatePoint};
 use petgraph::Direction;
 use petgraph::prelude::{DiGraphMap};
 use petgraph::visit::{EdgeRef};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rstar::RTree;
 use scc::HashMap;
 
@@ -30,7 +31,7 @@ const MAX_WEIGHT: Weight = 255;
 pub struct Graph {
     graph: GraphStructure,
     index: RTree<Node>,
-    hash: std::collections::HashMap<usize, Node>,
+    hash: scc::HashMap<usize, Node>,
 }
 
 impl Debug for Graph {
@@ -67,11 +68,16 @@ impl Graph {
 
     /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
     pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
-        let start_time = std::time::Instant::now();
+        let mut start_time = Instant::now();
+        let fixed_start_time = Instant::now();
+
         let path = PathBuf::from(filename);
 
         let reader = ProcessedElementIterator::new(path)?;
         let weights = Graph::weights()?;
+
+        debug!("Iterator warming took: {:?}", start_time.elapsed());
+        start_time = Instant::now();
 
         info!("Ingesting...");
 
@@ -112,15 +118,7 @@ impl Graph {
             },
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Add `Graph` merge optimisations
-                // a_graph.extend_with_edges(
-                //     b_graph.raw_edges().iter().map(|e| (e.source(), e.target(), e.weight))
-                // );
-                // for (node, _) in b_graph.node_references() {
-                //     for petgraph::csr::EdgeReference::<'_, u32, Directed, usize> { source, target, weight, .. } in b_graph.edges(node) {
-                //         a_graph.add_edge(source, target, *weight);
-                //     }
-                // }
-
+                // a_graph.extend(b_graph.all_edges());
                 for (source, target, weight ) in b_graph.all_edges() {
                     a_graph.add_edge(source, target, *weight);
                 }
@@ -131,22 +129,28 @@ impl Graph {
             || (GraphStructure::default(), Vec::new()),
         );
 
+        debug!("Graphical ingestion took: {:?}", start_time.elapsed());
+        start_time = Instant::now();
+
+        let hash = scc::HashMap::new();
         let filtered = index
-            .iter()
+            .to_owned()
+            .into_par_iter()
             .filter(|v| graph.contains_node(v.id))
-            .map(|v| v.clone())
-            .collect::<Vec<Node>>();
+            .inspect(|e| { hash.insert(e.id as usize, *e); })
+            .collect();
 
-        let mut hash = std::collections::HashMap::new();
-        for item in &filtered {
-            // Add referenced node instead
-            hash.insert(item.id as usize, item.clone());
-        }
+        debug!("HashMap creation took: {:?}", start_time.elapsed());
+        start_time = Instant::now();
 
-        let tree = RTree::bulk_load(filtered.clone());
-        let time_passed = start_time.elapsed().as_millis();
+        let tree = RTree::bulk_load(filtered);
+        debug!("RTree bulk load took: {:?}", start_time.elapsed());
 
-        info!("Ingested {:?} nodes from {:?} nodes total in {}ms", tree.size(), index.len(), time_passed);
+        info!(
+            "Finished. Ingested {:?} nodes from {:?} nodes total in {}ms",
+            tree.size(), index.len(), fixed_start_time.elapsed().as_millis()
+        );
+
         Ok(Graph {
             graph,
             index: tree,
@@ -208,17 +212,15 @@ impl Graph {
             |v| {
                 self.hash
                     .get(&(v as usize))
-                    .map(|v| v.to(finish_node).as_m() as u8)
+                    .map(|v| v.to(&finish_node).as_m() as u8)
                     .unwrap_or(0)
             },
         )?;
 
         let route = path
-            .par_iter()
-            .map(|v| self.hash.get(&(*v as usize)))
-            .filter(|v| v.is_some())
-            .map(|v| v.unwrap())
-            .cloned()
+            .iter()
+            .filter_map(|v| self.hash.get(&(*v as usize)))
+            .map(|e| e.get().clone())
             .collect();
 
         Some((score, route))
