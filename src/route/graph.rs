@@ -8,8 +8,7 @@ use petgraph::visit::{EdgeRef};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rstar::RTree;
 use scc::HashMap;
-use tracing::field::debug;
-use wkt::ToWkt;
+
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::Node;
@@ -46,6 +45,8 @@ impl Graph {
     /// The weighting mapping of node keys to weight.
     pub fn weights<'a>() -> Result<HashMap<&'a str, u8>, RouteError> {
         let weights: HashMap<&str, u8> = HashMap::new();
+
+        // TODO: Base this dynamically on geospacial properties and roading shape
 
         weights.insert("motorway", 1)?;
         weights.insert("motorway_link", 2)?;
@@ -158,30 +159,29 @@ impl Graph {
         self.index.nearest_neighbor(&lat_lng.as_node())
     }
 
-    pub fn nearest_edges(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=(NodeIx, NodeIx, &Weight)>
-    {
-        // Get all nearby nodes
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub fn nearest_edges(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=(NodeIx, NodeIx, &Weight)> {
         self.index.locate_within_distance(lat_lng.as_node(), distance)
             .flat_map(|node|
                 // Find all outgoing edges for the given node
                 self.graph.edges_directed(node.id, Direction::Outgoing)
             )
-        // TODO: use u32 instead of i64 as node-id yeah?
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
     pub fn nearest_projected_nodes(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=LatLng> + '_ {
         let (x, y) = lat_lng.expand();
         let initial_point = point! { x: x, y: y };
 
         self.nearest_edges(lat_lng, distance)
-            .map(|edge| {
+            .filter_map(|edge| {
                 let src = self.hash.get(&(edge.source() as usize));
                 let trg = self.hash.get(&(edge.target() as usize));
 
-                let (x1, y1) = src.unwrap().position.expand();
-                let (x2, y2) = trg.unwrap().position.expand();
+                let (x1, y1) = src?.position.expand();
+                let (x2, y2) = trg?.position.expand();
 
-                line_string! [ coord! { x: x1, y: y1 }, coord! { x: x2, y: y2 } ]
+                Some(line_string! [ coord! { x: x1, y: y1 }, coord! { x: x2, y: y2 } ])
             })
             .filter_map(move |linestring| {
                 linestring.line_locate_point(&initial_point)

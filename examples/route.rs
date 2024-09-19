@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use tonic::transport::Server;
 
-use aaru::codec::consts::{DISTRICT_OF_COLUMBIA, SYDNEY};
+use aaru::codec::consts::SYDNEY;
 use aaru::server::route::router_service::router_server::RouterServer;
 use aaru::server::route::{router_service, RouteService};
 

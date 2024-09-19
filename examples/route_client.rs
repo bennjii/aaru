@@ -1,4 +1,3 @@
-use log::info;
 use tokio::time::Instant;
 use tonic::transport::Channel;
 use aaru::server::route::router_service::{ClosestSnappedPointRequest, Coordinate};
@@ -11,8 +10,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = RouterClient::new(channel);
 
     let request = tonic::Request::new(ClosestSnappedPointRequest {
-        point: Some(Coordinate { latitude: -33.883436, longitude: 151.180123 }),
-        distance: 50,
+        point: Some(Coordinate { latitude: -33.850842, longitude: 151.210193 }),
+        distance: 70,
     });
 
     let start = Instant::now();
@@ -22,3 +21,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     print!("In: {}us ({}ms)", elapsed.as_micros(), elapsed.as_millis());
 
     Ok(())
+}

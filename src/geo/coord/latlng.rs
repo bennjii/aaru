@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use tonic::Status;
 use crate::codec::element::variants::Node;
 use crate::geo::error::GeoError;
 
@@ -32,6 +33,18 @@ impl TryFrom<Coordinate> for LatLng {
 
     fn try_from(coord: Coordinate) -> Result<Self, Self::Error> {
         LatLng::from_degree(coord.latitude, coord.longitude)
+    }
+}
+
+impl TryFrom<Option<Coordinate>> for LatLng {
+    type Error = Status;
+
+    fn try_from(value: Option<Coordinate>) -> Result<Self, Self::Error> {
+        value.map_or(
+            Err(Status::invalid_argument("Missing coordinate")),
+            |coord| LatLng::try_from(coord)
+                .map_err(|err| Status::internal(format!("{:?}", err)))
+        )
     }
 }
 

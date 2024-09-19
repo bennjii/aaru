@@ -36,23 +36,12 @@ impl RouteService {
 
 #[tonic::async_trait]
 impl Router for RouteService {
-    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::ERROR)))]
+    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
     async fn route(&self, request: Request<RouteRequest>) -> Result<Response<RouteResponse>, Status> {
         let (_, _, routing) = request.into_parts();
 
-        let start = routing.start
-            .map_or(
-                Err(Status::invalid_argument("Missing Start")),
-                |coord| LatLng::try_from(coord)
-                    .map_err(|err| Status::internal(format!("{:?}", err)))
-            )?;
-
-        let end = routing.end
-            .map_or(
-                Err(Status::invalid_argument("Missing End")),
-                |coord| LatLng::try_from(coord)
-                    .map_err(|err| Status::internal(format!("{:?}", err)))
-            )?;
+        let start = LatLng::try_from(routing.start)?;
+        let end = LatLng::try_from(routing.end)?;
 
         self.graph.route(start, end)
             .map_or(
@@ -71,10 +60,9 @@ impl Router for RouteService {
             )
     }
 
-    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::ERROR)))]
+    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
     async fn closest_point(&self, request: Request<Coordinate>) -> Result<Response<Coordinate>, Status> {
-        let point = LatLng::try_from(request.into_inner())
-            .map_err(|err| Status::internal(format!("{:?}", err)))?;
+        let point = LatLng::try_from(Some(request.into_inner()))?;
 
         let nearest_point = self.graph.nearest_node(point)
             .map_or(
@@ -85,23 +73,19 @@ impl Router for RouteService {
         Ok(Response::new(nearest_point))
     }
 
+    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
     async fn closest_snapped_point(&self, request: Request<ClosestSnappedPointRequest>) -> Result<Response<Coordinate>, Status> {
         let (_, _, request) = request.into_parts();
 
-        let point = request.point
-            .map_or(
-                Err(Status::invalid_argument("Missing Point")),
-                |coord| LatLng::try_from(coord)
-                    .map_err(|err| Status::internal(format!("{:?}", err)))
-            )?;
-
+        let point = LatLng::try_from(request.point)?;
         let distance_as_degree: i64 = 1e7 as i64 * (request.distance as i64);
         let mut nearest_points = self.graph.nearest_projected_nodes(point, distance_as_degree)
             .collect::<Vec<_>>();
 
+        debug!("Found {} points", nearest_points.len());
+
         // Get the closest of the discovered points
         nearest_points.sort_by(|a, b| {
-            debug!("DistA={}. DistB={}", point.distance_2(a) as f64 / 10e7, point.distance_2(b) as f64 / 10e7);
             point.distance_2(a).cmp(&point.distance_2(b))
         });
 
