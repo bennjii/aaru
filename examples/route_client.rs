@@ -22,4 +22,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     print!("In: {}us ({}ms)", elapsed.as_micros(), elapsed.as_millis());
 
     Ok(())
-}

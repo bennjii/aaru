@@ -6,7 +6,7 @@ use tonic::{Request, Response, Status};
 use router_service::{RouteRequest, RouteResponse};
 use router_service::router_server::Router;
 
-#[cfg(feature = "grpc_server")]
+#[cfg(feature = "tracing")]
 use tracing::Level;
 
 use crate::geo::coord::latlng::{LatLng};
@@ -36,7 +36,7 @@ impl RouteService {
 
 #[tonic::async_trait]
 impl Router for RouteService {
-    #[tracing::instrument(err(level = Level::ERROR))]
+    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::ERROR)))]
     async fn route(&self, request: Request<RouteRequest>) -> Result<Response<RouteResponse>, Status> {
         let (_, _, routing) = request.into_parts();
 
@@ -71,7 +71,7 @@ impl Router for RouteService {
             )
     }
 
-    #[tracing::instrument(err(level = Level::ERROR))]
+    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::ERROR)))]
     async fn closest_point(&self, request: Request<Coordinate>) -> Result<Response<Coordinate>, Status> {
         let point = LatLng::try_from(request.into_inner())
             .map_err(|err| Status::internal(format!("{:?}", err)))?;

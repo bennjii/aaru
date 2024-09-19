@@ -11,11 +11,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv()?;
 
     // Create the tracer first.
+    #[cfg(feature = "tracing")]
     aaru::util::trace::initialize_tracer();
 
     // Create the router
+    #[cfg(feature = "tracing")]
     tracing::info!("Creating Router");
     let router = RouteService::from_file(SYDNEY).expect("-");
+   
+    #[cfg(feature = "tracing")]
     tracing::info!("Router Created");
 
     // Initialize the reflector
@@ -26,15 +30,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set the address to serve from
     let addr = "[::1]:9001".parse().unwrap();
+    #[cfg(feature = "tracing")]
     tracing::info!(message = "Starting server.", %addr);
 
-    Server::builder()
-        .accept_http1(true)
-        .trace_fn(|_| tracing::info_span!("aaru"))
-        .add_service(RouterServer::new(router))
-        .add_service(reflector)
-        .serve(addr)
-        .await?;
+     Server::builder()
+         .accept_http1(true)
+         .tcp_nodelay(true)
+         .add_service(RouterServer::new(router))
+         .add_service(reflector)
+         .serve(addr)
+         .await?;
 
     Ok(())
 }
