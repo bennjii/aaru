@@ -1,4 +1,4 @@
-use log::{debug, info};
+use log::{debug, error, info};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::time::Instant;
@@ -138,7 +138,11 @@ impl Graph {
             .to_owned()
             .into_par_iter()
             .filter(|v| graph.contains_node(v.id))
-            .inspect(|e| { hash.insert(e.id as usize, *e); })
+            .inspect(|e| {
+                if let Err((index, node)) = hash.insert(e.id as usize, *e) {
+                    error!("Unable to insert node, index {} already taken. Node: {:?}", index, node);
+                }
+            })
             .collect();
 
         debug!("HashMap creation took: {:?}", start_time.elapsed());

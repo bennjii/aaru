@@ -9,9 +9,9 @@ use router_service::router_server::Router;
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
+use crate::server::route::router_service::{ClosestSnappedPointRequest, Coordinate, MapMatchRequest, MapMatchResponse};
 use crate::geo::coord::latlng::{LatLng};
 use crate::route::Graph;
-use crate::server::route::router_service::{ClosestSnappedPointRequest, Coordinate};
 
 pub mod router_service {
     tonic::include_proto!("aaru");
@@ -36,6 +36,25 @@ impl RouteService {
 
 #[tonic::async_trait]
 impl Router for RouteService {
+    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
+    async fn map_match(&self, request: Request<MapMatchRequest>) -> Result<Response<MapMatchResponse>, Status> {
+        let mapmatch = request.into_inner();
+        let coordinates = mapmatch.data.iter()
+            .map(|coord| LatLng::try_from(Some(*coord)))
+            .collect::<Result<Vec<_>, Status>>()?;
+
+        let matched = self.graph.map_match(coordinates, mapmatch.distance as i64);
+
+        Ok(Response::new(MapMatchResponse {
+            matched: matched.iter()
+                .map(|node| Coordinate {
+                    latitude: node.lat(),
+                    longitude: node.lng()
+                })
+                .collect::<Vec<_>>()
+        }))
+    }
+
     #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
     async fn route(&self, request: Request<RouteRequest>) -> Result<Response<RouteResponse>, Status> {
         let (_, _, routing) = request.into_parts();

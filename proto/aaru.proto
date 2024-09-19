@@ -5,6 +5,7 @@ package aaru;
 service Router {
   // Returns the appropriate route between the starting and ending locations.
   rpc Route (RouteRequest) returns (RouteResponse);
+  rpc MapMatch (MapMatchRequest) returns (MapMatchResponse);
   rpc ClosestPoint (Coordinate) returns (Coordinate);
   rpc ClosestSnappedPoint (ClosestSnappedPointRequest) returns (Coordinate);
 }
@@ -16,6 +17,16 @@ message Coordinate {
 
 enum Costing {
   Car = 0;
+}
+
+message MapMatchRequest {
+  repeated Coordinate data = 1;
+  uint32 distance = 2;
+  Costing costing_method = 3;
+}
+
+message MapMatchResponse {
+  repeated Coordinate matched = 1;
 }
 
 // The request message containing the user's name.
