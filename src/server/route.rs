@@ -79,20 +79,20 @@ impl Router for RouteService {
 
         let point = LatLng::try_from(request.point)?;
         let distance_as_degree: i64 = 1e7 as i64 * (request.distance as i64);
-        let mut nearest_points = self.graph.nearest_projected_nodes(point, distance_as_degree)
+        let mut nearest_points = self.graph.nearest_projected_nodes(&point, distance_as_degree)
             .collect::<Vec<_>>();
 
         debug!("Found {} points", nearest_points.len());
 
         // Get the closest of the discovered points
-        nearest_points.sort_by(|a, b| {
+        nearest_points.sort_by(|(a, _), (b, _)| {
             point.distance_2(a).cmp(&point.distance_2(b))
         });
 
         let nearest_point = nearest_points.get(0)
             .map_or(
                 Err(Status::internal("Could not find appropriate point")),
-                |coord| Ok(coord.coordinate())
+                |(coord, _)| Ok(coord.coordinate())
             )?;
 
         Ok(Response::new(nearest_point))

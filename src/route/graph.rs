@@ -6,7 +6,7 @@ use geo::{coord, line_string, point, LineInterpolatePoint, LineLocatePoint};
 use petgraph::Direction;
 use petgraph::prelude::{DiGraphMap};
 use petgraph::visit::{EdgeRef};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rstar::RTree;
 use scc::HashMap;
 
@@ -19,6 +19,7 @@ use crate::route::error::RouteError;
 
 type Weight = u8;
 type NodeIx = i64;
+type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
 type GraphStructure = DiGraphMap<NodeIx, Weight>;
 // type GraphStructure = Csr<(), u32, Directed, usize>; - Doesn't implement IntoEdgesDirected yet.
@@ -164,7 +165,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn nearest_edges(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=(NodeIx, NodeIx, &Weight)> {
+    pub fn nearest_edges(&self, lat_lng: &LatLng, distance: i64) -> impl Iterator<Item=(NodeIx, NodeIx, &Weight)> {
         self.index.locate_within_distance(lat_lng.as_node(), distance)
             .flat_map(|node|
                 // Find all outgoing edges for the given node
@@ -173,28 +174,60 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn nearest_projected_nodes(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=LatLng> + '_ {
+    pub fn nearest_projected_nodes(&self, lat_lng: &LatLng, distance: i64) -> impl Iterator<Item=(LatLng, Edge)> + '_ {
         let (x, y) = lat_lng.expand();
         let initial_point = point! { x: x, y: y };
 
-        self.nearest_edges(lat_lng, distance)
+        self.nearest_edges(&lat_lng, distance)
             .filter_map(|edge| {
-                let src = self.hash.get(&(edge.source() as usize));
-                let trg = self.hash.get(&(edge.target() as usize));
+                let src = self.hash.get(&(edge.source() as usize))?;
+                let trg = self.hash.get(&(edge.target() as usize))?;
 
-                let (x1, y1) = src?.position.expand();
-                let (x2, y2) = trg?.position.expand();
+                let (x1, y1) = src.position.expand();
+                let (x2, y2) = trg.position.expand();
 
-                Some(line_string! [ coord! { x: x1, y: y1 }, coord! { x: x2, y: y2 } ])
+                Some((line_string! [ coord! { x: x1, y: y1 }, coord! { x: x2, y: y2 } ], edge))
             })
-            .filter_map(move |linestring| {
+            .filter_map(move |(linestring, edge)| {
+                // We locate the point upon the linestring,
+                // and then project that fractional (%)
+                // upon the linestring to obtain a point
                 linestring.line_locate_point(&initial_point)
                     .and_then(|frac| linestring.line_interpolate_point(frac))
                     .and_then(|point| {
                         let (lng, lat) = point.0.x_y();
-                        LatLng::from_degree(lat, lng).ok()
+
+                        LatLng::from_degree(lat, lng)
+                            .ok()
+                            .and_then(|pos| Some((pos, edge)))
                     })
             })
+    }
+
+    #[cfg_attr(feature = "tracing", tracing::instrument)]
+    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: i64) -> Vec<LatLng> {
+        coordinates
+            .par_iter()
+            // Perform a candidate search (CS) for nearby projected nodes
+            .map(|coordinate| self.nearest_projected_nodes(coordinate, distance))
+            // Now we use a hidden markov model to predict the most
+            // efficient route chaining given a gaussian emission
+            // model and a transition probability
+            .filter_map(|e| {
+                // This is where we'll implement HMM
+                // in order to select the best of the
+                // given
+                e.take(1).next()
+            })
+            // We can use the edges brought through so
+            // that we can reconstruct (using routing)
+            // an interpolated route that would have
+            // occurred.
+            .map(|(position, _)| {
+                // NOTE: Could use `.windows()` over a fixed slice to route between
+                position
+            })
+            .collect()
     }
 
     /// Finds the optimal route between a start and end point.

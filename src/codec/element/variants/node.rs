@@ -11,7 +11,7 @@ use crate::geo::coord::latlng::{LatLng, NanoDegree};
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Node {
     pub id: i64,
-    pub position: LatLng,
+    pub position: LatLng, // Coord<NanoDegree>
 }
 
 pub struct Distance {
