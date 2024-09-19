@@ -1,5 +1,6 @@
+use std::f64::consts::PI;
 use std::ops::{Add, Sub, Mul};
-use crate::geo::coord::latlng::{NanoDegree};
+use crate::geo::coord::latlng::Degree;
 use crate::geo::LatLng;
 
 #[derive(Copy, Clone)]
@@ -26,8 +27,8 @@ impl<T: Sub<Output=T> + Copy> Sub for Vector<T> {
     }
 }
 
-impl From<&LatLng> for Vector<NanoDegree> {
-    fn from(value: &LatLng) -> Vector<NanoDegree> {
-        Vector { x: value.lng, y: value.lat }
+impl From<&LatLng> for Vector<Degree> {
+    fn from(value: &LatLng) -> Vector<Degree> {
+        Vector { x: value.lng() * PI / 180.0, y: value.lat() * PI / 180.0 }
     }
 }

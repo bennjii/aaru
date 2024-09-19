@@ -1,15 +1,15 @@
 use log::{debug, info};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-use petgraph::{Directed, Direction};
-use petgraph::csr::Csr;
-use petgraph::graph::{DiGraph, EdgeReference};
-use petgraph::prelude::{DiGraphMap, NodeIndex};
-use petgraph::visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences};
+use geo::{coord, line_string, point, LineInterpolatePoint, LineLocatePoint};
+use petgraph::Direction;
+use petgraph::prelude::{DiGraphMap};
+use petgraph::visit::{EdgeRef};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rstar::RTree;
 use scc::HashMap;
-
+use tracing::field::debug;
+use wkt::ToWkt;
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::Node;
@@ -171,30 +171,28 @@ impl Graph {
         // TODO: use u32 instead of i64 as node-id yeah?
     }
 
-    pub fn nearest_projected_nodes(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=LatLng> + '_
-    {
-        let location = |node_index: NodeIx| {
-            self.hash.get(&(node_index as usize)).unwrap().position
-        };
+    pub fn nearest_projected_nodes(&self, lat_lng: LatLng, distance: i64) -> impl Iterator<Item=LatLng> + '_ {
+        let (x, y) = lat_lng.expand();
+        let initial_point = point! { x: x, y: y };
 
         self.nearest_edges(lat_lng, distance)
-           .map(move |(source, target, _)| {
-               let source = location(source).as_vec();
-               let target = location(target).as_vec();
+            .map(|edge| {
+                let src = self.hash.get(&(edge.source() as usize));
+                let trg = self.hash.get(&(edge.target() as usize));
 
-               // We need to project the lat-lng upon this virtual edge,
-               // visualised as a 'straight' geodesic line between the
-               // source and the target.
+                let (x1, y1) = src.unwrap().position.expand();
+                let (x2, y2) = trg.unwrap().position.expand();
 
-               let to_source = lat_lng.as_vec().to(source);
-               let to_target = lat_lng.as_vec().to(target);
-
-               let scalar = (to_source.dot(&to_target) / to_target.dot(&to_target))
-                   .clamp(0, 1);
-               let out_x = source.x + (scalar * (target.x - source.x)); // Longitude
-               let out_y = source.y + (scalar * (target.y - source.y)); // Latitude
-               LatLng::from((&out_y, &out_x))
-           })
+                line_string! [ coord! { x: x1, y: y1 }, coord! { x: x2, y: y2 } ]
+            })
+            .filter_map(move |linestring| {
+                linestring.line_locate_point(&initial_point)
+                    .and_then(|frac| linestring.line_interpolate_point(frac))
+                    .and_then(|point| {
+                        let (lng, lat) = point.0.x_y();
+                        LatLng::from_degree(lat, lng).ok()
+                    })
+            })
     }
 
     /// Finds the optimal route between a start and end point.

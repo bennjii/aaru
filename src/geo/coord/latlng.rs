@@ -143,7 +143,7 @@ impl LatLng {
         (self.lng() - other.lng(), self.lat() - other.lat())
     }
 
-    pub fn as_vec(&self) -> Vector<NanoDegree> {
+    pub fn as_vec(&self) -> Vector<Degree> {
         Vector::from(self)
     }
 }

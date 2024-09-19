@@ -6,7 +6,7 @@ service Router {
   // Returns the appropriate route between the starting and ending locations.
   rpc Route (RouteRequest) returns (RouteResponse);
   rpc ClosestPoint (Coordinate) returns (Coordinate);
-  rpc ClosestSnappedPoint (Coordinate) returns (Coordinate);
+  rpc ClosestSnappedPoint (ClosestSnappedPointRequest) returns (Coordinate);
 }
 
 message Coordinate {
@@ -25,8 +25,14 @@ message RouteRequest {
   Costing costing_method = 3;
 }
 
-/// The response message including pathing, and weighted heuristics
+// The response message including pathing, and weighted heuristics
 message RouteResponse {
   repeated Coordinate shape = 1;
   uint32 cost = 2;
+}
+
+// Specifies the distance and a position from which to search
+message ClosestSnappedPointRequest {
+  Coordinate point = 1;
+  uint32 distance = 2;
 }
