@@ -166,8 +166,6 @@ impl Graph {
                 // Find all outgoing edges for the given node
                 self.graph.edges_directed(node.id, Direction::Outgoing)
             )
-        // TODO: Filter the above function to consider edges which cross the bounary
-        //       as possibly invalid
         // TODO: use u32 instead of i64 as node-id yeah?
     }
 
