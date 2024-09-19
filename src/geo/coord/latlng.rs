@@ -1,14 +1,16 @@
 use std::fmt::{Debug, Formatter};
-use tonic::Status;
+
 use crate::codec::element::variants::Node;
 use crate::geo::error::GeoError;
-
 use crate::codec::osm::{PrimitiveBlock};
 use crate::geo::{Project, SRID3857_MAX_LNG};
 use crate::geo::coord::vec::Vector;
 use crate::geo::project::SlippyTile;
+
 #[cfg(feature="grpc_server")]
 use crate::server::route::router_service::Coordinate;
+#[cfg(feature = "grpc_server")]
+use tonic::Status;
 
 pub type NanoDegree = i64;
 pub type Degree = f64;
@@ -36,6 +38,7 @@ impl TryFrom<Coordinate> for LatLng {
     }
 }
 
+#[cfg(feature="grpc_server")]
 impl TryFrom<Option<Coordinate>> for LatLng {
     type Error = Status;
 
