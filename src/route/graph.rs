@@ -2,7 +2,7 @@ use log::{debug, error, info};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::time::Instant;
-use geo::{coord, line_string, point, LineInterpolatePoint, LineLocatePoint};
+use geo::{coord, line_string, point, LineInterpolatePoint, LineLocatePoint, Point};
 use petgraph::Direction;
 use petgraph::prelude::{DiGraphMap};
 use petgraph::visit::{EdgeRef};
@@ -16,12 +16,13 @@ use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
 use crate::geo::coord::latlng::LatLng;
 use crate::route::error::RouteError;
+use crate::route::transition::Transition;
 
-type Weight = u8;
-type NodeIx = i64;
-type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
+pub type Weight = u8;
+pub type NodeIx = i64;
+pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
-type GraphStructure = DiGraphMap<NodeIx, Weight>;
+pub type GraphStructure = DiGraphMap<NodeIx, Weight>;
 // type GraphStructure = Csr<(), u32, Directed, usize>; - Doesn't implement IntoEdgesDirected yet.
 
 const MAX_WEIGHT: Weight = 255;
@@ -178,7 +179,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn nearest_projected_nodes(&self, lat_lng: &LatLng, distance: i64) -> impl Iterator<Item=(LatLng, Edge)> + '_ {
+    pub fn nearest_projected_nodes(&self, point: &Point, distance: i64) -> impl Iterator<Item=(Point, Edge)> + '_ {
         let (x, y) = lat_lng.expand();
         let initial_point = point! { x: x, y: y };
 
@@ -209,29 +210,20 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: i64) -> Vec<LatLng> {
-        coordinates
-            .par_iter()
-            // Perform a candidate search (CS) for nearby projected nodes
-            .map(|coordinate| self.nearest_projected_nodes(coordinate, distance))
-            // Now we use a hidden markov model to predict the most
-            // efficient route chaining given a gaussian emission
-            // model and a transition probability
-            .filter_map(|e| {
-                // This is where we'll implement HMM
-                // in order to select the best of the
-                // given
-                e.take(1).next()
-            })
-            // We can use the edges brought through so
-            // that we can reconstruct (using routing)
-            // an interpolated route that would have
-            // occurred.
-            .map(|(position, _)| {
-                // NOTE: Could use `.windows()` over a fixed slice to route between
-                position
-            })
-            .collect()
+    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: i64) -> Vec<Point> {
+        let linestring = coordinates.iter().map(|coord| {
+            let (lng, lat) = coord.expand();
+            coord! { x: lng, y: lat }
+        }).collect();
+
+        // Create our hidden markov model solver
+        let transition = Transition::new(linestring, self);
+
+        // Yield the transition layers of each level
+        let layers = transition.backtrack(distance);
+
+        // Collapse the layers into a final vector
+        transition.collapse(layers)
     }
 
     /// Finds the optimal route between a start and end point.

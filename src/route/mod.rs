@@ -7,6 +7,7 @@ mod test;
 #[doc(hidden)]
 pub mod error;
 mod mapmatch;
+pub mod transition;
 
 #[doc(inline)]
 pub use graph::Graph;
