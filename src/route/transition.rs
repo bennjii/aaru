@@ -1,7 +1,10 @@
 use std::f64::consts::E;
 use std::ops::{Div, Mul};
+
 use geo::{EuclideanDistance, LineString, Point};
 use tonic::codegen::tokio_stream::StreamExt;
+use wkt::ToWkt;
+use log::{debug, info};
 
 use crate::route::Graph;
 use crate::route::graph::{Edge, NodeIx};
@@ -21,6 +24,11 @@ struct TransitionNode<'a> {
     transition_probability: f64
 }
 
+struct RefinedTransitionLayer<'a> {
+    nodes: Vec<TransitionNode<'a>>,
+    segment: &'a TrajectorySegment<'a>,
+}
+
 struct TransitionLayer<'a> {
     candidates: Vec<TransitionCandidate<'a>>,
     segment: &'a TrajectorySegment<'a>,
@@ -30,6 +38,7 @@ struct TransitionCandidate<'a> {
     index: NodeIx,
     edge: Edge<'a>,
     position: Point,
+    prev_best: Option<&'a TransitionCandidate<'a>>,
 }
 
 struct TrajectorySegment<'a> {
@@ -89,8 +98,8 @@ impl Transition {
     /// emission and transition probabilities in the hidden markov model.
     ///
     /// Based on the method used in FMM
-    fn refine_candidates(&self, layer: &TransitionLayer) -> TransitionLayer {
-        layer.candidates.iter()
+    fn refine_candidates(&self, layer: &TransitionLayer) -> RefinedTransitionLayer {
+        let nodes = layer.candidates.iter()
             .map(|candidate| {
                 let distance = candidate.position.euclidean_distance(layer.segment.source);
                 let emission_probability = Transition::emission_probability(
@@ -100,7 +109,7 @@ impl Transition {
                 TransitionNode {
                     candidate,
                     emission_probability,
-                    transition_probability: 0.0f64
+                    transition_probability: 0.0f64,
                 }
             })
             .flat_map(|v| std::iter::repeat(v).zip(layer.candidates.iter()))
@@ -119,16 +128,47 @@ impl Transition {
                     Some(TransitionNode {
                         candidate: a.candidate,
                         emission_probability: a.emission_probability,
-                        transition_probability
+                        transition_probability,
                     })
                 }
 
                 None
             })
+            .collect();
+
+        RefinedTransitionLayer {
+            nodes,
+            segment: layer.segment
+        }
     }
 
-    pub fn collapse(&self, layers: Vec<TransitionLayer>) -> Vec<Point> {
-        todo!("Haven't yet implemented");
+    pub fn collapse(&self, layers: Vec<RefinedTransitionLayer>) -> Vec<Point> {
+        if let Some(last_layer) = layers.last() {
+            // Find the optimal candidate in last_layer.candidates
+            let optimal_node: &TransitionNode = last_layer.nodes.last().unwrap();
+            let optimal_candidate: &TransitionCandidate = optimal_node.candidate;
+
+             return std::iter::from_fn({
+                let mut previous_best = optimal_candidate.prev_best;
+                move || {
+                    // Perform rollup on the candidates to walk-back the path
+                    previous_best.take().map(|prev| {
+                        previous_best = prev.prev_best;
+                        prev
+                    })
+                }
+            })
+                 .fuse()
+                 .inspect(|candidate| {
+                     debug!("Candidate {:?} ({}) selected.", candidate.index, candidate.position.wkt_string())
+                 })
+                 .rev()
+                 .map(|candidate| candidate.position)
+                 .collect::<Vec<_>>();
+        }
+
+        // Return no points by default
+        vec![]
     }
 
     pub fn backtrack(&self, distance: i64) -> impl Iterator<Item=TransitionLayer> + '_ {
@@ -153,6 +193,7 @@ impl Transition {
                             index,
                             edge,
                             position,
+                            prev_best: unimplemented!(),
                         }
                     })
                     .collect::<Vec<_>>();
