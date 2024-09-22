@@ -86,7 +86,7 @@ name = "codec_target"
 harness = false
 
 [features]
-default = ["codec", "mmap"]
+default = ["codec", "mmap", "route"]
 mmap = ["memmap2"]
 
 tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]

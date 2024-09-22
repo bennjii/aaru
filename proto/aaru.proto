@@ -21,7 +21,7 @@ enum Costing {
 
 message MapMatchRequest {
   repeated Coordinate data = 1;
-  uint32 distance = 2;
+  double distance = 2;
   Costing costing_method = 3;
 }
 
@@ -45,5 +45,5 @@ message RouteResponse {
 // Specifies the distance and a position from which to search
 message ClosestSnappedPointRequest {
   Coordinate point = 1;
-  uint32 distance = 2;
+  double distance = 2;
 }

@@ -1,13 +1,13 @@
+use std::cell::RefCell;
 use std::f64::consts::E;
 use std::ops::{Div, Mul};
 
 use geo::{EuclideanDistance, LineString, Point};
-use tonic::codegen::tokio_stream::StreamExt;
+use log::debug;
 use wkt::ToWkt;
-use log::{debug, info};
 
-use crate::route::Graph;
 use crate::route::graph::{Edge, NodeIx};
+use crate::route::Graph;
 
 const DEFAULT_ERROR: f64 = 20f64;
 
@@ -15,13 +15,16 @@ pub struct Transition<'a> {
     // The original linestring
     linestring: LineString,
     graph: &'a Graph,
-    error: Option<f64>
+    error: Option<f64>,
 }
 
+#[derive(Clone, Copy)]
 struct TransitionNode<'a> {
     candidate: &'a TransitionCandidate<'a>,
+    prev_best: Option<&'a RefCell<TransitionNode<'a>>>,
     emission_probability: f64,
-    transition_probability: f64
+    transition_probability: f64,
+    cumulative_probability: f64,
 }
 
 struct RefinedTransitionLayer<'a> {
@@ -38,7 +41,6 @@ struct TransitionCandidate<'a> {
     index: NodeIx,
     edge: Edge<'a>,
     position: Point,
-    prev_best: Option<&'a TransitionCandidate<'a>>,
 }
 
 struct TrajectorySegment<'a> {
@@ -51,46 +53,52 @@ struct TrajectorySegment<'a> {
     //  This + ----------‐ + Next
     //           ^ Euclidean length of line
     //
-    length: f64
+    length: f64,
 }
 
-impl TrajectorySegment {
-    pub fn new([a, b]: &[Point]) -> Self {
+impl<'a> TrajectorySegment<'a> {
+    pub fn new(a: &'a Point, b: &'a Point) -> Self {
         TrajectorySegment {
             source: a,
             target: b,
-            length: a.euclidean_distance(b)
+            length: a.euclidean_distance(b),
         }
     }
 }
 
-impl Transition {
-    pub fn new(linestring: LineString, graph: &Graph) -> Self {
-         Transition {
-             linestring,
-             graph,
-             error: None
-         }
+impl<'a> Transition<'a> {
+    pub fn new(linestring: LineString, graph: &'a Graph) -> Self {
+        Transition {
+            linestring,
+            graph,
+            error: None,
+        }
     }
 
     pub fn set_error(self, error: f64) -> Self {
-        Transition { error: Some(error), ..self }
+        Transition {
+            error: Some(error),
+            ..self
+        }
     }
 
     /// Calculates the emission probability of `dist` (the GPS error from
     /// the observed point and matched point) with a given GPS `error`
-    fn emission_probability<T: Div + Mul>(dist: T, error: T) -> f64 {
-        let alpha = dist / error;
-        E.pow(-0.5f64 * (alpha.pow(2) as f64))
+    fn emission_probability<K: Into<f64>, T: Div<Output = K> + Mul>(dist: T, error: T) -> f64 {
+        let alpha: f64 = (dist / error).into();
+        E.powf(-0.5f64 * alpha.powi(2))
     }
 
     /// Calculates the transition probability of between two candidates
     /// given the `shortest_dist` between them, and the `euclidean_dist`
     /// of the segment we are transitioning over
-    fn transition_probability<T: Div + PartialOrd>(shortest_dist: T, euclidean_dist: T) -> f64 {
+    fn transition_probability<K: Into<f64>, T: Div<Output = K> + PartialOrd>(
+        shortest_dist: T,
+        euclidean_dist: T,
+    ) -> f64 {
         match euclidean_dist >= shortest_dist {
             true => 1.0f64,
-            false => (euclidean_dist / shortest_dist) as f64
+            false => (euclidean_dist / shortest_dist).into(),
         }
     }
 
@@ -98,113 +106,166 @@ impl Transition {
     /// emission and transition probabilities in the hidden markov model.
     ///
     /// Based on the method used in FMM
-    fn refine_candidates(&self, layer: &TransitionLayer) -> RefinedTransitionLayer {
-        let nodes = layer.candidates.iter()
+    fn refine_candidates<'t>(&'t self, layer: &'t TransitionLayer) -> RefinedTransitionLayer<'t> {
+        let mut nodes = layer
+            .candidates
+            .iter()
             .map(|candidate| {
                 let distance = candidate.position.euclidean_distance(layer.segment.source);
-                let emission_probability = Transition::emission_probability(
-                    distance, self.error.unwrap_or(DEFAULT_ERROR)
-                );
+                let emission_probability =
+                    Transition::emission_probability(distance, self.error.unwrap_or(DEFAULT_ERROR));
 
                 TransitionNode {
                     candidate,
+                    prev_best: None,
                     emission_probability,
                     transition_probability: 0.0f64,
+                    cumulative_probability: 0.0f64,
                 }
             })
-            .flat_map(|v| std::iter::repeat(v).zip(layer.candidates.iter()))
-            // Only differing candidates are important
-            .filter(|(a, b)| a.candidate.index != b.index)
-            // Iterating over the cartesian product of the candidates
-            .filter_map(|(a, b)| {
-                // If we can route between these candidates
-                if let Some((weight, _)) = self.graph.route(a.candidate.position, b.position) {
-                    let transition_probability = Transition::transition_probability(
-                        weight,
-                        layer.segment.length
-                    );
+            .map(RefCell::new)
+            .collect::<Vec<_>>();
 
-                    // Imbue candidate with the transition probability
-                    Some(TransitionNode {
-                        candidate: a.candidate,
-                        emission_probability: a.emission_probability,
-                        transition_probability,
-                    })
-                }
+        // Now we modify the nodes to refine them
+        nodes
+            .iter()
+            .for_each(|node| {
+                // Iterate for each sub-node to a node
+                nodes
+                    .iter()
+                    .for_each(|mut alt| {
+                        match self.graph.route(node.borrow().candidate.position, alt.borrow().candidate.position) {
+                            Some((weight, _)) => {
+                                let transition_probability =
+                                    Transition::transition_probability(weight as f64, layer.segment.length);
 
-                None
-            })
-            .collect();
+                                let net_probability = node.borrow().cumulative_probability
+                                    + transition_probability.log(E)
+                                    + alt.borrow().emission_probability.log(E);
+
+                                let mut mutable_ptr = alt.borrow_mut();
+
+                                mutable_ptr.cumulative_probability = net_probability;
+                                mutable_ptr.prev_best = Some(node);
+                                mutable_ptr.transition_probability = transition_probability;
+                            }
+                            None => {},
+                        }
+                    });
+            });
+            // .flat_map(|v| std::iter::repeat(v).zip(layer.candidates.iter()))
+            // // Only differing candidates are important
+            // .filter(|(a, b)| a.candidate.index != b.index)
+            // // Iterating over the cartesian product of the candidates
+            // .filter_map(|(a, b)| {
+            //     // If we can route between these candidates
+            //     match self.graph.route(a.candidate.position, b.position) {
+            //         Some((weight, _)) => {
+            //             let transition_probability =
+            //                 Transition::transition_probability(weight as f64, layer.segment.length);
+            //
+            //             // Imbue candidate with the transition probability
+            //             Some(TransitionNode {
+            //                 candidate: a.candidate,
+            //                 emission_probability: a.emission_probability,
+            //                 transition_probability,
+            //             })
+            //         }
+            //         None => None,
+            //     }
+            // })
+            // .collect();
 
         RefinedTransitionLayer {
-            nodes,
-            segment: layer.segment
+            // Make this not clone by lifetime-spacing
+            nodes: nodes.into_iter().map(|v| v.into_inner()).collect::<Vec<_>>(),
+            segment: layer.segment,
         }
     }
 
-    pub fn collapse(&self, layers: Vec<RefinedTransitionLayer>) -> Vec<Point> {
+    /// Collapses transition layers, `layers`, into a single vector of
+    /// the finalised points
+    fn collapse(&self, layers: Vec<RefinedTransitionLayer>) -> Vec<Point> {
         if let Some(last_layer) = layers.last() {
             // Find the optimal candidate in last_layer.candidates
             let optimal_node: &TransitionNode = last_layer.nodes.last().unwrap();
-            let optimal_candidate: &TransitionCandidate = optimal_node.candidate;
 
-             return std::iter::from_fn({
-                let mut previous_best = optimal_candidate.prev_best;
+            return std::iter::from_fn({
+                let mut previous_best = optimal_node.prev_best;
                 move || {
                     // Perform rollup on the candidates to walk-back the path
                     previous_best.take().map(|prev| {
-                        previous_best = prev.prev_best;
+                        previous_best = prev.borrow().prev_best;
                         prev
                     })
                 }
             })
-                 .fuse()
-                 .inspect(|candidate| {
-                     debug!("Candidate {:?} ({}) selected.", candidate.index, candidate.position.wkt_string())
-                 })
-                 .rev()
-                 .map(|candidate| candidate.position)
-                 .collect::<Vec<_>>();
+            .fuse()
+            .inspect(|node| {
+                debug!(
+                    "Candidate {:?} ({}) selected.",
+                    node.borrow().candidate.index,
+                    node.borrow().candidate.position.wkt_string()
+                )
+            })
+            .map(|candidate| candidate.borrow().candidate.position)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>();
         }
 
         // Return no points by default
         vec![]
     }
 
-    pub fn backtrack(&self, distance: i64) -> impl Iterator<Item=TransitionLayer> + '_ {
+    // Try move to `impl Iterator<Item = RefinedTransitionLayer> + '_`
+    /// Backtracks the HMM from the most appropriate final point to
+    /// its prior most appropriate points
+    pub fn backtrack(&'a self, distance: f64) -> Vec<Point> {
         // Deconstruct the trajectory into individual segments
         let as_coordinates = self.linestring.clone().into_points();
         let segments = as_coordinates
             .windows(2)
-            .map(TrajectorySegment::new)
+            .map(|window| TrajectorySegment::new(&window[0], &window[1]))
             .collect::<Vec<_>>();
 
         // TODO: Merge ˄ and ˅ into one iterator?
+        // TODO: Check if index is required later.
+        let mut index = 0;
 
         // Create transition layers from each segment
         let layers = segments
             .iter()
             .filter_map(|segment| {
-                let candidates = self.graph
-                    // Get all relevant (projected) nodes within 60m
+                let candidates = self
+                    .graph
+                    // Get all relevant (projected) nodes within Nm
                     .nearest_projected_nodes(&segment.source, distance)
-                    .map(|(node, edge)| {
+                    .map(|(position, edge)| {
+                        index = index + 1; // Incremental index
+
                         TransitionCandidate {
                             index,
                             edge,
                             position,
-                            prev_best: unimplemented!(),
                         }
                     })
                     .collect::<Vec<_>>();
 
-                Some(TransitionLayer { candidates, segment })
+                Some(TransitionLayer {
+                    candidates,
+                    segment,
+                })
             })
             .collect::<Vec<_>>();
 
         // Now we refine the candidates
-        layers
-            .iter()
-            .map(|layer| self.refine_candidates(layer))
+        self.collapse(
+            layers
+                .iter()
+                .map(|layer| self.refine_candidates(layer))
+                .collect::<Vec<_>>()
+        )
     }
 }

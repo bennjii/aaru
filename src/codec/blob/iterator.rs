@@ -2,11 +2,9 @@
 //! Supports `mmap` reading through the optional feature
 
 use std::fs::File;
-use std::io;
-use std::io::{BufReader};
-use std::io::{Read};
+use std::io::{self, BufReader, Read};
 use std::path::PathBuf;
-use log::{trace};
+use log::trace;
 use prost::Message;
 
 use crate::codec::blob::item::BlobItem;

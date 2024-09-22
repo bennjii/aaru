@@ -1,14 +1,14 @@
+use geo::{coord, line_string, LineInterpolatePoint, LineLocatePoint, Point};
 use log::{debug, error, info};
+use petgraph::prelude::DiGraphMap;
+use petgraph::visit::EdgeRef;
+use petgraph::Direction;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rstar::RTree;
+use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::time::Instant;
-use geo::{coord, line_string, point, LineInterpolatePoint, LineLocatePoint, Point};
-use petgraph::Direction;
-use petgraph::prelude::{DiGraphMap};
-use petgraph::visit::{EdgeRef};
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
-use rstar::RTree;
-use scc::HashMap;
 
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
@@ -26,7 +26,6 @@ pub type GraphStructure = DiGraphMap<NodeIx, Weight>;
 // type GraphStructure = Csr<(), u32, Directed, usize>; - Doesn't implement IntoEdgesDirected yet.
 
 const MAX_WEIGHT: Weight = 255;
-
 
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
@@ -84,8 +83,7 @@ impl Graph {
         info!("Ingesting...");
 
         let (graph, index): (GraphStructure, Vec<Node>) = reader.par_red(
-            |(mut graph, mut tree): (GraphStructure, Vec<Node>),
-             element: ProcessedElement| {
+            |(mut graph, mut tree): (GraphStructure, Vec<Node>), element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         if !way.is_road() {
@@ -121,7 +119,7 @@ impl Graph {
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Add `Graph` merge optimisations
                 // a_graph.extend(b_graph.all_edges());
-                for (source, target, weight ) in b_graph.all_edges() {
+                for (source, target, weight) in b_graph.all_edges() {
                     a_graph.add_edge(source, target, *weight);
                 }
 
@@ -141,7 +139,10 @@ impl Graph {
             .filter(|v| graph.contains_node(v.id))
             .inspect(|e| {
                 if let Err((index, node)) = hash.insert(e.id as usize, *e) {
-                    error!("Unable to insert node, index {} already taken. Node: {:?}", index, node);
+                    error!(
+                        "Unable to insert node, index {} already taken. Node: {:?}",
+                        index, node
+                    );
                 }
             })
             .collect();
@@ -154,7 +155,9 @@ impl Graph {
 
         info!(
             "Finished. Ingested {:?} nodes from {:?} nodes total in {}ms",
-            tree.size(), index.len(), fixed_start_time.elapsed().as_millis()
+            tree.size(),
+            index.len(),
+            fixed_start_time.elapsed().as_millis()
         );
 
         Ok(Graph {
@@ -165,71 +168,69 @@ impl Graph {
     }
 
     /// Finds the nearest node to a lat/lng position
-    pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
-        self.index.nearest_neighbor(&lat_lng.as_node())
+    pub fn nearest_node(&self, point: Point) -> Option<&Node> {
+        self.index.nearest_neighbor(&Node::new(point.0, 0))
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn nearest_edges(&self, lat_lng: &LatLng, distance: i64) -> impl Iterator<Item=(NodeIx, NodeIx, &Weight)> {
-        self.index.locate_within_distance(lat_lng.as_node(), distance)
+    pub fn nearest_edges(
+        &self,
+        point: &Point,
+        distance: f64,
+    ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
+        self.index
+            .locate_within_distance(Node::new(point.to_degrees().0, 0), distance)
             .flat_map(|node|
                 // Find all outgoing edges for the given node
-                self.graph.edges_directed(node.id, Direction::Outgoing)
-            )
+                self.graph.edges_directed(node.id, Direction::Outgoing))
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn nearest_projected_nodes(&self, point: &Point, distance: i64) -> impl Iterator<Item=(Point, Edge)> + '_ {
-        let (x, y) = lat_lng.expand();
-        let initial_point = point! { x: x, y: y };
-
-        self.nearest_edges(&lat_lng, distance)
+    pub fn nearest_projected_nodes<'a>(
+        &'a self,
+        point: &'a Point,
+        distance: f64,
+    ) -> impl Iterator<Item = (Point, Edge)> + '_ {
+        self.nearest_edges(point, distance)
             .filter_map(|edge| {
                 let src = self.hash.get(&(edge.source() as usize))?;
                 let trg = self.hash.get(&(edge.target() as usize))?;
 
-                let (x1, y1) = src.position.expand();
-                let (x2, y2) = trg.position.expand();
-
-                Some((line_string! [ coord! { x: x1, y: y1 }, coord! { x: x2, y: y2 } ], edge))
+                Some((line_string![src.position, trg.position], edge))
             })
             .filter_map(move |(linestring, edge)| {
                 // We locate the point upon the linestring,
                 // and then project that fractional (%)
                 // upon the linestring to obtain a point
-                linestring.line_locate_point(&initial_point)
+                linestring
+                    .line_locate_point(&point)
                     .and_then(|frac| linestring.line_interpolate_point(frac))
-                    .and_then(|point| {
-                        let (lng, lat) = point.0.x_y();
-
-                        LatLng::from_degree(lat, lng)
-                            .ok()
-                            .and_then(|pos| Some((pos, edge)))
-                    })
+                    .and_then(|point| Some((point, edge)))
             })
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: i64) -> Vec<Point> {
-        let linestring = coordinates.iter().map(|coord| {
-            let (lng, lat) = coord.expand();
-            coord! { x: lng, y: lat }
-        }).collect();
+    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: f64) -> Vec<Point> {
+        let linestring = coordinates
+            .iter()
+            .map(|coord| {
+                let (lng, lat) = coord.expand();
+                coord! { x: lng, y: lat }
+            })
+            .collect();
 
         // Create our hidden markov model solver
         let transition = Transition::new(linestring, self);
 
         // Yield the transition layers of each level
-        let layers = transition.backtrack(distance);
-
-        // Collapse the layers into a final vector
-        transition.collapse(layers)
+        // & Collapse the layers into a final vector
+        transition.backtrack(distance)
     }
 
     /// Finds the optimal route between a start and end point.
     /// Returns the weight and routing node vector.
     #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(Weight, Vec<Node>)> {
+    pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node>)> {
         let start_node = self.nearest_node(start)?;
         let finish_node = self.nearest_node(finish)?;
 

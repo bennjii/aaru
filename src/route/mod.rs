@@ -6,7 +6,6 @@ pub mod graph;
 mod test;
 #[doc(hidden)]
 pub mod error;
-mod mapmatch;
 pub mod transition;
 
 #[doc(inline)]

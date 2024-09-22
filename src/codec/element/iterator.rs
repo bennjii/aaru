@@ -2,7 +2,7 @@
 //! ignoring header blocks
 
 use std::path::PathBuf;
-use rayon::iter::{ParallelIterator};
+use rayon::iter::ParallelIterator;
 
 use crate::codec::block::iterator::BlockIterator;
 use crate::codec::element::item::Element;
