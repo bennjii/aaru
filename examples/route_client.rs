@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let request = tonic::Request::new(ClosestSnappedPointRequest {
         point: Some(Coordinate { latitude: -33.850842, longitude: 151.210193 }),
-        distance: 70,
+        distance: 70f64,
     });
 
     let start = Instant::now();

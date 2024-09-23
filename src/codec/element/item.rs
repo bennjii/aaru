@@ -3,6 +3,7 @@
 //! derived item, in the primitive entity.
 
 use std::vec;
+use tracing::debug;
 use crate::codec::osm;
 use crate::codec::element::variants::{Node, Way};
 use crate::codec::osm::{PrimitiveBlock, PrimitiveGroup};
@@ -23,9 +24,17 @@ pub enum ProcessedElement {
 
 impl ProcessedElement {
     pub(crate) fn from_raw(element: Element, block: &PrimitiveBlock) -> Vec<ProcessedElement>{
+        if block.lat_offset.is_some() || block.lon_offset.is_some() || block.granularity.is_some() {
+            debug!("BlockHasOffset! +Lon={:?}, +Lat={:?}, Granularity={:?}", block.lon_offset, block.lat_offset, block.granularity);
+        }
+
+        // Default Scaling Factor: https://wiki.openstreetmap.org/wiki/PBF_Format
+        let granularity = block.granularity.unwrap_or(100);
+
         match element {
+            // TODO: Try making just an iterator return
             Element::DenseNodes(dense_nodes) => {
-                Node::from_dense(dense_nodes)
+                Node::from_dense(dense_nodes, granularity)
                     .map(|node| ProcessedElement::Node(node))
                     .collect()
             },

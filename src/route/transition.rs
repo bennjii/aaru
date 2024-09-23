@@ -1,11 +1,12 @@
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::f64::consts::E;
 use std::ops::{Div, Mul};
 
 use geo::{EuclideanDistance, LineString, Point};
 use log::debug;
 use wkt::ToWkt;
-
+use crate::codec::element::variants::Distance;
 use crate::route::graph::{Edge, NodeIx};
 use crate::route::Graph;
 
@@ -109,69 +110,92 @@ impl<'a> Transition<'a> {
     ///
     /// Based on the method used in FMM
     fn refine_candidates<'t>(&'t self, layer_a: &'t ImbuedLayer<'t>, layer_b: &'t ImbuedLayer<'t>) {
+        // TODO: Refactor how this works to it can be paralleled.
+
         // Now we modify the nodes to refine them
-        layer_a.1
-            .iter()
-            .for_each(|node| {
-                // Iterate for each sub-node to a node
-                layer_b.1
-                    .iter()
-                    .for_each(|alt| {
-                        match self.graph.route(node.borrow().candidate.position, alt.borrow().candidate.position) {
-                            Some((weight, _)) => {
-                                let transition_probability =
-                                    Transition::transition_probability(weight as f64, layer_a.0.segment.length);
+        layer_a.1.iter().for_each(|node| {
+            // Iterate for each sub-node to a node
+            layer_b.1.iter()
+                .filter(|b| node.borrow().candidate.index != b.borrow().candidate.index)
+                .for_each(|alt| {
+                debug!("Routing between {} and {}",
+                    node.borrow().candidate.index,
+                    alt.borrow().candidate.index
+                );
 
-                                let net_probability = node.borrow().cumulative_probability
-                                    + transition_probability.log(E)
-                                    + alt.borrow().emission_probability.log(E);
+                match self.graph.route(
+                    node.borrow().candidate.position,
+                    alt.borrow().candidate.position,
+                ) {
+                    Some((weight, _)) => {
+                        debug!("Route found! Total weight: {}", weight);
 
-                                let mut mutable_ptr = alt.borrow_mut();
+                        let transition_probability = Transition::transition_probability(
+                            weight as f64,
+                            layer_a.0.segment.length,
+                        );
 
-                                mutable_ptr.cumulative_probability = net_probability;
-                                mutable_ptr.prev_best = Some(node);
-                                mutable_ptr.transition_probability = transition_probability;
-                            }
-                            None => {},
-                        }
-                    });
+                        let net_probability = node.borrow().cumulative_probability
+                            + transition_probability.log(E)
+                            + alt.borrow().emission_probability.log(E);
+
+                        let mut mutable_ptr = alt.borrow_mut();
+
+                        mutable_ptr.cumulative_probability = net_probability;
+                        mutable_ptr.prev_best = Some(node);
+                        mutable_ptr.transition_probability = transition_probability;
+                    }
+                    None => debug!("Found no route between nodes.")
+                }
             });
+        });
     }
 
     /// Collapses transition layers, `layers`, into a single vector of
     /// the finalised points
     fn collapse(&self, layers: &Vec<ImbuedLayer>) -> Vec<Point> {
         if let Some((last_layer, nodes)) = layers.last() {
-            // Find the optimal candidate in last_layer.candidates
-            // TODO: Actually pick the best
-            let optimal_node = nodes.last().unwrap();
+            debug!(
+                "Finding best node on the last layer: (Source={}, NoCandidates={})",
+                last_layer.segment.source.to_wkt().to_string(),
+                last_layer.candidates.len()
+            );
 
-            return std::iter::from_fn({
-                let mut previous_best = optimal_node.borrow().prev_best;
-                move || {
-                    // Perform rollup on the candidates to walk-back the path
-                    previous_best.take().map(|prev| {
-                        previous_best = prev.borrow().prev_best;
-                        prev
-                    })
-                }
-            })
-            .fuse()
-            .inspect(|node| {
-                debug!(
-                    "Candidate {:?} ({}) selected.",
-                    node.borrow().candidate.index,
-                    node.borrow().candidate.position.wkt_string()
-                )
-            })
-            .map(|candidate| candidate.borrow().candidate.position)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect::<Vec<_>>();
+            // Find the optimal candidate in last_layer.candidates
+            if let Some(best_node) = nodes.iter().max_by(|a, b| {
+                a.borrow()
+                    .cumulative_probability
+                    .partial_cmp(&b.borrow().cumulative_probability)
+                    .unwrap_or(Ordering::Equal)
+            }) {
+                return std::iter::from_fn({
+                    let mut previous_best = best_node.borrow().prev_best;
+                    move || {
+                        // Perform rollup on the candidates to walk-back the path
+                        previous_best.take().map(|prev| {
+                            previous_best = prev.borrow().prev_best;
+                            prev
+                        })
+                    }
+                })
+                .fuse()
+                .inspect(|node| {
+                    debug!(
+                        "Candidate {:?} ({}) selected.",
+                        node.borrow().candidate.index,
+                        node.borrow().candidate.position.wkt_string()
+                    )
+                })
+                .map(|candidate| candidate.borrow().candidate.position)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>();
+            }
         }
 
         // Return no points by default
+        debug!("Insufficient layers or no optimal candidate, empty vec.");
         vec![]
     }
 
@@ -179,27 +203,35 @@ impl<'a> Transition<'a> {
     /// Backtracks the HMM from the most appropriate final point to
     /// its prior most appropriate points
     pub fn backtrack(&'a self, distance: f64) -> Vec<Point> {
+        let avg_delta = Distance::degree(distance);
+
         // Deconstruct the trajectory into individual segments
         let as_coordinates = self.linestring.clone().into_points();
         let segments = as_coordinates
             .windows(2)
             .map(|window| TrajectorySegment::new(&window[0], &window[1]))
+            .inspect(|segment| debug!("SegmentLength={}", segment.length))
             .collect::<Vec<_>>();
+
+        debug!("Obtained {} trajectory segments.", segments.len());
 
         // TODO: Merge ˄ and ˅ into one iterator?
         // TODO: Check if index is required later.
         let mut index = 0;
+        let mut segment_index = 0;
 
         // Create transition layers from each segment
         let layers = segments
             .iter()
             .filter_map(|segment| {
+                debug!("Looking for nodes adjacent to {}, within distance {}.", segment.source.wkt_string(), distance);
+
                 let candidates = self
                     .graph
                     // Get all relevant (projected) nodes within Nm
-                    .nearest_projected_nodes(&segment.source, distance)
+                    .nearest_projected_nodes(&segment.source, avg_delta)
                     .map(|(position, edge)| {
-                        index = index + 1; // Incremental index
+                        index += 1; // Incremental index
 
                         TransitionCandidate {
                             index,
@@ -209,12 +241,17 @@ impl<'a> Transition<'a> {
                     })
                     .collect::<Vec<_>>();
 
+                debug!("Obtained {} candidates for segment {}", candidates.len(), segment_index);
+                segment_index += 1;
+
                 Some(TransitionLayer {
                     candidates,
                     segment,
                 })
             })
             .collect::<Vec<_>>();
+
+        debug!("Formed {} transition layers.", layers.len());
 
         // We need to keep this in the outer-scope
         let node_layers = layers
@@ -225,8 +262,10 @@ impl<'a> Transition<'a> {
                     .iter()
                     .map(|candidate| {
                         let distance = candidate.position.euclidean_distance(layer.segment.source);
-                        let emission_probability =
-                            Transition::emission_probability(distance, self.error.unwrap_or(DEFAULT_ERROR));
+                        let emission_probability = Transition::emission_probability(
+                            distance,
+                            self.error.unwrap_or(DEFAULT_ERROR),
+                        );
 
                         TransitionNode {
                             candidate,
@@ -239,16 +278,20 @@ impl<'a> Transition<'a> {
                     .map(RefCell::new)
                     .collect::<Vec<_>>();
 
+                debug!("Have {} nodes for layer", nodes.len());
+
                 (layer, nodes)
             })
             .collect::<Vec<_>>();
 
+        debug!("All {} layer nodes generated", node_layers.len());
+
         // Refine Step
-        node_layers
-            .windows(2)
-            .for_each(|layers| {
-                self.refine_candidates(&layers[0], &layers[1]);
-            });
+        node_layers.windows(2).for_each(|layers| {
+            self.refine_candidates(&layers[0], &layers[1]);
+        });
+
+        debug!("Refined all layers, collapsing...");
 
         // Now we refine the candidates
         self.collapse(&node_layers)

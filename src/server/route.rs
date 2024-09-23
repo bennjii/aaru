@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::path::Path;
 use geo::{coord, Point};
-use log::debug;
+use log::{debug, info};
 use rstar::PointDistance;
 use tonic::{Request, Response, Status};
 
@@ -10,7 +10,8 @@ use router_service::router_server::Router;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;
-
+use wkt::ToWkt;
+use crate::codec::element::variants::Distance;
 use crate::server::route::router_service::{ClosestSnappedPointRequest, Coordinate, MapMatchRequest, MapMatchResponse};
 use crate::geo::coord::latlng::{LatLng};
 use crate::route::Graph;
@@ -38,7 +39,7 @@ impl RouteService {
 
 #[tonic::async_trait]
 impl Router for RouteService {
-    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
+    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, level = Level::INFO))]
     async fn map_match(&self, request: Request<MapMatchRequest>) -> Result<Response<MapMatchResponse>, Status> {
         let mapmatch = request.into_inner();
         let coordinates = mapmatch.data.iter()
@@ -88,7 +89,7 @@ impl Router for RouteService {
             )
     }
 
-    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
+    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn closest_point(&self, request: Request<Coordinate>) -> Result<Response<Coordinate>, Status> {
         let coordinate = request.into_inner();
         let point = coord! { x: coordinate.longitude, y: coordinate.latitude };
@@ -105,7 +106,7 @@ impl Router for RouteService {
         Ok(Response::new(nearest_point))
     }
 
-    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
+    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn closest_snapped_point(&self, request: Request<ClosestSnappedPointRequest>) -> Result<Response<Coordinate>, Status> {
         let (_, _, request) = request.into_parts();
 
@@ -114,9 +115,13 @@ impl Router for RouteService {
             |v| Ok(Point(coord! { x: v.longitude, y: v.latitude }))
         ).map_err(|err| Status::internal(format!("{:?}", err)))?;
 
-        let distance_as_degree = 1e7f64 * (request.distance as f64);
+        info!("Got request for {} for distances <= {}", point.wkt_string(), request.distance);
+
+        let avg_delta = Distance::degree(request.distance);
+        info!("Average degree delta is {}°, searching...", avg_delta);
+
         let mut nearest_points = self.graph
-            .nearest_projected_nodes(&point, distance_as_degree)
+            .nearest_projected_nodes(&point, avg_delta)
             .collect::<Vec<_>>();
 
         debug!("Found {} points", nearest_points.len());
