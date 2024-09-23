@@ -56,6 +56,8 @@ struct TrajectorySegment<'a> {
     length: f64,
 }
 
+type ImbuedLayer<'t> = (&'t TransitionLayer<'t>, Vec<RefCell<TransitionNode<'t>>>);
+
 impl<'a> TrajectorySegment<'a> {
     pub fn new(a: &'a Point, b: &'a Point) -> Self {
         TrajectorySegment {
@@ -106,38 +108,19 @@ impl<'a> Transition<'a> {
     /// emission and transition probabilities in the hidden markov model.
     ///
     /// Based on the method used in FMM
-    fn refine_candidates<'t>(&'t self, layer: &'t TransitionLayer) -> RefinedTransitionLayer<'t> {
-        let mut nodes = layer
-            .candidates
-            .iter()
-            .map(|candidate| {
-                let distance = candidate.position.euclidean_distance(layer.segment.source);
-                let emission_probability =
-                    Transition::emission_probability(distance, self.error.unwrap_or(DEFAULT_ERROR));
-
-                TransitionNode {
-                    candidate,
-                    prev_best: None,
-                    emission_probability,
-                    transition_probability: 0.0f64,
-                    cumulative_probability: 0.0f64,
-                }
-            })
-            .map(RefCell::new)
-            .collect::<Vec<_>>();
-
+    fn refine_candidates<'t>(&'t self, layer_a: &'t ImbuedLayer<'t>, layer_b: &'t ImbuedLayer<'t>) {
         // Now we modify the nodes to refine them
-        nodes
+        layer_a.1
             .iter()
             .for_each(|node| {
                 // Iterate for each sub-node to a node
-                nodes
+                layer_b.1
                     .iter()
-                    .for_each(|mut alt| {
+                    .for_each(|alt| {
                         match self.graph.route(node.borrow().candidate.position, alt.borrow().candidate.position) {
                             Some((weight, _)) => {
                                 let transition_probability =
-                                    Transition::transition_probability(weight as f64, layer.segment.length);
+                                    Transition::transition_probability(weight as f64, layer_a.0.segment.length);
 
                                 let net_probability = node.borrow().cumulative_probability
                                     + transition_probability.log(E)
@@ -153,45 +136,18 @@ impl<'a> Transition<'a> {
                         }
                     });
             });
-            // .flat_map(|v| std::iter::repeat(v).zip(layer.candidates.iter()))
-            // // Only differing candidates are important
-            // .filter(|(a, b)| a.candidate.index != b.index)
-            // // Iterating over the cartesian product of the candidates
-            // .filter_map(|(a, b)| {
-            //     // If we can route between these candidates
-            //     match self.graph.route(a.candidate.position, b.position) {
-            //         Some((weight, _)) => {
-            //             let transition_probability =
-            //                 Transition::transition_probability(weight as f64, layer.segment.length);
-            //
-            //             // Imbue candidate with the transition probability
-            //             Some(TransitionNode {
-            //                 candidate: a.candidate,
-            //                 emission_probability: a.emission_probability,
-            //                 transition_probability,
-            //             })
-            //         }
-            //         None => None,
-            //     }
-            // })
-            // .collect();
-
-        RefinedTransitionLayer {
-            // Make this not clone by lifetime-spacing
-            nodes: nodes.into_iter().map(|v| v.into_inner()).collect::<Vec<_>>(),
-            segment: layer.segment,
-        }
     }
 
     /// Collapses transition layers, `layers`, into a single vector of
     /// the finalised points
-    fn collapse(&self, layers: Vec<RefinedTransitionLayer>) -> Vec<Point> {
-        if let Some(last_layer) = layers.last() {
+    fn collapse(&self, layers: &Vec<ImbuedLayer>) -> Vec<Point> {
+        if let Some((last_layer, nodes)) = layers.last() {
             // Find the optimal candidate in last_layer.candidates
-            let optimal_node: &TransitionNode = last_layer.nodes.last().unwrap();
+            // TODO: Actually pick the best
+            let optimal_node = nodes.last().unwrap();
 
             return std::iter::from_fn({
-                let mut previous_best = optimal_node.prev_best;
+                let mut previous_best = optimal_node.borrow().prev_best;
                 move || {
                     // Perform rollup on the candidates to walk-back the path
                     previous_best.take().map(|prev| {
@@ -260,12 +216,41 @@ impl<'a> Transition<'a> {
             })
             .collect::<Vec<_>>();
 
+        // We need to keep this in the outer-scope
+        let node_layers = layers
+            .iter()
+            .map(|layer| {
+                let nodes = layer
+                    .candidates
+                    .iter()
+                    .map(|candidate| {
+                        let distance = candidate.position.euclidean_distance(layer.segment.source);
+                        let emission_probability =
+                            Transition::emission_probability(distance, self.error.unwrap_or(DEFAULT_ERROR));
+
+                        TransitionNode {
+                            candidate,
+                            prev_best: None,
+                            emission_probability,
+                            transition_probability: 0.0f64,
+                            cumulative_probability: 0.0f64,
+                        }
+                    })
+                    .map(RefCell::new)
+                    .collect::<Vec<_>>();
+
+                (layer, nodes)
+            })
+            .collect::<Vec<_>>();
+
+        // Refine Step
+        node_layers
+            .windows(2)
+            .for_each(|layers| {
+                self.refine_candidates(&layers[0], &layers[1]);
+            });
+
         // Now we refine the candidates
-        self.collapse(
-            layers
-                .iter()
-                .map(|layer| self.refine_candidates(layer))
-                .collect::<Vec<_>>()
-        )
+        self.collapse(&node_layers)
     }
 }
