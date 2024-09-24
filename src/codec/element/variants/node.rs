@@ -18,30 +18,21 @@ pub struct Node {
     pub position: Point, // Coord<NanoDegree>
 }
 
-pub struct Distance {
-    meter_value: f64,
-}
-
-impl Distance {
-    pub fn from_meters(meters: u32) -> Self {
-        Distance {
-            meter_value: meters as f64,
-        }
-    }
-
-    pub fn degree(meter_value: f64) -> Degree {
-        let delta_lat = (meter_value / MEAN_EARTH_RADIUS) * (180f64 / PI);
-        let delta_lng = (meter_value / MEAN_EARTH_RADIUS * (PI / 4f64).cos()) * (180f64 / PI);
-        let avg_delta = (delta_lat + delta_lng) / 2f64;
-        avg_delta / 1f64
-    }
-}
-
 impl rstar::PointDistance for Node {
     fn distance_2(&self, point: &<Self::Envelope as Envelope>::Point)
         -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar
     {
         self.position.haversine_distance(&point)
+    }
+
+    fn distance_2_if_less_or_equal(&self, point: &<Self::Envelope as Envelope>::Point, max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
+        // This should utilize Envelope optimisation
+        let distance_2 = self.position.haversine_distance(&point);
+        if distance_2 <= max_distance_2 {
+            return Some(distance_2);
+        }
+
+        None
     }
 }
 
@@ -136,16 +127,6 @@ impl Node {
                 curr
             })
             .into_iter()
-    }
-
-    pub fn to(&self, other: &Node) -> Distance {
-        let lat: f64 = self.position.y() - other.position.y();
-        let lng: f64 = self.position.x() - other.position.x();
-
-        let a = (lng / 2.0f64).sin().powi(2)
-            + self.position.y().cos() * other.position.y().cos() * (lat / 2.0f64).sin().powi(2);
-        let c = 2f64 * a.sqrt().asin();
-        Distance::from_meters((6371008.8 * c) as u32)
     }
 }
 

@@ -25,7 +25,9 @@ pub enum ProcessedElement {
 }
 
 impl ProcessedElement {
-    pub(crate) fn from_raw(element: Element, block: &PrimitiveBlock) -> Vec<ProcessedElement>{
+    #[inline]
+    pub(crate) fn from_raw(element: Element, block: &PrimitiveBlock) -> Vec<ProcessedElement> {
+        #[cfg(feature = "tracing")]
         if block.lat_offset.is_some() || block.lon_offset.is_some() || block.granularity.is_some() {
             debug!("BlockHasOffset! +Lon={:?}, +Lat={:?}, Granularity={:?}", block.lon_offset, block.lat_offset, block.granularity);
         }

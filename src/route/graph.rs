@@ -9,6 +9,7 @@ use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::time::Instant;
+use tracing::field::debug;
 use wkt::ToWkt;
 
 #[cfg(feature = "tracing")]
@@ -184,6 +185,7 @@ impl Graph {
     ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
         self.index
             .locate_within_distance(*point, distance)
+            .inspect(|v| debug!("Found node: {}", v.position.wkt_string()))
             .flat_map(|node|
                 // Find all outgoing edges for the given node
                 self.graph.edges_directed(node.id, Direction::Outgoing)
@@ -195,7 +197,7 @@ impl Graph {
         &'a self,
         point: &'a Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)> + '_ {
+    ) -> impl Iterator<Item = (Point, Edge)> + 'a {
         self.nearest_edges(point, distance)
             .filter_map(|edge| {
                 let src = self.hash.get(&edge.source())?;

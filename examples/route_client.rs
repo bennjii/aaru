@@ -1,3 +1,4 @@
+use log::info;
 use tokio::time::Instant;
 use tonic::transport::Channel;
 use aaru::server::route::router_service::{ClosestSnappedPointRequest, Coordinate, Costing, RouteRequest};

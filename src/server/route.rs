@@ -75,12 +75,6 @@ impl Router for RouteService {
             .map_or(
                 Err(Status::internal("Could not route")),
                 |(cost, route)| {
-                    let linestring = route.iter()
-                        .map(|node| node.position)
-                        .collect::<LineString>();
-
-                    debug!("Resultant Linestring: {}", linestring.wkt_string());
-
                     let shape = route
                         .iter()
                         .map(|node| Coordinate {
