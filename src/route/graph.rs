@@ -11,6 +11,7 @@ use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::time::Instant;
 use wkt::ToWkt;
+
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::Node;
@@ -201,7 +202,6 @@ impl Graph {
                 Some((line_string![src.position, trg.position], edge))
             })
             .filter_map(move |(linestring, edge)| {
-                debug!("Got line: {}", linestring.wkt_string());
                 // We locate the point upon the linestring,
                 // and then project that fractional (%)
                 // upon the linestring to obtain a point
@@ -234,10 +234,16 @@ impl Graph {
 
     /// Finds the optimal route between a start and end point.
     /// Returns the weight and routing node vector.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
     pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node>)> {
         let start_node = self.nearest_node(start)?;
         let finish_node = self.nearest_node(finish)?;
+
+        debug!(
+            "Routing between {} ({:?}) and {} ({:?})",
+            start_node.id, start_node.position,
+            finish_node.id, finish_node.position
+        );
 
         let (score, path) = petgraph::algo::astar(
             &self.graph,

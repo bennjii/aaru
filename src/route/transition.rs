@@ -123,6 +123,9 @@ impl<'a> Transition<'a> {
                     alt.borrow().candidate.index
                 );
 
+                debug!("From={}", node.borrow().candidate.position.wkt_string());
+                debug!("To={}", alt.borrow().candidate.position.wkt_string());
+
                 match self.graph.route(
                     node.borrow().candidate.position,
                     alt.borrow().candidate.position,
