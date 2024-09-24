@@ -3,7 +3,9 @@
 //! derived item, in the primitive entity.
 
 use std::vec;
+#[cfg(feature = "tracing")]
 use tracing::debug;
+
 use crate::codec::osm;
 use crate::codec::element::variants::{Node, Way};
 use crate::codec::osm::{PrimitiveBlock, PrimitiveGroup};

@@ -1,6 +1,5 @@
 use geo::{coord, line_string, LineInterpolatePoint, LineLocatePoint, LineString, Point};
 use log::{debug, error, info};
-use tracing::Level;
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
@@ -11,6 +10,9 @@ use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::time::Instant;
 use wkt::ToWkt;
+
+#[cfg(feature = "tracing")]
+use tracing::Level;
 
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
