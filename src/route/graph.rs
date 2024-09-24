@@ -9,11 +9,10 @@ use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::time::Instant;
-use tracing::field::debug;
 use wkt::ToWkt;
 
 #[cfg(feature = "tracing")]
-use tracing::Level;
+use tracing::{Level, field::debug};
 
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;

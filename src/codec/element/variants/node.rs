@@ -2,15 +2,12 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use std::f64::consts::PI;
 use std::ops::{Add, Mul};
 use geo::{point, HaversineDistance, Point};
 use rstar::{Envelope, AABB};
 
 use crate::codec::osm;
 use crate::codec::osm::DenseNodes;
-use crate::geo::coord::latlng::Degree;
-use crate::geo::MEAN_EARTH_RADIUS;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Node {
