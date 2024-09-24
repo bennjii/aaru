@@ -12,7 +12,7 @@ use std::time::Instant;
 use wkt::ToWkt;
 
 #[cfg(feature = "tracing")]
-use tracing::{Level, field::debug};
+use tracing::Level;
 
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
@@ -182,6 +182,17 @@ impl Graph {
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
+        // See what's nearby (debug utility)
+        #[cfg(debug_assertions)]
+        self.index
+            .nearest_neighbor_iter(point)
+            .take(5)
+            .for_each(|v| {
+                let distance = point.distance_2(&v.position);
+                let hav_distance = point.haversine_distance(&v.position);
+                debug!("Nearby Node: {} ({}m point dist away or {}m by haversine)", v.position.wkt_string(), distance, hav_distance);
+            });
+
         self.index
             .locate_within_distance(*point, distance)
             .inspect(|v| debug!("Found node: {}", v.position.wkt_string()))
@@ -242,7 +253,6 @@ impl Graph {
         let start_node = self.nearest_node(start)?;
         let finish_node = self.nearest_node(finish)?;
 
-        debug!("Distance between selected nodes: {}m",  start_node.position.haversine_distance(&finish_node.position));
         debug!(
             "Lazy-Snapped Routing between {} {} and {} {}",
             start_node.id, start_node.position.wkt_string(),

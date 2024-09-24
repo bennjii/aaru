@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::f64::consts::E;
 use std::ops::{Div, Mul};
 
-use geo::{EuclideanDistance, HaversineDistance, LineString, Point};
+use geo::{EuclideanDistance, HaversineDistance, HaversineLength, LineString, Point};
 use log::debug;
 use wkt::ToWkt;
 use crate::route::graph::{Edge, NodeIx};
@@ -111,46 +111,75 @@ impl<'a> Transition<'a> {
     /// Based on the method used in FMM
     fn refine_candidates<'t>(&'t self, layer_a: &'t ImbuedLayer<'t>, layer_b: &'t ImbuedLayer<'t>) {
         // TODO: Refactor how this works to it can be paralleled.
-
         // Now we modify the nodes to refine them
         layer_a.1.iter().for_each(|node| {
+            // Required to meet borrowing rules
+            let node_position = node.borrow().candidate.position.clone();
+
             // Iterate for each sub-node to a node
             layer_b.1.iter()
                 .filter(|b| node.borrow().candidate.index != b.borrow().candidate.index)
                 .for_each(|alt| {
-                debug!("Routing between {} and {}",
-                    node.borrow().candidate.index,
-                    alt.borrow().candidate.index
-                );
+                    let alt_position = alt.borrow().candidate.position.clone();
 
-                debug!("From={}", node.borrow().candidate.position.wkt_string());
-                debug!("To={}", alt.borrow().candidate.position.wkt_string());
+                    debug!("Routing between {} and {}",
+                        node.borrow().candidate.index,
+                        alt.borrow().candidate.index
+                    );
 
-                match self.graph.route(
-                    node.borrow().candidate.position,
-                    alt.borrow().candidate.position,
-                ) {
-                    Some((weight, _)) => {
-                        debug!("Route found! Total weight: {}", weight);
+                    match self.graph.route(node_position, alt_position) {
+                        Some((weight, nodes)) => {
+                            // TODO: Consider doing this by default on route
+                            let travel_distance = nodes
+                                .iter()
+                                .map(|node| node.position)
+                                .collect::<LineString>()
+                                .haversine_length();
 
-                        let transition_probability = Transition::transition_probability(
-                            weight as f64,
-                            layer_a.0.segment.length,
-                        );
+                            // Compare actual distance with straight-line-distance
+                            let transition_probability = Transition::transition_probability(
+                                travel_distance,
+                                layer_a.0.segment.length,
+                            );
 
-                        let net_probability = node.borrow().cumulative_probability
-                            + transition_probability.log(E)
-                            + alt.borrow().emission_probability.log(E);
+                            debug!(
+                                "Transition Probability: {}, Segment Length: {}",
+                                transition_probability,
+                                layer_a.0.segment.length
+                            );
 
-                        let mut mutable_ptr = alt.borrow_mut();
+                            let net_probability = node.borrow().cumulative_probability
+                                + transition_probability.log(E)
+                                + alt.borrow().emission_probability.log(E);
 
-                        mutable_ptr.cumulative_probability = net_probability;
-                        mutable_ptr.prev_best = Some(node);
-                        mutable_ptr.transition_probability = transition_probability;
+                            debug!(
+                                "Route found! Total weight: {}, Net Probability: {}",
+                                weight, net_probability,
+                            );
+
+                            debug!(
+                                "=> Ln(This.Transition)={}, Ln(Alt.Emission)={}",
+                                transition_probability.log(E), alt.borrow().emission_probability.log(E)
+                            );
+
+                            // Only one-such borrow must exist at one time,
+                            // simply do not borrow again in this scope.
+                            let mut mutable_ptr = alt.borrow_mut();
+
+                            // Only if it probabilistic to route do we make the change
+                            if net_probability > mutable_ptr.cumulative_probability {
+                                debug!("Committing changes, cumulative probability reached.");
+
+                                mutable_ptr.cumulative_probability = net_probability;
+                                mutable_ptr.transition_probability = transition_probability;
+                                mutable_ptr.prev_best = Some(node);
+                            } else {
+                                debug!("Insufficient, cannot make change. Cumulative was: {}", mutable_ptr.cumulative_probability);
+                            }
+                        }
+                        None => debug!("Found no route between nodes.")
                     }
-                    None => debug!("Found no route between nodes.")
-                }
-            });
+                });
         });
     }
 
@@ -257,12 +286,12 @@ impl<'a> Transition<'a> {
         // We need to keep this in the outer-scope
         let node_layers = layers
             .iter()
-            .map(|layer| {
+            .filter_map(|layer| {
                 let nodes = layer
                     .candidates
                     .iter()
                     .map(|candidate| {
-                        let distance = candidate.position.euclidean_distance(layer.segment.source);
+                        let distance = candidate.position.haversine_distance(layer.segment.source);
                         let emission_probability = Transition::emission_probability(
                             distance,
                             self.error.unwrap_or(DEFAULT_ERROR),
@@ -273,23 +302,30 @@ impl<'a> Transition<'a> {
                             prev_best: None,
                             emission_probability,
                             transition_probability: 0.0f64,
-                            cumulative_probability: 0.0f64,
+                            cumulative_probability: f64::NEG_INFINITY,
                         }
                     })
                     .map(RefCell::new)
                     .collect::<Vec<_>>();
 
-                debug!("Have {} nodes for layer", nodes.len());
+                if nodes.len() == 0 {
+                    debug!("Layer with {} candidates lacks sufficient nodes, rejecting.", layer.candidates.len());
+                    return None
+                }
 
-                (layer, nodes)
+                debug!("Have {} nodes for layer", nodes.len());
+                Some((layer, nodes))
             })
             .collect::<Vec<_>>();
 
         debug!("All {} layer nodes generated", node_layers.len());
 
         // Refine Step
+        let mut layer_index = 0;
         node_layers.windows(2).for_each(|layers| {
+            debug!("Moving onto layers {}", layer_index);
             self.refine_candidates(&layers[0], &layers[1]);
+            layer_index += 1;
         });
 
         debug!("Refined all layers, collapsing...");

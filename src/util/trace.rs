@@ -10,7 +10,6 @@
 //! OTEL_SERVICE_NAME=aaru
 //! ```
 
-use opentelemetry::trace::TracerProvider;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -20,22 +19,22 @@ use tracing_subscriber::util::SubscriberInitExt;
 pub fn initialize_tracer() {
     // The remote server to log to...
     #[cfg(feature = "grpc_server")]
-    let exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
-        .with_tls_config(Default::default());
+    // let exporter = opentelemetry_otlp::new_exporter()
+    //     .tonic()
+    //     .with_tls_config(Default::default());
 
     // Initialize OpenTelemetry OLTP Protoc Pipeline
     #[cfg(feature = "grpc_server")]
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(exporter)
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Couldn't create OTLP tracer")
-        .tracer("aaru");
+    // let tracer = opentelemetry_otlp::new_pipeline()
+    //     .tracing()
+    //     .with_exporter(exporter)
+    //     .install_batch(opentelemetry_sdk::runtime::Tokio)
+    //     .expect("Couldn't create OTLP tracer")
+    //     .tracer("aaru");
 
     // Link OTEL and STDOUT subscribers
     #[cfg(feature = "grpc_server")]
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+    // let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
     let fmt_layer = tracing_subscriber::fmt::layer().compact();
 
     // Initialise tracing with subscribers and environment filter
@@ -44,7 +43,7 @@ pub fn initialize_tracer() {
         .with(fmt_layer);
 
     #[cfg(feature = "grpc_server")]
-    registry.with(otel_layer).init();
+    registry.init(); // .with(otel_layer)
     #[cfg(not(feature = "grpc_server"))]
     registry.init();
 }

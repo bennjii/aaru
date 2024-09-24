@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::path::Path;
-use geo::{coord, LineString, Point};
+use geo::{coord, Point};
 use log::{debug, info};
 use rstar::PointDistance;
 use tonic::{Request, Response, Status};
