@@ -3,10 +3,9 @@ use std::cmp::Ordering;
 use std::f64::consts::E;
 use std::ops::{Div, Mul};
 
-use geo::{EuclideanDistance, LineString, Point};
+use geo::{EuclideanDistance, HaversineDistance, LineString, Point};
 use log::debug;
 use wkt::ToWkt;
-use crate::codec::element::variants::Distance;
 use crate::route::graph::{Edge, NodeIx};
 use crate::route::Graph;
 
@@ -61,10 +60,11 @@ type ImbuedLayer<'t> = (&'t TransitionLayer<'t>, Vec<RefCell<TransitionNode<'t>>
 
 impl<'a> TrajectorySegment<'a> {
     pub fn new(a: &'a Point, b: &'a Point) -> Self {
+        debug!("Segment length {} between {:?} and {:?}", a.haversine_distance(b), a, b);
         TrajectorySegment {
             source: a,
             target: b,
-            length: a.euclidean_distance(b),
+            length: a.haversine_distance(b),
         }
     }
 }
@@ -206,8 +206,6 @@ impl<'a> Transition<'a> {
     /// Backtracks the HMM from the most appropriate final point to
     /// its prior most appropriate points
     pub fn backtrack(&'a self, distance: f64) -> Vec<Point> {
-        let avg_delta = Distance::degree(distance);
-
         // Deconstruct the trajectory into individual segments
         let as_coordinates = self.linestring.clone().into_points();
         let segments = as_coordinates
@@ -232,7 +230,7 @@ impl<'a> Transition<'a> {
                 let candidates = self
                     .graph
                     // Get all relevant (projected) nodes within Nm
-                    .nearest_projected_nodes(&segment.source, avg_delta)
+                    .nearest_projected_nodes(&segment.source, distance)
                     .map(|(position, edge)| {
                         index += 1; // Incremental index
 

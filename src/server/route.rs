@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::path::Path;
-use geo::{coord, Point};
+use geo::{coord, LineString, Point};
 use log::{debug, info};
 use rstar::PointDistance;
 use tonic::{Request, Response, Status};
@@ -11,7 +11,6 @@ use router_service::router_server::Router;
 #[cfg(feature = "tracing")]
 use tracing::Level;
 use wkt::ToWkt;
-use crate::codec::element::variants::Distance;
 use crate::server::route::router_service::{ClosestSnappedPointRequest, Coordinate, MapMatchRequest, MapMatchResponse};
 use crate::geo::coord::latlng::{LatLng};
 use crate::route::Graph;
@@ -58,7 +57,7 @@ impl Router for RouteService {
         }))
     }
 
-    #[cfg_attr(feature="tracing", tracing::instrument(err(level = Level::INFO)))]
+    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn route(&self, request: Request<RouteRequest>) -> Result<Response<RouteResponse>, Status> {
         let (_, _, routing) = request.into_parts();
 
@@ -76,11 +75,17 @@ impl Router for RouteService {
             .map_or(
                 Err(Status::internal("Could not route")),
                 |(cost, route)| {
+                    let linestring = route.iter()
+                        .map(|node| node.position)
+                        .collect::<LineString>();
+
+                    debug!("Resultant Linestring: {}", linestring.wkt_string());
+
                     let shape = route
                         .iter()
                         .map(|node| Coordinate {
-                            latitude: node.position.y,
-                            longitude: node.position.x
+                            latitude: node.position.y(),
+                            longitude: node.position.x()
                         })
                         .collect();
 
@@ -98,8 +103,8 @@ impl Router for RouteService {
             .map_or(
                 Err(Status::internal("Could not find appropriate point")),
                 |coord| Ok(Coordinate {
-                    longitude: coord.position.x,
-                    latitude: coord.position.y
+                    longitude: coord.position.x(),
+                    latitude: coord.position.y()
                 })
             )?;
 
@@ -116,12 +121,8 @@ impl Router for RouteService {
         ).map_err(|err| Status::internal(format!("{:?}", err)))?;
 
         info!("Got request for {} for distances <= {}", point.wkt_string(), request.distance);
-
-        let avg_delta = Distance::degree(request.distance);
-        info!("Average degree delta is {}°, searching...", avg_delta);
-
         let mut nearest_points = self.graph
-            .nearest_projected_nodes(&point, avg_delta)
+            .nearest_projected_nodes(&point, request.distance)
             .collect::<Vec<_>>();
 
         debug!("Found {} points", nearest_points.len());

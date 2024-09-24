@@ -1,10 +1,10 @@
-use geo::{coord, line_string, LineInterpolatePoint, LineLocatePoint, LineString, Point};
+use geo::{coord, line_string, HaversineDistance, LineInterpolatePoint, LineLocatePoint, LineString, Point};
 use log::{debug, error, info};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rstar::RTree;
+use rstar::{RTree};
 use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
@@ -22,21 +22,21 @@ use crate::geo::coord::latlng::LatLng;
 use crate::route::error::RouteError;
 use crate::route::transition::Transition;
 
-pub type Weight = u8;
+pub type Weight = u32;
 pub type NodeIx = i64;
 pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
 pub type GraphStructure = DiGraphMap<NodeIx, Weight>;
 // type GraphStructure = Csr<(), u32, Directed, usize>; - Doesn't implement IntoEdgesDirected yet.
 
-const MAX_WEIGHT: Weight = 255;
+const MAX_WEIGHT: Weight = 255 as Weight;
 
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
     graph: GraphStructure,
     index: RTree<Node>,
-    hash: scc::HashMap<usize, Node>,
+    hash: HashMap<NodeIx, Node>,
 }
 
 impl Debug for Graph {
@@ -49,8 +49,8 @@ struct Vector(LatLng);
 
 impl Graph {
     /// The weighting mapping of node keys to weight.
-    pub fn weights<'a>() -> Result<HashMap<&'a str, u8>, RouteError> {
-        let weights: HashMap<&str, u8> = HashMap::new();
+    pub fn weights<'a>() -> Result<HashMap<&'a str, Weight>, RouteError> {
+        let weights: HashMap<&str, Weight> = HashMap::new();
 
         // TODO: Base this dynamically on geospacial properties and roading shape
 
@@ -142,7 +142,7 @@ impl Graph {
             .into_par_iter()
             .filter(|v| graph.contains_node(v.id))
             .inspect(|e| {
-                if let Err((index, node)) = hash.insert(e.id as usize, *e) {
+                if let Err((index, node)) = hash.insert(e.id, *e) {
                     error!(
                         "Unable to insert node, index {} already taken. Node: {:?}",
                         index, node
@@ -173,7 +173,7 @@ impl Graph {
 
     /// Finds the nearest node to a lat/lng position
     pub fn nearest_node(&self, point: Point) -> Option<&Node> {
-        self.index.nearest_neighbor(&Node::new(point.0, 0))
+        self.index.nearest_neighbor(&point)
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
@@ -183,7 +183,7 @@ impl Graph {
         distance: f64,
     ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
         self.index
-            .locate_within_distance(Node::new(point.0, 0), distance)
+            .locate_within_distance(*point, distance)
             .flat_map(|node|
                 // Find all outgoing edges for the given node
                 self.graph.edges_directed(node.id, Direction::Outgoing)
@@ -198,10 +198,10 @@ impl Graph {
     ) -> impl Iterator<Item = (Point, Edge)> + '_ {
         self.nearest_edges(point, distance)
             .filter_map(|edge| {
-                let src = self.hash.get(&(edge.source() as usize))?;
-                let trg = self.hash.get(&(edge.target() as usize))?;
+                let src = self.hash.get(&edge.source())?;
+                let trg = self.hash.get(&edge.target())?;
 
-                Some((line_string![src.position, trg.position], edge))
+                Some((line_string![src.position.0, trg.position.0], edge))
             })
             .filter_map(move |(linestring, edge)| {
                 // We locate the point upon the linestring,
@@ -241,10 +241,11 @@ impl Graph {
         let start_node = self.nearest_node(start)?;
         let finish_node = self.nearest_node(finish)?;
 
+        debug!("Distance between selected nodes: {}m",  start_node.position.haversine_distance(&finish_node.position));
         debug!(
-            "Routing between {} ({:?}) and {} ({:?})",
-            start_node.id, start_node.position,
-            finish_node.id, finish_node.position
+            "Lazy-Snapped Routing between {} {} and {} {}",
+            start_node.id, start_node.position.wkt_string(),
+            finish_node.id, finish_node.position.wkt_string()
         );
 
         let (score, path) = petgraph::algo::astar(
@@ -254,15 +255,19 @@ impl Graph {
             |e| *e.weight(),
             |v| {
                 self.hash
-                    .get(&(v as usize))
-                    .map(|v| v.to(&finish_node).as_m() as u8)
-                    .unwrap_or(0)
+                    .get(&v)
+                    .map(|v|
+                        v.position.haversine_distance(&finish_node.position) as Weight
+                    )
+                    .unwrap_or(0 as Weight)
             },
         )?;
 
+        debug!("Route Obtained. Score={}, PathLength={}", score, path.len());
+
         let route = path
             .iter()
-            .filter_map(|v| self.hash.get(&(*v as usize)))
+            .filter_map(|v| self.hash.get(v))
             .map(|e| e.get().clone())
             .collect();
 
