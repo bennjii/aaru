@@ -158,8 +158,9 @@ impl<'a> Transition<'a> {
                             );
 
                             debug!(
-                                "=> Ln(This.Transition)={}, Ln(Alt.Emission)={}",
-                                transition_probability.log(E), alt.borrow().emission_probability.log(E)
+                                "=> Ln(This.Transition)={}, Ln(Alt.Emission)={}, Node.Cumulative={}",
+                                transition_probability.log(E), alt.borrow().emission_probability.log(E),
+                                node.borrow().cumulative_probability
                             );
 
                             // Only one-such borrow must exist at one time,
@@ -167,7 +168,7 @@ impl<'a> Transition<'a> {
                             let mut mutable_ptr = alt.borrow_mut();
 
                             // Only if it probabilistic to route do we make the change
-                            if net_probability > mutable_ptr.cumulative_probability {
+                            if net_probability >= mutable_ptr.cumulative_probability {
                                 debug!("Committing changes, cumulative probability reached.");
 
                                 mutable_ptr.cumulative_probability = net_probability;
