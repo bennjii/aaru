@@ -4,7 +4,7 @@ use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rstar::{RTree};
+use rstar::{PointDistance, RTree};
 use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
@@ -220,9 +220,9 @@ impl Graph {
                 // and then project that fractional (%)
                 // upon the linestring to obtain a point
                 linestring
-                    .line_locate_point(&point)
+                    .line_locate_point(point)
                     .and_then(|frac| linestring.line_interpolate_point(frac))
-                    .and_then(|point| Some((point, edge)))
+                    .map(|point| (point, edge))
             })
     }
 
@@ -245,36 +245,27 @@ impl Graph {
         // & Collapse the layers into a final vector
         transition.backtrack(distance)
     }
-
-    /// Finds the optimal route between a start and end point.
-    /// Returns the weight and routing node vector.
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node>)> {
-        let start_node = self.nearest_node(start)?;
-        let finish_node = self.nearest_node(finish)?;
-
-        debug!(
-            "Lazy-Snapped Routing between {} {} and {} {}",
-            start_node.id, start_node.position.wkt_string(),
-            finish_node.id, finish_node.position.wkt_string()
-        );
-
+    
+    pub(crate) fn route_raw(&self, start_node: NodeIx, finish_node: NodeIx) -> Option<(Weight, Vec<Node>)> {
+        debug!("Routing {} -> {}", start_node, finish_node);
+        let final_position = self.hash.get(&finish_node)?.position;
+        
         let (score, path) = petgraph::algo::astar(
             &self.graph,
-            start_node.id,
-            |finish| finish == finish_node.id,
+            start_node,
+            |finish| finish == finish_node,
             |e| *e.weight(),
             |v| {
                 self.hash
                     .get(&v)
                     .map(|v|
-                        v.position.haversine_distance(&finish_node.position) as Weight
+                        v.position.haversine_distance(&final_position) as Weight
                     )
                     .unwrap_or(0 as Weight)
             },
         )?;
 
-        debug!("Route Obtained. Score={}, PathLength={}", score, path.len());
+        // debug!("Route Obtained. Score={}, PathLength={}", score, path.len());
 
         let route = path
             .iter()
@@ -283,5 +274,16 @@ impl Graph {
             .collect();
 
         Some((score, route))
+    }
+
+    /// Finds the optimal route between a start and end point.
+    /// Returns the weight and routing node vector.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
+    pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node>)> {
+        let start_node = self.nearest_node(start)?;
+        let finish_node = self.nearest_node(finish)?;
+        
+        // TODO: Investigate lookup so we don't have to lookup finish twice
+        self.route_raw(start_node.id, finish_node.id)
     }
 }
