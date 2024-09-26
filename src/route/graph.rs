@@ -4,12 +4,11 @@ use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rstar::{PointDistance, RTree};
+use rstar::{RTree};
 use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::time::Instant;
-use wkt::ToWkt;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;
@@ -182,20 +181,9 @@ impl Graph {
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
-        // See what's nearby (debug utility)
-        #[cfg(debug_assertions)]
         self.index
-            .nearest_neighbor_iter(point)
+            .nearest_neighbor_iter(&point)
             .take(5)
-            .for_each(|v| {
-                let distance = point.distance_2(&v.position);
-                let hav_distance = point.haversine_distance(&v.position);
-                debug!("Nearby Node: {} ({}m point dist away or {}m by haversine)", v.position.wkt_string(), distance, hav_distance);
-            });
-
-        self.index
-            .locate_within_distance(*point, distance)
-            .inspect(|v| debug!("Found node: {}", v.position.wkt_string()))
             .flat_map(|node|
                 // Find all outgoing edges for the given node
                 self.graph.edges_directed(node.id, Direction::Outgoing)
@@ -239,11 +227,11 @@ impl Graph {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         // Create our hidden markov model solver
-        let transition = Transition::new(linestring, self);
+        let transition = Transition::new(self);
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        transition.backtrack(distance)
+        transition.backtrack(linestring, distance)
     }
     
     pub(crate) fn route_raw(&self, start_node: NodeIx, finish_node: NodeIx) -> Option<(Weight, Vec<Node>)> {
