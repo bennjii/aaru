@@ -1,0 +1,7 @@
+version: v2
+modules:
+  - path: proto
+    name: buf.build/bennjii/aaru
+    excludes:
+      - proto/osm
+      - proto/mvt

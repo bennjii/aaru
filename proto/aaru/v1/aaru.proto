@@ -1,13 +1,13 @@
 syntax = "proto3";
-package aaru;
+package aaru.v1;
 
 // The routing service
-service Router {
+service RouterService {
   // Returns the appropriate route between the starting and ending locations.
   rpc Route (RouteRequest) returns (RouteResponse);
   rpc MapMatch (MapMatchRequest) returns (MapMatchResponse);
-  rpc ClosestPoint (Coordinate) returns (Coordinate);
-  rpc ClosestSnappedPoint (ClosestSnappedPointRequest) returns (Coordinate);
+  rpc ClosestPoint (ClosestPointRequest) returns (ClosestPointResponse);
+  rpc ClosestSnappedPoint (ClosestSnappedPointRequest) returns (ClosestSnappedPointResponse);
 }
 
 message Coordinate {
@@ -16,7 +16,8 @@ message Coordinate {
 }
 
 enum Costing {
-  Car = 0;
+  COSTING_UNSPECIFIED = 0;
+  COSTING_CAR = 1;
 }
 
 message MapMatchRequest {
@@ -47,4 +48,16 @@ message RouteResponse {
 message ClosestSnappedPointRequest {
   Coordinate point = 1;
   uint32 quantity = 2;
+}
+
+message ClosestPointRequest {
+    Coordinate coordinate = 1;
+}
+
+message ClosestPointResponse {
+    Coordinate coordinate = 1;
+}
+
+message ClosestSnappedPointResponse {
+    Coordinate coordinate = 1;
 }
