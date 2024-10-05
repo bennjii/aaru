@@ -1,22 +1,22 @@
 use std::cmp::Ordering;
 use std::path::Path;
-use geo::{coord, Point};
+use geo::{coord, point, Point};
 use log::{debug, info};
 use rstar::PointDistance;
 use tonic::{Request, Response, Status};
 
 use router_service::{RouteRequest, RouteResponse};
-use router_service::router_server::Router;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;
 use wkt::ToWkt;
-use crate::server::route::router_service::{ClosestSnappedPointRequest, Coordinate, MapMatchRequest, MapMatchResponse};
+use crate::server::route::router_service::{ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest, ClosestSnappedPointResponse, Coordinate, MapMatchRequest, MapMatchResponse};
 use crate::geo::coord::latlng::{LatLng};
 use crate::route::Graph;
+use router_service::router_service_server::RouterService;
 
 pub mod router_service {
-    tonic::include_proto!("aaru");
+    tonic::include_proto!("aaru.v1");
 
     pub const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("aaru_descriptor");
@@ -37,27 +37,7 @@ impl RouteService {
 }
 
 #[tonic::async_trait]
-impl Router for RouteService {
-    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    async fn map_match(&self, request: Request<MapMatchRequest>) -> Result<Response<MapMatchResponse>, Status> {
-        let mapmatch = request.into_inner();
-        let coordinates = mapmatch.data.iter()
-            .map(|coord| LatLng::try_from(Some(*coord)))
-            .collect::<Result<Vec<_>, Status>>()?;
-
-        let linestring = self.graph.map_match(coordinates, mapmatch.distance);
-
-        Ok(Response::new(MapMatchResponse {
-            matched: linestring.coords()
-                .map(|node| Coordinate {
-                    latitude: node.y,
-                    longitude: node.x
-                })
-                .collect::<Vec<_>>(),
-            linestring: linestring.wkt_string()
-        }))
-    }
-
+impl RouterService for RouteService {
     #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn route(&self, request: Request<RouteRequest>) -> Result<Response<RouteResponse>, Status> {
         let (_, _, routing) = request.into_parts();
@@ -89,12 +69,35 @@ impl Router for RouteService {
             )
     }
 
-    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
-    async fn closest_point(&self, request: Request<Coordinate>) -> Result<Response<Coordinate>, Status> {
-        let coordinate = request.into_inner();
-        let point = coord! { x: coordinate.longitude, y: coordinate.latitude };
+    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, level = Level::INFO))]
+    async fn map_match(&self, request: Request<MapMatchRequest>) -> Result<Response<MapMatchResponse>, Status> {
+        let mapmatch = request.into_inner();
+        let coordinates = mapmatch.data.iter()
+            .map(|coord| LatLng::try_from(Some(*coord)))
+            .collect::<Result<Vec<_>, Status>>()?;
 
-        let nearest_point = self.graph.nearest_node(Point(point))
+        let linestring = self.graph.map_match(coordinates, mapmatch.distance);
+
+        Ok(Response::new(MapMatchResponse {
+            matched: linestring.coords()
+                .map(|node| Coordinate {
+                    latitude: node.y,
+                    longitude: node.x
+                })
+                .collect::<Vec<_>>(),
+            linestring: linestring.wkt_string()
+        }))
+    }
+
+    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
+    async fn closest_point(&self, request: Request<ClosestPointRequest>) -> Result<Response<ClosestPointResponse>, Status> {
+        let ClosestPointRequest { coordinate } = request.into_inner();
+        let point = match coordinate {
+            Some(coordinate) => point! { x: coordinate.longitude, y: coordinate.latitude },
+            None => return Err(Status::invalid_argument("Missing Coordinate"))
+        };
+
+        let nearest_point = self.graph.nearest_node(point)
             .map_or(
                 Err(Status::internal("Could not find appropriate point")),
                 |coord| Ok(Coordinate {
@@ -103,11 +106,11 @@ impl Router for RouteService {
                 })
             )?;
 
-        Ok(Response::new(nearest_point))
+        Ok(Response::new(ClosestPointResponse { coordinate: Some(nearest_point) }))
     }
 
     #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
-    async fn closest_snapped_point(&self, request: Request<ClosestSnappedPointRequest>) -> Result<Response<Coordinate>, Status> {
+    async fn closest_snapped_point(&self, request: Request<ClosestSnappedPointRequest>) -> Result<Response<ClosestSnappedPointResponse>, Status> {
         let (_, _, request) = request.into_parts();
 
         let point = request.point.map_or(
@@ -138,6 +141,6 @@ impl Router for RouteService {
                 })
             )?;
 
-        Ok(Response::new(nearest_point))
+        Ok(Response::new(ClosestSnappedPointResponse { coordinate: Some(nearest_point) }))
     }
 }

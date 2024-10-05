@@ -4,10 +4,10 @@ package aaru.v1;
 // The routing service
 service RouterService {
   // Returns the appropriate route between the starting and ending locations.
-  rpc Route (RouteRequest) returns (RouteResponse);
-  rpc MapMatch (MapMatchRequest) returns (MapMatchResponse);
-  rpc ClosestPoint (ClosestPointRequest) returns (ClosestPointResponse);
-  rpc ClosestSnappedPoint (ClosestSnappedPointRequest) returns (ClosestSnappedPointResponse);
+  rpc Route(RouteRequest) returns (RouteResponse);
+  rpc MapMatch(MapMatchRequest) returns (MapMatchResponse);
+  rpc ClosestPoint(ClosestPointRequest) returns (ClosestPointResponse);
+  rpc ClosestSnappedPoint(ClosestSnappedPointRequest) returns (ClosestSnappedPointResponse);
 }
 
 message Coordinate {
@@ -51,13 +51,13 @@ message ClosestSnappedPointRequest {
 }
 
 message ClosestPointRequest {
-    Coordinate coordinate = 1;
+  Coordinate coordinate = 1;
 }
 
 message ClosestPointResponse {
-    Coordinate coordinate = 1;
+  Coordinate coordinate = 1;
 }
 
 message ClosestSnappedPointResponse {
-    Coordinate coordinate = 1;
+  Coordinate coordinate = 1;
 }
