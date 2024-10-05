@@ -1,79 +1,25 @@
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::f64::consts::E;
 use std::ops::{Div, Mul};
+use std::time::Instant;
+use std::borrow::BorrowMut;
 
 use geo::{HaversineDistance, HaversineLength, LineString, Point};
 use log::debug;
-use wkt::ToWkt;
-use std::borrow::BorrowMut;
-use rayon::iter::IndexedParallelIterator;
 use rayon::prelude::ParallelSlice;
-use rayon::iter::ParallelIterator;
-use tokio::time::Instant;
+use wkt::ToWkt;
+use rayon::iter::{ParallelIterator, IndexedParallelIterator};
 
-use crate::codec::element::variants::Node;
-use crate::route::graph::{Edge, NodeIx};
 use crate::route::Graph;
+use crate::route::transition::node::{ImbuedLayer, TransitionCandidate, TransitionLayer, TransitionNode};
+use crate::route::transition::segment::TrajectorySegment;
 
 const DEFAULT_ERROR: f64 = 20f64;
 
 pub struct Transition<'a> {
     graph: &'a Graph,
     error: Option<f64>,
-}
-
-#[derive(Clone)]
-struct TransitionNode<'a> {
-    candidate: &'a TransitionCandidate<'a>,
-    prev_best: Option<&'a RefCell<TransitionNode<'a>>>,
-    current_path: Box<Vec<Node>>,
-    emission_probability: f64,
-    transition_probability: f64,
-    cumulative_probability: f64,
-}
-
-struct RefinedTransitionLayer<'a> {
-    nodes: Vec<TransitionNode<'a>>,
-    segment: &'a TrajectorySegment<'a>,
-}
-
-struct TransitionLayer<'a> {
-    candidates: Vec<TransitionCandidate<'a>>,
-    segment: TrajectorySegment<'a>,
-}
-
-struct TransitionCandidate<'a> {
-    index: NodeIx,
-    edge: Edge<'a>,
-    position: Point,
-}
-
-struct TrajectorySegment<'a> {
-    source: &'a Point,
-    target: &'a Point,
-
-    // The Euclidean length of the segment
-    // ahead of the current node.
-    //
-    //  This + ----------‐ + Next
-    //           ^ Euclidean length of line
-    //
-    length: f64,
-}
-
-type ImbuedLayer<'t> = Vec<RefCell<TransitionNode<'t>>>;
-
-impl<'a> TrajectorySegment<'a> {
-    #[inline]
-    pub fn new(a: &'a Point, b: &'a Point) -> Self {
-        debug!("Segment length {} between {:?} and {:?}", a.haversine_distance(b), a, b);
-        TrajectorySegment {
-            source: a,
-            target: b,
-            length: a.haversine_distance(b),
-        }
-    }
 }
 
 impl<'a> Transition<'a> {
@@ -121,82 +67,92 @@ impl<'a> Transition<'a> {
         layer_a
             .iter()
             .for_each(|node| {
-            debug!("Outward routing from {} to {} nodes", node.borrow().candidate.index, layer_b.len());
+                debug!("Outward routing from {} to {} nodes", node.borrow().candidate.index, layer_b.len());
 
-            // Iterate for each sub-node to a node
-            layer_b
-                .iter()
-                // .filter(|b| node.borrow().candidate.index != b.borrow().candidate.index)
-                .for_each(|alt| {
-                    let mut time = Instant::now();
+                // Iterate for each sub-node to a node
+                layer_b
+                    .iter()
+                    // .filter(|b| node.borrow().candidate.index != b.borrow().candidate.index)
+                    .for_each(|alt| {
+                        let mut time = Instant::now();
 
-                    debug!("Transition is routing between {} and {}",
+                        debug!("Transition is routing between {} and {}",
                         node.borrow().candidate.index,
                         alt.borrow().candidate.index
                     );
-                    
-                    let start = node.borrow().candidate.edge.0;
-                    let end = alt.borrow().candidate.edge.0;
-                    println!("TIMING: Obtain=@{}", time.elapsed().as_micros());
-                    time = Instant::now();
+                        let start = node.borrow().candidate.edge.0;
+                        let end = alt.borrow().candidate.edge.0;
+                        debug!("TIMING: Obtain=@{}", time.elapsed().as_micros());
+                        time = Instant::now();
 
-                    match self.graph.route_raw(start, end) {
-                        Some((weight, nodes)) => {
-                            println!("TIMING: Route=@{}", time.elapsed().as_micros());
+                        match self.graph.route_raw(start, end) {
+                            Some((_, nodes)) => {
+                                debug!("TIMING: Route=@{}", time.elapsed().as_micros());
 
-                            let direct_distance = node.borrow().candidate.position
-                                .haversine_distance(&alt.borrow().candidate.position);
+                                let direct_distance = node.borrow().candidate.position
+                                    .haversine_distance(&alt.borrow().candidate.position);
 
-                            println!("TIMING: Distance=@{}", time.elapsed().as_micros());
+                                debug!("TIMING: Distance=@{}", time.elapsed().as_micros());
 
-                            // TODO: Consider doing this by default on route
-                            // TODO: Consider returning these nodes to "interpolate" the route
-                            let travel_distance = nodes
-                                .iter()
-                                .map(|node| node.position)
-                                .collect::<LineString>()
-                                .haversine_length();
+                                // TODO: Consider doing this by default on route
+                                // TODO: Consider returning these nodes to "interpolate" the route
+                                let travel_distance = nodes
+                                    .iter()
+                                    .map(|node| node.position)
+                                    .collect::<LineString>()
+                                    .haversine_length();
 
-                            println!("TIMING: TravelDistance=@{}", time.elapsed().as_micros());
+                                debug!("TIMING: TravelDistance=@{}", time.elapsed().as_micros());
 
-                            // Compare actual distance with straight-line-distance
-                            let transition_probability = Transition::transition_probability(
-                                travel_distance,
-                                direct_distance
-                            );
+                                // Compare actual distance with straight-line-distance
+                                let transition_probability = Transition::transition_probability(
+                                    travel_distance,
+                                    direct_distance
+                                );
 
-                            let net_probability = node.borrow().cumulative_probability
-                                + transition_probability.log(E)
-                                + alt.borrow().emission_probability.log(E);
+                                let net_probability = node.borrow().cumulative_probability
+                                    + transition_probability.log(E)
+                                    + alt.borrow().emission_probability.log(E);
 
-                            println!("TIMING: Probabilities=@{}", time.elapsed().as_micros());
+                                debug!("TIMING: Probabilities=@{}", time.elapsed().as_micros());
 
-                            // Only one-such borrow must exist at one time,
-                            // simply do not borrow again in this scope.
-                            let mut mutable_ptr = alt.borrow_mut();
+                                // Only one-such borrow must exist at one time,
+                                // simply do not borrow again in this scope.
+                                let mut mutable_ptr = alt.borrow_mut();
 
-                            println!("TIMING: GettingMutBorrow=@{}", time.elapsed().as_micros());
+                                debug!("TIMING: GettingMutBorrow=@{}", time.elapsed().as_micros());
 
-                            // Only if it probabilistic to route do we make the change
-                            if net_probability >= mutable_ptr.cumulative_probability {
-                                debug!("Committing changes, cumulative probability reached.");
+                                // Only if it probabilistic to route do we make the change
+                                if net_probability >= mutable_ptr.cumulative_probability {
+                                    debug!("Committing changes, cumulative probability reached.");
 
-                                mutable_ptr.cumulative_probability = net_probability;
-                                mutable_ptr.transition_probability = transition_probability;
-                                mutable_ptr.prev_best = Some(node);
-                                *mutable_ptr.current_path.borrow_mut() = nodes;
-                            } else {
-                                debug!("Insufficient, cannot make change. Cumulative was: {}", mutable_ptr.cumulative_probability);
+                                    // Extension...
+                                    //
+                                    // NodeRelation {
+                                    //     node,
+                                    //     // Storing other information is irrelevant,
+                                    //     // as it means we loose paralellism, since
+                                    //     // the information is relative to the node.
+                                    //     transition_probability,
+                                    //     path: nodes
+                                    // }
+
+                                    mutable_ptr.cumulative_probability = net_probability;
+                                    mutable_ptr.transition_probability = transition_probability;
+                                    mutable_ptr.prev_best = Some(node);
+                                    *mutable_ptr.current_path.borrow_mut() = nodes;
+                                } else {
+                                    debug!("Insufficient, cannot make change. Cumulative was: {}", mutable_ptr.cumulative_probability);
+                                }
+
+                                debug!("TIMING: CommitChanges=@{}", time.elapsed().as_micros());
                             }
-
-                            println!("TIMING: CommitChanges=@{}", time.elapsed().as_micros());
+                            None => debug!("Found no route between nodes.")
                         }
-                        None => debug!("Found no route between nodes.")
-                    }
 
-                    println!("TIMING: Full={}", time.elapsed().as_micros());
-                });
-        });
+                        debug!("TIMING: Full={}", time.elapsed().as_micros());
+                    });
+            });
     }
 
     /// Collapses transition layers, `layers`, into a single vector of
@@ -209,16 +165,21 @@ impl<'a> Transition<'a> {
             //     last_layer.candidates.len()
             // );
 
-            // Find the optimal candidate in last_layer.candidates
-            if let Some(best_node) = nodes.into_iter()
+            // All nodes with a possible route, sorted by best probability
+            // TODO: A Dijkstra reverse search would yield better results as to route-depth and partial patching
+            let searchable = nodes.iter()
+                .filter(|node| node.borrow().prev_best.is_some())
                 .max_by(|a, b| {
-                a.borrow()
-                    .cumulative_probability
-                    .partial_cmp(&b.borrow().cumulative_probability)
-                    .unwrap_or(Ordering::Equal)
-            }) {
+                    a.borrow()
+                        .cumulative_probability
+                        .partial_cmp(&b.borrow().cumulative_probability)
+                        .unwrap_or(Ordering::Equal)
+                });
+
+            // Find the optimal candidate in last_layer.candidates
+            if let Some(best_node) = searchable {
                 return std::iter::from_fn({
-                    let mut previous_best = best_node.borrow().prev_best;
+                    let mut previous_best = Some(best_node);
                     move || {
                         // Perform rollup on the candidates to walk-back the path
                         previous_best.take().map(|prev| {
@@ -227,26 +188,26 @@ impl<'a> Transition<'a> {
                         })
                     }
                 })
-                .fuse()
-                .inspect(|node| {
-                    debug!(
-                        "Candidate {:?} ({}) selected.",
-                        node.borrow().candidate.index,
-                        node.borrow().candidate.position.wkt_string()
+                    .fuse()
+                    .inspect(|node| {
+                        debug!(
+                            "Candidate {:?} ({}) selected.",
+                            node.borrow().candidate.index,
+                            node.borrow().candidate.position.wkt_string()
+                        )
+                    })
+                    .flat_map(|candidate|
+                        // TODO: Slow implementation..
+                        candidate.borrow().current_path
+                            .iter()
+                            .rev()
+                            .map(|item| item.position)
+                            .collect::<Vec<_>>()
                     )
-                })
-                .flat_map(|candidate|
-                    // TODO: Slow implementation..
-                    candidate.borrow().current_path
-                        .iter()
-                        .rev()
-                        .map(|item| item.position)
-                        .collect::<Vec<_>>()
-                )
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect::<Vec<_>>();
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev()
+                    .collect::<Vec<_>>();
             }
         }
 
@@ -276,9 +237,8 @@ impl<'a> Transition<'a> {
 
                 let candidates = self
                     .graph
-                    // Get all relevant (projected) nodes within Nm
-                    .nearest_projected_nodes(segment.source, distance)
-                    // .take(5) // Lazily consume only what is required
+                    // We want exactly 10 candidates to search with
+                    .nearest_projected_nodes(segment.source, 5)
                     .enumerate()
                     .map(|(index, (position, edge))| {
                         TransitionCandidate {
@@ -293,7 +253,7 @@ impl<'a> Transition<'a> {
                 if candidates.is_empty() {
                     return None
                 }
-                
+
                 Some(TransitionLayer {
                     candidates,
                     segment,
@@ -301,8 +261,12 @@ impl<'a> Transition<'a> {
             })
             .collect::<Vec<_>>();
 
-        // ^^
-        debug!("BACKTRACK::TIMING:: GenerateLayers=@{}", time.elapsed().as_micros()); // 7486074us - 1147023
+        // If we use the bridging technique
+        // from the above function, then this
+        // can be one iterator meaning we
+        // dont have to collect and re-create,
+        // thus can be paralellized completely.
+        debug!("BACKTRACK::TIMING:: GenerateLayers=@{}", time.elapsed().as_micros());
         debug!("Formed {} transition layers.", layers.len());
 
         // We need to keep this in the outer-scope
@@ -316,11 +280,9 @@ impl<'a> Transition<'a> {
                     .iter()
                     .map(|candidate| {
                         let emission_probability = Transition::emission_probability(
-                            layer.segment.length,
+                            candidate.position.haversine_distance(layer.segment.source),
                             self.error.unwrap_or(DEFAULT_ERROR),
                         );
-
-                        debug!("LayerIndex={}", layer_index);
 
                         TransitionNode {
                             candidate,
@@ -340,7 +302,7 @@ impl<'a> Transition<'a> {
 
                 return Some(candidates)
             })
-            .collect::<Vec<Vec<_>>>();
+            .collect::<Vec<_>>();
 
         debug!("BACKTRACK::TIMING:: GenerateAllNodes=@{}", time.elapsed().as_micros());
         debug!("All {} layer nodes generated", node_layers.len());

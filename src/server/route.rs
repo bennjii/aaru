@@ -45,15 +45,16 @@ impl Router for RouteService {
             .map(|coord| LatLng::try_from(Some(*coord)))
             .collect::<Result<Vec<_>, Status>>()?;
 
-        let matched = self.graph.map_match(coordinates, mapmatch.distance);
+        let linestring = self.graph.map_match(coordinates, mapmatch.distance);
 
         Ok(Response::new(MapMatchResponse {
-            matched: matched.iter()
+            matched: linestring.coords()
                 .map(|node| Coordinate {
-                    latitude: node.y(),
-                    longitude: node.x()
+                    latitude: node.y,
+                    longitude: node.x
                 })
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
+            linestring: linestring.wkt_string()
         }))
     }
 
@@ -114,9 +115,9 @@ impl Router for RouteService {
             |v| Ok(Point(coord! { x: v.longitude, y: v.latitude }))
         ).map_err(|err| Status::internal(format!("{:?}", err)))?;
 
-        info!("Got request for {} for distances <= {}", point.wkt_string(), request.distance);
+        info!("Got request for {} for distances <= {}", point.wkt_string(), request.quantity);
         let mut nearest_points = self.graph
-            .nearest_projected_nodes(&point, request.distance)
+            .nearest_projected_nodes(&point, request.quantity as usize)
             .collect::<Vec<_>>();
 
         debug!("Found {} points", nearest_points.len());

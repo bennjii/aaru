@@ -19,7 +19,7 @@ use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
 use crate::geo::coord::latlng::LatLng;
 use crate::route::error::RouteError;
-use crate::route::transition::Transition;
+use crate::route::transition::graph::Transition;
 
 pub type Weight = u32;
 pub type NodeIx = i64;
@@ -179,11 +179,9 @@ impl Graph {
     pub fn nearest_edges(
         &self,
         point: &Point,
-        distance: f64,
     ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
         self.index
             .nearest_neighbor_iter(&point)
-            .take(5)
             .flat_map(|node|
                 // Find all outgoing edges for the given node
                 self.graph.edges_directed(node.id, Direction::Outgoing)
@@ -194,9 +192,9 @@ impl Graph {
     pub fn nearest_projected_nodes<'a>(
         &'a self,
         point: &'a Point,
-        distance: f64,
+        num: usize,
     ) -> impl Iterator<Item = (Point, Edge)> + 'a {
-        self.nearest_edges(point, distance)
+        self.nearest_edges(point)
             .filter_map(|edge| {
                 let src = self.hash.get(&edge.source())?;
                 let trg = self.hash.get(&edge.target())?;
@@ -212,10 +210,11 @@ impl Graph {
                     .and_then(|frac| linestring.line_interpolate_point(frac))
                     .map(|point| (point, edge))
             })
+            .take(num)
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: f64) -> Vec<Point> {
+    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: f64) -> LineString {
         let linestring: LineString = coordinates
             .iter()
             .map(|coord| {
@@ -231,7 +230,14 @@ impl Graph {
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        transition.backtrack(linestring, distance)
+        let points = transition.backtrack(linestring, distance);
+
+        points.iter()
+            .map(|coord| {
+                let (lng, lat) = coord.x_y();
+                coord! { x: lng, y: lat }
+            })
+            .collect::<LineString>()
     }
     
     pub(crate) fn route_raw(&self, start_node: NodeIx, finish_node: NodeIx) -> Option<(Weight, Vec<Node>)> {

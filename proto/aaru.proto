@@ -27,6 +27,7 @@ message MapMatchRequest {
 
 message MapMatchResponse {
   repeated Coordinate matched = 1;
+  string linestring = 2;
 }
 
 // The request message containing the user's name.
@@ -45,5 +46,5 @@ message RouteResponse {
 // Specifies the distance and a position from which to search
 message ClosestSnappedPointRequest {
   Coordinate point = 1;
-  double distance = 2;
+  uint32 quantity = 2;
 }

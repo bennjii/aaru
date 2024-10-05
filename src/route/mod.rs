@@ -7,6 +7,5 @@ mod test;
 #[doc(hidden)]
 pub mod error;
 pub mod transition;
-
 #[doc(inline)]
 pub use graph::Graph;
