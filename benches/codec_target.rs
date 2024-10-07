@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use criterion::criterion_main;
 use log::{error};
 
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use aaru::codec::{BlockItem, BlockIterator};
 use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 

@@ -61,7 +61,7 @@ impl Project for SlippyTile {
         };
 
         // Get the Lat/Lng for the values origin
-        let (lat, lng) = value.lat_lng().expand();
+        let (lng, lat) = value.lat_lng().expand();
 
         // Obtain the X tile position (at desired zoom) and offset inside tile
         let shl_zoom = 1 << zoom;

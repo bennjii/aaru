@@ -1,12 +1,17 @@
-use log::{debug, info};
+use geo::{coord, line_string, HaversineDistance, LineInterpolatePoint, LineLocatePoint, LineString, Point};
+use log::{debug, error, info};
+use petgraph::prelude::DiGraphMap;
+use petgraph::visit::EdgeRef;
+use petgraph::Direction;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rstar::{RTree};
+use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
+use std::time::Instant;
 
-use petgraph::graphmap::DiGraphMap;
-use petgraph::prelude::EdgeRef;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rstar::RTree;
-use scc::HashMap;
+#[cfg(feature = "tracing")]
+use tracing::Level;
 
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
@@ -14,15 +19,23 @@ use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
 use crate::geo::coord::latlng::LatLng;
 use crate::route::error::RouteError;
+use crate::route::transition::graph::Transition;
 
-const MAX_WEIGHT: u32 = 999;
+pub type Weight = u32;
+pub type NodeIx = i64;
+pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
+
+pub type GraphStructure = DiGraphMap<NodeIx, Weight>;
+// type GraphStructure = Csr<(), u32, Directed, usize>; - Doesn't implement IntoEdgesDirected yet.
+
+const MAX_WEIGHT: Weight = 255 as Weight;
 
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
-    graph: DiGraphMap<i64, u32>,
+    graph: GraphStructure,
     index: RTree<Node>,
-    hash: std::collections::HashMap<i64, Node>,
+    hash: HashMap<NodeIx, Node>,
 }
 
 impl Debug for Graph {
@@ -31,10 +44,14 @@ impl Debug for Graph {
     }
 }
 
+struct Vector(LatLng);
+
 impl Graph {
     /// The weighting mapping of node keys to weight.
-    pub fn weights<'a>() -> Result<HashMap<&'a str, u32>, RouteError> {
-        let weights = HashMap::new();
+    pub fn weights<'a>() -> Result<HashMap<&'a str, Weight>, RouteError> {
+        let weights: HashMap<&str, Weight> = HashMap::new();
+
+        // TODO: Base this dynamically on geospacial properties and roading shape
 
         weights.insert("motorway", 1)?;
         weights.insert("motorway_link", 2)?;
@@ -55,17 +72,21 @@ impl Graph {
 
     /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
     pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
-        let start_time = std::time::Instant::now();
+        let mut start_time = Instant::now();
+        let fixed_start_time = Instant::now();
+
         let path = PathBuf::from(filename);
 
         let reader = ProcessedElementIterator::new(path)?;
         let weights = Graph::weights()?;
 
+        debug!("Iterator warming took: {:?}", start_time.elapsed());
+        start_time = Instant::now();
+
         info!("Ingesting...");
 
-        let (graph, index): (DiGraphMap<i64, u32>, Vec<Node>) = reader.par_red(
-            |(mut graph, mut tree): (DiGraphMap<i64, u32>, Vec<Node>),
-             element: ProcessedElement| {
+        let (graph, index): (GraphStructure, Vec<Node>) = reader.par_red(
+            |(mut graph, mut tree): (GraphStructure, Vec<Node>), element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         if !way.is_road() {
@@ -100,32 +121,48 @@ impl Graph {
             },
             |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
                 // TODO: Add `Graph` merge optimisations
-                for (start, end, weight) in b_graph.all_edges() {
-                    a_graph.add_edge(start, end, weight.clone());
+                // a_graph.extend(b_graph.all_edges());
+                for (source, target, weight) in b_graph.all_edges() {
+                    a_graph.add_edge(source, target, *weight);
                 }
 
                 a_tree.extend(b_tree);
                 (a_graph, a_tree)
             },
-            || (DiGraphMap::new(), Vec::new()),
+            || (GraphStructure::default(), Vec::new()),
         );
 
+        debug!("Graphical ingestion took: {:?}", start_time.elapsed());
+        start_time = Instant::now();
+
+        let hash = scc::HashMap::new();
         let filtered = index
-            .iter()
+            .to_owned()
+            .into_par_iter()
             .filter(|v| graph.contains_node(v.id))
-            .map(|v| v.clone())
-            .collect::<Vec<Node>>();
+            .inspect(|e| {
+                if let Err((index, node)) = hash.insert(e.id, *e) {
+                    error!(
+                        "Unable to insert node, index {} already taken. Node: {:?}",
+                        index, node
+                    );
+                }
+            })
+            .collect();
 
-        let mut hash = std::collections::HashMap::new();
-        for item in &filtered {
-            // Add referenced node instead
-            hash.insert(item.id, item.clone());
-        }
+        debug!("HashMap creation took: {:?}", start_time.elapsed());
+        start_time = Instant::now();
 
-        let tree = RTree::bulk_load(filtered.clone());
-        let time_passed = start_time.elapsed().as_millis();
+        let tree = RTree::bulk_load(filtered);
+        debug!("RTree bulk load took: {:?}", start_time.elapsed());
 
-        info!("Ingested {:?} nodes in {}ms", tree.size(), time_passed);
+        info!(
+            "Finished. Ingested {:?} nodes from {:?} nodes total in {}ms",
+            tree.size(),
+            index.len(),
+            fixed_start_time.elapsed().as_millis()
+        );
+
         Ok(Graph {
             graph,
             index: tree,
@@ -134,38 +171,113 @@ impl Graph {
     }
 
     /// Finds the nearest node to a lat/lng position
-    pub fn nearest_node(&self, lat_lng: LatLng) -> Option<&Node> {
-        self.index.nearest_neighbor(&Node::new(lat_lng, &0i64))
+    pub fn nearest_node(&self, point: Point) -> Option<&Node> {
+        self.index.nearest_neighbor(&point)
     }
 
-    /// Finds the optimal route between a start and end point.
-    /// Returns the weight and routing node vector.
-    #[cfg_attr(feature = "tracing", tracing::instrument)]
-    pub fn route(&self, start: LatLng, finish: LatLng) -> Option<(u32, Vec<Node>)> {
-        let start_node = self.nearest_node(start).unwrap();
-        let finish_node = self.nearest_node(finish).unwrap();
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
+    pub fn nearest_edges(
+        &self,
+        point: &Point,
+    ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
+        self.index
+            .nearest_neighbor_iter(&point)
+            .flat_map(|node|
+                // Find all outgoing edges for the given node
+                self.graph.edges_directed(node.id, Direction::Outgoing)
+            )
+    }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
+    pub fn nearest_projected_nodes<'a>(
+        &'a self,
+        point: &'a Point,
+        num: usize,
+    ) -> impl Iterator<Item = (Point, Edge)> + 'a {
+        self.nearest_edges(point)
+            .filter_map(|edge| {
+                let src = self.hash.get(&edge.source())?;
+                let trg = self.hash.get(&edge.target())?;
+
+                Some((line_string![src.position.0, trg.position.0], edge))
+            })
+            .filter_map(move |(linestring, edge)| {
+                // We locate the point upon the linestring,
+                // and then project that fractional (%)
+                // upon the linestring to obtain a point
+                linestring
+                    .line_locate_point(point)
+                    .and_then(|frac| linestring.line_interpolate_point(frac))
+                    .map(|point| (point, edge))
+            })
+            .take(num)
+    }
+
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
+    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: f64) -> LineString {
+        let linestring: LineString = coordinates
+            .iter()
+            .map(|coord| {
+                let (lng, lat) = coord.expand();
+                coord! { x: lng, y: lat }
+            })
+            .collect();
+
+        info!("Finding matched route for {} positions", linestring.0.len());
+
+        // Create our hidden markov model solver
+        let transition = Transition::new(self);
+
+        // Yield the transition layers of each level
+        // & Collapse the layers into a final vector
+        let points = transition.backtrack(linestring, distance);
+
+        points.iter()
+            .map(|coord| {
+                let (lng, lat) = coord.x_y();
+                coord! { x: lng, y: lat }
+            })
+            .collect::<LineString>()
+    }
+    
+    pub(crate) fn route_raw(&self, start_node: NodeIx, finish_node: NodeIx) -> Option<(Weight, Vec<Node>)> {
+        debug!("Routing {} -> {}", start_node, finish_node);
+        let final_position = self.hash.get(&finish_node)?.position;
+        
         let (score, path) = petgraph::algo::astar(
             &self.graph,
-            start_node.id,
-            |finish| finish == finish_node.id,
+            start_node,
+            |finish| finish == finish_node,
             |e| *e.weight(),
             |v| {
                 self.hash
                     .get(&v)
-                    .map(|v| v.to(finish_node).as_m())
-                    .unwrap_or(0)
+                    .map(|v|
+                        v.position.haversine_distance(&final_position) as Weight
+                    )
+                    .unwrap_or(0 as Weight)
             },
         )?;
 
+        // debug!("Route Obtained. Score={}, PathLength={}", score, path.len());
+
         let route = path
-            .par_iter()
-            .map(|v| self.hash.get(v))
-            .filter(|v| v.is_some())
-            .map(|v| v.unwrap())
-            .cloned()
+            .iter()
+            .filter_map(|v| self.hash.get(v))
+            .map(|e| e.get().clone())
             .collect();
 
         Some((score, route))
+    }
+
+    /// Finds the optimal route between a start and end point.
+    /// Returns the weight and routing node vector.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
+    pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node>)> {
+        let start_node = self.nearest_node(start)?;
+        let finish_node = self.nearest_node(finish)?;
+        
+        // TODO: Investigate lookup so we don't have to lookup finish twice
+        self.route_raw(start_node.id, finish_node.id)
     }
 }
