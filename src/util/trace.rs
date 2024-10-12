@@ -36,7 +36,7 @@ pub fn initialize_tracer() {
     // Link OTEL and STDOUT subscribers
     #[cfg(feature = "grpc_server")]
     let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-    let fmt_layer = tracing_subscriber::fmt::layer();
+    let fmt_layer = tracing_subscriber::fmt::layer().compact();
 
     // Initialise tracing with subscribers and environment filter
     let registry = tracing_subscriber::registry()
