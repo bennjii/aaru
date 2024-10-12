@@ -5,6 +5,3 @@ modules:
     excludes:
       - proto/osm
       - proto/mvt
-    breaking:
-      use:
-        - PACKAGE
