@@ -3,8 +3,8 @@
 pub const MVT_EXTENT: u32 = 4096;
 pub const MVT_VERSION: u32 = 2;
 
-const MEAN_EARTH_RADIUS: f64 = 6371008.8;
-const SRID3857_MAX_LNG: u32 = 20026377;
+pub const MEAN_EARTH_RADIUS: f64 = 6371008.8;
+pub const SRID3857_MAX_LNG: u32 = 20026377;
 
 #[doc(hidden)]
 pub mod coord;

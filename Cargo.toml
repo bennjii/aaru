@@ -36,8 +36,10 @@ env_logger = "0.11.5"
 test-log = { version = "0.2.16", features = ["log"] }
 
 # gRPC Server Dependencies [Optional-"grpc_server"]
-tonic = { version = "0.12.1", features = ["tls", "tls-roots"], optional = true }
-tonic-reflection = { version = "0.12.1", optional = true }
+tonic = { version = "0.12.3", features = ["tls", "tls-roots"], optional = true }
+tonic-reflection = { version = "0.12.3", optional = true }
+tonic-web = {  version = "0.12.3", optional = true }
+
 bytes = { version = "1.7.1", features = ["default"] } # Required for io::Cursor
 prost = { version = "0.13.1"}
 tokio = { version = "1.38.0", features = ["rt", "rt-multi-thread", "macros"], optional = true }
@@ -68,6 +70,7 @@ scc = { version = "2.1.1", optional = true }
 geo = "0.28.0"
 wkt = "0.11.0"
 bytemuck = "1.17.0"
+crossbeam = "0.8.4"
 
 [build-dependencies]
 tonic-build = { version = "0.12.1", features = ["prost"] }
@@ -86,12 +89,12 @@ name = "codec_target"
 harness = false
 
 [features]
-default = ["codec", "mmap"]
+default = ["codec", "mmap", "route"]
 mmap = ["memmap2"]
 
 tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]
 
-grpc_server = ["tonic", "tonic-reflection", "tokio"]
+grpc_server = ["tonic", "tonic-reflection", "tonic-web", "tower-http", "tokio"]
 http_server = ["tower-http", "axum", "axum-macros", "serde_qs", "tokio"]
 
 tile = ["http_server", "fast_hilbert"]

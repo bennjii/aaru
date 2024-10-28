@@ -1,0 +1,63 @@
+syntax = "proto3";
+package aaru.v1;
+
+// The routing service
+service RouterService {
+  // Returns the appropriate route between the starting and ending locations.
+  rpc Route(RouteRequest) returns (RouteResponse);
+  rpc MapMatch(MapMatchRequest) returns (MapMatchResponse);
+  rpc ClosestPoint(ClosestPointRequest) returns (ClosestPointResponse);
+  rpc ClosestSnappedPoint(ClosestSnappedPointRequest) returns (ClosestSnappedPointResponse);
+}
+
+message Coordinate {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+enum Costing {
+  COSTING_UNSPECIFIED = 0;
+  COSTING_CAR = 1;
+}
+
+message MapMatchRequest {
+  repeated Coordinate data = 1;
+  double distance = 2;
+  Costing costing_method = 3;
+}
+
+message MapMatchResponse {
+  repeated Coordinate matched = 1;
+  string linestring = 2;
+}
+
+// The request message containing the user's name.
+message RouteRequest {
+  Coordinate start = 1;
+  Coordinate end = 2;
+  Costing costing_method = 3;
+}
+
+// The response message including pathing, and weighted heuristics
+message RouteResponse {
+  repeated Coordinate shape = 1;
+  uint32 cost = 2;
+}
+
+// Specifies the distance and a position from which to search
+message ClosestSnappedPointRequest {
+  Coordinate point = 1;
+  uint32 quantity = 2;
+}
+
+message ClosestPointRequest {
+  Coordinate coordinate = 1;
+}
+
+message ClosestPointResponse {
+  Coordinate coordinate = 1;
+}
+
+message ClosestSnappedPointResponse {
+  Coordinate coordinate = 1;
+}

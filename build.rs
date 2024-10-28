@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let includes = ["proto"];
     let mut cfg = prost_build::Config::new();
-    cfg.bytes(&["."]);
+    cfg.bytes(["."]);
 
     if let Err(e) = cfg
         .protoc_arg("--experimental_allow_proto3_optional")
@@ -24,12 +24,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = tonic_build::configure()
         .file_descriptor_set_path(out_dir.join("aaru_descriptor.bin"))
         .protoc_arg("--experimental_allow_proto3_optional")
-        .compile(&["proto/aaru.proto"], &["proto"])
+        .compile(&["proto/aaru/v1/aaru.proto"], &["proto"])
     {
-        eprintln!("Failed to build. {}", e.to_string());
+        eprintln!("Failed to build. {}", e);
         tonic_build::configure()
             .file_descriptor_set_path(out_dir.join("aaru_descriptor.bin"))
-            .compile(&["proto/aaru.proto"], &["proto"])?
+            .compile(&["proto/aaru/v1/aaru.proto"], &["proto"])?
     }
 
     Ok(())

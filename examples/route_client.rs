@@ -1,30 +1,36 @@
 use tokio::time::Instant;
-
+use tonic::transport::Channel;
+use aaru::server::route::router_service::{ClosestSnappedPointRequest, Coordinate, Costing, RouteRequest};
 use aaru::server::route::router_service::router_client::RouterClient;
-use aaru::server::route::router_service::{Coordinate, Costing, RouteRequest};
+use tonic;
 
 #[tokio::main]
-async fn main() {
-    let mut router = RouterClient::connect("http://[::1]:9001").await
-        .expect("Couldnt start channel.");
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let channel = Channel::from_static("http://[::1]:9001").connect().await?;
+    let mut client = RouterClient::new(channel);
 
-    let timer = Instant::now();
-
-    let request = tonic::Request::new(RouteRequest {
-        costing_method: i32::from(Costing::Car),
-        end: Some(Coordinate {
-            latitude: -33.883572,
-            longitude: 151.180025
-        }),
-        start: Some(Coordinate {
-            latitude: -33.890029,
-            longitude: 151.201438
-        })
+    let request = tonic::Request::new(ClosestSnappedPointRequest {
+        point: Some(Coordinate { latitude: -33.850842, longitude: 151.210193 }),
+        distance: 70f64,
     });
 
-    let response = router.route(request).await
-        .expect("Couldnt find point, failure.");
+    let start = Instant::now();
+    let response = client.closest_snapped_point(request).await?;
+    println!("Snapped point: {:?}", response);
+    let elapsed = start.elapsed();
+    println!("In: {}us ({}ms)", elapsed.as_micros(), elapsed.as_millis());
 
-    println!("Got Coordinate: {:?}", response.get_ref());
-    println!("Time elapsed: {:?}", timer.elapsed()); // Should be about 500µs-2ms
+    let route = tonic::Request::new(RouteRequest {
+        start: Some(Coordinate { longitude: 151.17967159998506, latitude: -33.88689110000605 }),
+        end: Some(Coordinate { longitude: 151.18187959999403, latitude: -33.88566269999858 }),
+        costing_method: i32::from(Costing::Car)
+    });
+
+    let start = Instant::now();
+    let response = client.route(route).await?;
+    println!("Routed points: {:?}", response);
+    let elapsed = start.elapsed();
+    println!("In: {}us ({}ms)", elapsed.as_micros(), elapsed.as_millis());
+
+    Ok(())
 }
