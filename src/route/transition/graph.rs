@@ -159,12 +159,6 @@ impl<'a> Transition<'a> {
     /// the finalised points
     fn collapse(&self, layers: &Vec<ImbuedLayer>) -> Vec<Point> {
         if let Some(nodes) = layers.last() {
-            // debug!(
-            //     "Finding best node on the last layer: (Source={}, NoCandidates={})",
-            //     last_layer.segment.source.to_wkt().to_string(),
-            //     last_layer.candidates.len()
-            // );
-
             // All nodes with a possible route, sorted by best probability
             // TODO: A Dijkstra reverse search would yield better results as to route-depth and partial patching
             let searchable = nodes.iter()
@@ -216,7 +210,6 @@ impl<'a> Transition<'a> {
         vec![]
     }
 
-    // Try move to `impl Iterator<Item = RefinedTransitionLayer> + '_`
     /// Backtracks the HMM from the most appropriate final point to
     /// its prior most appropriate points
     pub fn backtrack(&'a self, line_string: LineString, distance: f64) -> Vec<Point> {
@@ -251,7 +244,7 @@ impl<'a> Transition<'a> {
 
                 debug!("Obtained {} candidates for segment {}", candidates.len(), segment_index);
                 if candidates.is_empty() {
-                    return None
+                    return None;
                 }
 
                 Some(TransitionLayer {
@@ -297,10 +290,10 @@ impl<'a> Transition<'a> {
                     .collect::<Vec<_>>();
 
                 if candidates.is_empty() {
-                    return None
+                    return None;
                 }
 
-                return Some(candidates)
+                return Some(candidates);
             })
             .collect::<Vec<_>>();
 
