@@ -5,7 +5,6 @@
 use geo::{point, HaversineDistance, Point};
 use rstar::{Envelope, AABB};
 use std::ops::{Add, Mul};
-use std::simd::Simd;
 
 use crate::codec::osm;
 use crate::codec::osm::DenseNodes;
@@ -113,31 +112,6 @@ impl Node {
     ) -> impl Iterator<Item = Self> + 'a {
         // Nodes are at a granularity relative to `Nanodegree`
         let scaling_factor: f64 = (granularity as f64) * 1e-9f64;
-
-        let lanes = Simd::<i64, 4>::LANES; // Assuming 4 lanes for i64, but may vary by architecture
-        assert!(diffs.len() == out.len());
-        assert!(diffs.len() % lanes == 0);
-
-        let mut cumulative_sum = Simd::splat(0); // Start cumulative sum as a zeroed SIMD register
-
-        for (diffs_chunk, out_chunk) in diffs.chunks_exact(lanes).zip(out.chunks_exact_mut(lanes)) {
-            // Load the current chunk into a SIMD register
-            let mut current = Simd::from_slice(diffs_chunk);
-
-            // Compute the prefix sum within the register
-            for i in 1..lanes {
-                current = current + current.rotate_lanes_right(i);
-            }
-
-            // Add the cumulative sum from the last chunk
-            current += cumulative_sum;
-
-            // Store the result
-            current.write_to_slice(out_chunk);
-
-            // Update cumulative sum for the next chunk (last element in this SIMD register)
-            cumulative_sum = Simd::splat(current[lanes - 1]);
-        }
 
         value
             .lon
