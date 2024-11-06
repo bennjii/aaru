@@ -6,8 +6,8 @@ use std::vec;
 #[cfg(feature = "tracing")]
 use tracing::debug;
 
-use crate::codec::osm;
 use crate::codec::element::variants::{Node, Way};
+use crate::codec::osm;
 use crate::codec::osm::{PrimitiveBlock, PrimitiveGroup};
 
 #[derive(Clone)]
@@ -15,13 +15,13 @@ pub enum Element<'a> {
     Node(&'a osm::Node),
     Way(&'a osm::Way),
     DenseNodes(&'a osm::DenseNodes),
-    Relation(&'a osm::Relation)
+    Relation(&'a osm::Relation),
 }
 
 #[derive(Clone)]
 pub enum ProcessedElement {
     Node(Node),
-    Way(Way)
+    Way(Way),
 }
 
 impl ProcessedElement {
@@ -29,7 +29,10 @@ impl ProcessedElement {
     pub(crate) fn from_raw(element: Element, block: &PrimitiveBlock) -> Vec<ProcessedElement> {
         #[cfg(feature = "tracing")]
         if block.lat_offset.is_some() || block.lon_offset.is_some() || block.granularity.is_some() {
-            debug!("BlockHasOffset! +Lon={:?}, +Lat={:?}, Granularity={:?}", block.lon_offset, block.lat_offset, block.granularity);
+            debug!(
+                "BlockHasOffset! +Lon={:?}, +Lat={:?}, Granularity={:?}",
+                block.lon_offset, block.lat_offset, block.granularity
+            );
         }
 
         // Default Scaling Factor: https://wiki.openstreetmap.org/wiki/PBF_Format
@@ -37,16 +40,12 @@ impl ProcessedElement {
 
         match element {
             // TODO: Try making just an iterator return
-            Element::DenseNodes(dense_nodes) => {
-                Node::from_dense(dense_nodes, granularity)
-                    .map(|node| ProcessedElement::Node(node))
-                    .collect()
-            },
-            Element::Node(node) =>
-                vec![ProcessedElement::Node(Node::from(node))],
-            Element::Way(way) =>
-                vec![ProcessedElement::Way(Way::from_raw(way, block))],
-            _ => vec![]
+            Element::DenseNodes(dense_nodes) => Node::from_dense(dense_nodes, granularity)
+                .map(|node| ProcessedElement::Node(node))
+                .collect(),
+            Element::Node(node) => vec![ProcessedElement::Node(Node::from(node))],
+            Element::Way(way) => vec![ProcessedElement::Way(Way::from_raw(way, block))],
+            _ => vec![],
         }
     }
 }
@@ -58,7 +57,12 @@ impl<'a> Element<'a> {
 
         elements.extend(group.ways.iter().map(|way| Element::Way(way)));
         elements.extend(group.nodes.iter().map(|node| Element::Node(node.into())));
-        elements.extend(group.relations.iter().map(|relation| Element::Relation(relation)));
+        elements.extend(
+            group
+                .relations
+                .iter()
+                .map(|relation| Element::Relation(relation)),
+        );
 
         if let Some(nodes) = &group.dense {
             elements.push(Element::DenseNodes(nodes));

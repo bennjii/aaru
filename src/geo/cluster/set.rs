@@ -1,15 +1,15 @@
+use geo::{Centroid, ConvexHull, LineString, Polygon};
+use log::error;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use geo::{Centroid, ConvexHull, LineString, Polygon};
-use log::{error};
 
-#[cfg(feature = "tile")]
-use wkt::ToWkt;
 #[cfg(feature = "tile")]
 use crate::codec::mvt::Value;
 use crate::geo::cluster::haversine::haversine_distance;
-use crate::geo::{LatLng, TileItem};
 use crate::geo::error::GeoError;
+use crate::geo::{LatLng, TileItem};
+#[cfg(feature = "tile")]
+use wkt::ToWkt;
 
 pub const CLUSTER_KEYS: usize = 2;
 
@@ -27,7 +27,7 @@ pub struct Clustered<const N: usize, P, T: TileItem<P, N>> {
     centroid: LatLng,
     convex_hull: Polygon,
 
-    phantom_data: PhantomData<P>
+    phantom_data: PhantomData<P>,
 }
 
 pub struct Cluster<const N: usize, P, T: TileItem<P, N>> {
@@ -35,11 +35,13 @@ pub struct Cluster<const N: usize, P, T: TileItem<P, N>> {
     pub noise: Vec<T>,
     pub clustered: Vec<Clustered<N, P, T>>,
 
-    phantom_data: PhantomData<P>
+    phantom_data: PhantomData<P>,
 }
 
 #[cfg(feature = "tile")]
-impl<const N: usize, T: TileItem<Value, N>> TileItem<Value, CLUSTER_KEYS> for Clustered<N, Value, T> {
+impl<const N: usize, T: TileItem<Value, N>> TileItem<Value, CLUSTER_KEYS>
+    for Clustered<N, Value, T>
+{
     fn id(&self) -> u64 {
         self.id as u64
     }
@@ -70,7 +72,8 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<T>, u8)> for Clustered<N
         );
 
         let convex_hull = polygon.convex_hull();
-        let centroid = convex_hull.centroid()
+        let centroid = convex_hull
+            .centroid()
             .ok_or(GeoError::InvalidCoordinate("".to_string()))?;
 
         let lat_lng = LatLng::from_degree(centroid.y(), centroid.x())?;
@@ -81,7 +84,7 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<T>, u8)> for Clustered<N
 
             points: value,
             convex_hull,
-            phantom_data: PhantomData::default()
+            phantom_data: PhantomData::default(),
         })
     }
 }
@@ -91,7 +94,7 @@ impl<const N: usize, P, T: TileItem<P, N>> From<Vec<T>> for Cluster<N, P, T> {
         Self {
             noise: value,
             clustered: Vec::new(),
-            phantom_data: PhantomData::default()
+            phantom_data: PhantomData::default(),
         }
     }
 }
@@ -104,8 +107,12 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<(u32, T)>, u8)> for Clus
         value
             .into_iter()
             .for_each(|(hash, p)| match hashmap.get_mut(&hash) {
-                None => { hashmap.insert(hash, vec![p]); }
-                Some(group) => { group.push(p); }
+                None => {
+                    hashmap.insert(hash, vec![p]);
+                }
+                Some(group) => {
+                    group.push(p);
+                }
             });
 
         let grouped: Vec<Vec<T>> = hashmap.into_values().collect();
@@ -113,22 +120,24 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<(u32, T)>, u8)> for Clus
         let mut clustered: Vec<Clustered<N, P, T>> = vec![];
         let mut noise: Vec<T> = vec![];
 
-        grouped
-            .into_iter()
-            .for_each(|group| {
-                if group.len() >= 3 {
-                    match Clustered::try_from((group, zoom)) {
-                        Ok(cluster) => clustered.push(cluster),
-                        Err(error) => {
-                            error!("Failed to cluster, {:?}", error)
-                        }
+        grouped.into_iter().for_each(|group| {
+            if group.len() >= 3 {
+                match Clustered::try_from((group, zoom)) {
+                    Ok(cluster) => clustered.push(cluster),
+                    Err(error) => {
+                        error!("Failed to cluster, {:?}", error)
                     }
-                } else {
-                    noise.extend(group);
                 }
-            });
+            } else {
+                noise.extend(group);
+            }
+        });
 
-        Ok(Self { clustered, noise, phantom_data: PhantomData::default() })
+        Ok(Self {
+            clustered,
+            noise,
+            phantom_data: PhantomData::default(),
+        })
     }
 }
 
@@ -140,7 +149,7 @@ pub struct IntoCluster<const N: usize, P, T: TileItem<P, N>> {
     c: Vec<Classification>,
     v: Vec<bool>,
 
-    phantom_data: PhantomData<P>
+    phantom_data: PhantomData<P>,
 }
 
 impl<const N: usize, P, T: TileItem<P, N>> Default for IntoCluster<N, P, T> {
@@ -151,7 +160,7 @@ impl<const N: usize, P, T: TileItem<P, N>> Default for IntoCluster<N, P, T> {
             distance: haversine_distance,
             c: Vec::new(),
             v: Vec::new(),
-            phantom_data: PhantomData::default()
+            phantom_data: PhantomData::default(),
         }
     }
 }
@@ -178,12 +187,7 @@ impl<const N: usize, P, T: TileItem<P, N>> IntoCluster<N, P, T> {
             .collect()
     }
 
-    fn expand_cluster(
-        &mut self,
-        population: &[T],
-        queue: &mut Vec<usize>,
-        cluster: usize,
-    ) -> bool {
+    fn expand_cluster(&mut self, population: &[T], queue: &mut Vec<usize>, cluster: usize) -> bool {
         let mut new_cluster = false;
         while let Some(ind) = queue.pop() {
             let neighbors = self.range_query(&population[ind], population);
@@ -232,7 +236,8 @@ impl<const N: usize, P, T: TileItem<P, N>> IntoCluster<N, P, T> {
             }
         }
 
-        let points: Vec<(u32, _)> = self.c
+        let points: Vec<(u32, _)> = self
+            .c
             .iter()
             .zip(population)
             .map(|(p, c)| match p {

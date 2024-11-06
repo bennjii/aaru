@@ -13,9 +13,8 @@ pub trait Parallel {
     /// The traversing function must be
     /// both `Send` and `Sync`.
     fn for_each<F>(self, f: F) -> ()
-        where
-            F: for<'a> Fn(Self::Item<'_>) + Send + Sync;
-
+    where
+        F: for<'a> Fn(Self::Item<'_>) + Send + Sync;
 
     /// Allows for a map and reduce over the provided iterator.
     ///
@@ -49,17 +48,12 @@ pub trait Parallel {
     ///
     /// ### Idea
     /// The idea for this function was obtained from [osmpbf](https://github.com/b-r-u/osmpbf/blob/5907ca998a30ef51941bf40257ec78cf8e0b66ed/src/reader.rs#L119)
-    fn map_red<Map, Reduce, Identity, T>(
-        self,
-        map_op: Map,
-        red_op: Reduce,
-        ident: Identity
-    ) -> T
-        where
-            Map: for<'a> Fn(Self::Item<'_>) -> T + Send + Sync,
-            Reduce: Fn(T, T) -> T + Send + Sync,
-            Identity: Fn() -> T + Send + Sync,
-            T: Send;
+    fn map_red<Map, Reduce, Identity, T>(self, map_op: Map, red_op: Reduce, ident: Identity) -> T
+    where
+        Map: for<'a> Fn(Self::Item<'_>) -> T + Send + Sync,
+        Reduce: Fn(T, T) -> T + Send + Sync,
+        Identity: Fn() -> T + Send + Sync,
+        T: Send;
 
     /// Allows for a reduce over the provided iterator, in parallel.
     ///
@@ -100,9 +94,9 @@ pub trait Parallel {
         combine: Combine,
         ident: Identity,
     ) -> T
-        where
-            Reduce: for<'a> Fn(T, Self::Item<'_>) -> T + Send + Sync,
-            Identity: Fn() -> T + Send + Sync,
-            Combine: Fn(T, T) -> T + Send + Sync,
-            T: Send;
+    where
+        Reduce: for<'a> Fn(T, Self::Item<'_>) -> T + Send + Sync,
+        Identity: Fn() -> T + Send + Sync,
+        Combine: Fn(T, T) -> T + Send + Sync,
+        T: Send;
 }

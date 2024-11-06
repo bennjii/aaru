@@ -1,14 +1,14 @@
 #![cfg(test)]
 
-use log::info;
-use std::path::PathBuf;
-use std::time::Instant;
 use crate::codec::consts::DISTRICT_OF_COLUMBIA;
 use crate::codec::element::item::Element;
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::iterator::ElementIterator;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::parallel::Parallel;
+use log::info;
+use std::path::PathBuf;
+use std::time::Instant;
 
 #[test]
 fn try_into_iter() {

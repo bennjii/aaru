@@ -1,20 +1,23 @@
 use std::marker::PhantomData;
 
-use crate::geo::coord::point::TileItem;
 use crate::codec::mvt::{Feature, GeomType, Layer, Value};
-use crate::geo::{MVT_EXTENT, MVT_VERSION};
 use crate::geo::cluster::set::Clustered;
-use crate::geo::project::Project;
+use crate::geo::coord::point::TileItem;
 use crate::geo::project::projections::SlippyTile;
+use crate::geo::project::Project;
+use crate::geo::{MVT_EXTENT, MVT_VERSION};
 
 struct TileLayer<const N: usize> {
     layer: Layer,
-    breath: PhantomData<[(); N]>
+    breath: PhantomData<[(); N]>,
 }
 
 impl<const N: usize> TileLayer<N> {
     fn new(layer: Layer) -> Self {
-        Self { layer, breath: PhantomData::default() }
+        Self {
+            layer,
+            breath: PhantomData::default(),
+        }
     }
 }
 
@@ -22,7 +25,8 @@ pub struct MVTFeature<const N: usize>(pub Feature);
 pub struct MVTLayer<const N: usize>(pub Layer);
 
 impl<T, const N: usize> From<(Vec<T>, u8, String)> for MVTLayer<N>
-    where T: TileItem<Value, N>
+where
+    T: TileItem<Value, N>,
 {
     fn from((value, zoom, name): (Vec<T>, u8, String)) -> Self {
         let keys = T::keys();
@@ -31,9 +35,7 @@ impl<T, const N: usize> From<(Vec<T>, u8, String)> for MVTLayer<N>
         let features = value
             .iter()
             .enumerate()
-            .map(|(index, value)|
-                MVTFeature::from((index, zoom, value)).0
-            )
+            .map(|(index, value)| MVTFeature::from((index, zoom, value)).0)
             .collect();
 
         MVTLayer(Layer {
@@ -42,13 +44,14 @@ impl<T, const N: usize> From<(Vec<T>, u8, String)> for MVTLayer<N>
             features,
             extent: Some(MVT_EXTENT),
             version: MVT_VERSION,
-            keys: keys.iter().map(|k| k.to_string()).collect()
+            keys: keys.iter().map(|k| k.to_string()).collect(),
         })
     }
 }
 
 impl<T, const N: usize> From<(Clustered<N, Value, T>, u8, String)> for MVTLayer<2>
-    where T: TileItem<Value, N>
+where
+    T: TileItem<Value, N>,
 {
     fn from((value, zoom, name): (Clustered<N, Value, T>, u8, String)) -> Self {
         let keys = T::keys();
@@ -67,12 +70,15 @@ impl<T, const N: usize> From<(Clustered<N, Value, T>, u8, String)> for MVTLayer<
             features,
             extent: Some(MVT_EXTENT),
             version: MVT_VERSION,
-            keys: keys.iter().map(|k| k.to_string()).collect()
+            keys: keys.iter().map(|k| k.to_string()).collect(),
         })
     }
 }
 
-impl<T, const N: usize> From<(usize, u8, &T)> for MVTFeature<N> where T: TileItem<Value, N> {
+impl<T, const N: usize> From<(usize, u8, &T)> for MVTFeature<N>
+where
+    T: TileItem<Value, N>,
+{
     fn from((index, zoom, value): (usize, u8, &T)) -> Self {
         let key_length: u32 = T::keys().len() as u32;
 
@@ -91,7 +97,7 @@ impl<T, const N: usize> From<(usize, u8, &T)> for MVTFeature<N> where T: TileIte
                 .flat_map(|i| [i, (index as u32) * key_length + i])
                 .collect(),
             r#type: Some(i32::from(GeomType::Point)),
-            geometry: vec![(1 & 0x7) | (1 << 3), zig(px), zig(py)]
+            geometry: vec![(1 & 0x7) | (1 << 3), zig(px), zig(py)],
         })
     }
 }

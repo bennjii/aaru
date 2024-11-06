@@ -1,13 +1,13 @@
 //! Iterates over `BlockItem`s in the file
 
+use crate::codec::blob::iterator::BlobIterator;
+use crate::codec::block::item::BlockItem;
+use crate::codec::BlobItem;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use crate::codec::blob::iterator::BlobIterator;
-use crate::codec::BlobItem;
-use crate::codec::block::item::BlockItem;
 
 pub struct BlockIterator {
     blobs: Vec<BlobItem>,
@@ -35,14 +35,12 @@ impl BlockIterator {
     }
 
     #[inline]
-    pub fn par_iter<'a>(&'a mut self) -> impl ParallelIterator<Item=BlockItem> + 'a {
+    pub fn par_iter<'a>(&'a mut self) -> impl ParallelIterator<Item = BlockItem> + 'a {
         // let buffer = self.buf.as_slice();
 
         self.blobs
             .par_iter()
-            .filter_map(|blob| {
-                BlockItem::from_blob_item(&blob, self.buf.as_slice())
-            })
+            .filter_map(|blob| BlockItem::from_blob_item(&blob, self.buf.as_slice()))
     }
 }
 

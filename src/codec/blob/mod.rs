@@ -4,6 +4,6 @@ pub mod item;
 pub mod iterator;
 
 #[doc(inline)]
-pub use iterator::BlobIterator;
-#[doc(inline)]
 pub use item::BlobItem;
+#[doc(inline)]
+pub use iterator::BlobIterator;

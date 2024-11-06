@@ -2,7 +2,7 @@ use axum::async_trait;
 
 pub struct Query<T, F> {
     pub parameters: T,
-    pub filter: F
+    pub filter: F,
 }
 
 impl<T, F> Query<T, F> {
@@ -11,7 +11,10 @@ impl<T, F> Query<T, F> {
     }
 
     pub fn add_param<K>(self, new_param: K) -> Query<(T, K), F> {
-        Query { parameters: (self.parameters, new_param), filter: self.filter }
+        Query {
+            parameters: (self.parameters, new_param),
+            filter: self.filter,
+        }
     }
 
     pub fn params(&self) -> &T {
@@ -26,13 +29,20 @@ impl<T, F> Query<T, F> {
 #[async_trait]
 pub trait TileQuery<In, Filter, Out, Item> {
     type Error;
-    type Parameters<'a> where Self: 'a;
-    type Connection<'a> where Self: 'a;
+    type Parameters<'a>
+    where
+        Self: 'a;
+    type Connection<'a>
+    where
+        Self: 'a;
 
     const QUERY_TABLE: &'static str;
 
-    async fn query(input: Query<In, Option<Filter>>, params: Self::Parameters<'_>, conn: Self::Connection<'_>) -> Result<Out, Self::Error>;
+    async fn query(
+        input: Query<In, Option<Filter>>,
+        params: Self::Parameters<'_>,
+        conn: Self::Connection<'_>,
+    ) -> Result<Out, Self::Error>;
     fn batch(query: Query<Self::Parameters<'_>, (u8, u32, u32)>) -> In;
     fn filter(filter: &Self::Parameters<'_>, item: &Item) -> bool;
 }
-

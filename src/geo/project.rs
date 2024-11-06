@@ -16,7 +16,9 @@ pub trait Project {
     /// let SlippyTile((x, px), (y, py), z) = SlippyTile::project(&value, 19);
     /// // We now have the slippy tile coordinate of the original lat/lng.
     /// ```
-    fn project<G, T, const N: usize>(value: &T, zoom: u8) -> Self where T: TileItem<G, N>;
+    fn project<G, T, const N: usize>(value: &T, zoom: u8) -> Self
+    where
+        T: TileItem<G, N>;
 }
 
 #[doc(hidden)]
@@ -42,11 +44,11 @@ pub mod projections {
     pub struct SlippyTile(pub (u32, u32), pub (u32, u32), pub u8);
 }
 
+use crate::geo::MVT_EXTENT;
 #[doc(inline)]
 pub use projections::SlippyTile;
 #[doc(inline)]
 pub use projections::WebMercator;
-use crate::geo::MVT_EXTENT;
 
 impl Project for SlippyTile {
     /// See the [OSM Wiki](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Mathematics) for the projection source.

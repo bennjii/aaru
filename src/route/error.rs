@@ -2,7 +2,7 @@ use crate::route::graph::Weight;
 
 #[derive(Debug)]
 pub enum RouteError {
-    HashMapInsertError(String, Weight)
+    HashMapInsertError(String, Weight),
 }
 
 impl From<(&str, Weight)> for RouteError {

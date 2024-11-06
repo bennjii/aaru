@@ -18,12 +18,17 @@ pub struct TrajectorySegment<'a> {
 impl<'a> TrajectorySegment<'a> {
     #[inline]
     pub fn new(a: &'a Point, b: &'a Point) -> Self {
-        debug!("Segment length {} between {:?} and {:?}", a.haversine_distance(b), a, b);
+        debug!(
+            "Segment length {} between {:?} and {:?}",
+            a.haversine_distance(b),
+            a,
+            b
+        );
         TrajectorySegment {
             source: a,
             target: b,
             length: a.haversine_distance(b),
-            bearing: a.geodesic_bearing(*b)
+            bearing: a.geodesic_bearing(*b),
         }
     }
 }

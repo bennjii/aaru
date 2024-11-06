@@ -2,9 +2,9 @@ use axum::body::Body;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
+use prost::DecodeError;
 #[cfg(feature = "tracing")]
 use tracing::{event, Level};
-use prost::DecodeError;
 
 #[derive(Debug)]
 pub enum TileError {
@@ -14,7 +14,7 @@ pub enum TileError {
     MissingEnvironment(String),
     NoTilesFound,
     UnsupportedZoom(u8),
-    NoMatchingRepository
+    NoMatchingRepository,
 }
 
 impl IntoResponse for crate::Error {

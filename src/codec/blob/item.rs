@@ -1,7 +1,7 @@
 //! Describes the `BlobItem`, which holds the file reference for an `Element`
 
-use std::ops::Range;
 use crate::codec::osm::BlobHeader;
+use std::ops::Range;
 
 pub struct BlobItem {
     pub(crate) range: Range<usize>,

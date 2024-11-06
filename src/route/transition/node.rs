@@ -1,5 +1,5 @@
-use std::cell::RefCell;
 use geo::Point;
+use std::cell::RefCell;
 
 use crate::codec::element::variants::Node;
 use crate::route::graph::{Edge, NodeIx};
@@ -32,4 +32,3 @@ pub struct TransitionCandidate<'a> {
     pub edge: Edge<'a>,
     pub position: Point,
 }
-

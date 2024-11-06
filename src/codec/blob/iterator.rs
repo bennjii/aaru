@@ -1,15 +1,15 @@
 //! The file blob iterator
 //! Supports `mmap` reading through the optional feature
 
+use log::trace;
+use prost::Message;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::PathBuf;
-use log::trace;
-use prost::Message;
 
 use crate::codec::blob::item::BlobItem;
-use crate::codec::BlockItem;
 use crate::codec::osm::BlobHeader;
+use crate::codec::BlockItem;
 
 const HEADER_LEN_SIZE: usize = 4;
 
@@ -19,7 +19,6 @@ pub struct BlobIterator {
     pub(crate) index: u64,
     offset: u64,
 }
-
 
 impl BlobIterator {
     pub fn new(path: PathBuf) -> Result<BlobIterator, io::Error> {
@@ -61,18 +60,24 @@ impl BlobIterator {
             return None;
         }
 
-        let header_len_buffer = unsafe { self.buf.as_ptr().add(self.offset as usize) as *const [u8; HEADER_LEN_SIZE] };
+        let header_len_buffer =
+            unsafe { self.buf.as_ptr().add(self.offset as usize) as *const [u8; HEADER_LEN_SIZE] };
         self.offset += HEADER_LEN_SIZE as u64;
 
         // Translate to i32 (Big Endian)
         let blob_header_length = u32::from_be_bytes(unsafe { *header_len_buffer }) as usize;
-        trace!("Header length: {}. Buffer: {:?}", blob_header_length, header_len_buffer);
+        trace!(
+            "Header length: {}. Buffer: {:?}",
+            blob_header_length,
+            header_len_buffer
+        );
 
         if self.buf.len() < self.offset as usize + blob_header_length {
             return None;
         }
 
-        let blob_header_buffer = &self.buf[self.offset as usize..self.offset as usize + blob_header_length];
+        let blob_header_buffer =
+            &self.buf[self.offset as usize..self.offset as usize + blob_header_length];
         self.offset += blob_header_length as u64;
 
         let start = self.offset;

@@ -1,24 +1,25 @@
-use std::env;
-use std::sync::Arc;
-use std::time::Duration;
 use axum::extract::State;
 use axum::http::{header, Method};
 use axum::response::{IntoResponse, Response};
-use axum::{Router, serve};
 use axum::routing::get;
+use axum::{serve, Router};
 use dotenv::dotenv;
+use std::env;
+use std::sync::Arc;
+use std::time::Duration;
 use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 
 use aaru::tile::datasource::bigquery::init_bq;
-use aaru::tile::repositories::{RepositorySet};
+use aaru::tile::repositories::RepositorySet;
 use axum::http::StatusCode;
 use tracing::{event, Level};
 
 async fn health_check(State(state): State<Arc<RepositorySet>>) -> Response {
-    let futures: Vec<_> = state.repositories
+    let futures: Vec<_> = state
+        .repositories
         .iter()
         .map(|(id, repo)| {
-            event!(Level::DEBUG, name="repo::ping", ?id);
+            event!(Level::DEBUG, name = "repo::ping", ?id);
             repo.ping()
         })
         .collect();
@@ -59,11 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load `.env` file
     dotenv()?;
 
-    let port: u16 = env::var("APP_PORT").expect("")
-        .parse().expect("");
+    let port: u16 = env::var("APP_PORT").expect("").parse().expect("");
 
     let allowed_origins = env::var("ALLOWED_ORIGINS")
-        .or::<&str>(Ok("".to_string())).unwrap();
+        .or::<&str>(Ok("".to_string()))
+        .unwrap();
 
     // Create the tracer first.
     aaru::util::trace::initialize_tracer();
@@ -74,8 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let big_table = init_bq().await.expect("Could not initialize BigTable");
 
-    let state = RepositorySet::new()
-        .attach(big_table, "big_table");
+    let state = RepositorySet::new().attach(big_table, "big_table");
 
     let app = Router::new()
         .route("/", get(health_check))

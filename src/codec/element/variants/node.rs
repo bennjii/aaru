@@ -2,9 +2,10 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use std::ops::{Add, Mul};
 use geo::{point, HaversineDistance, Point};
 use rstar::{Envelope, AABB};
+use std::ops::{Add, Mul};
+use std::simd::Simd;
 
 use crate::codec::osm;
 use crate::codec::osm::DenseNodes;
@@ -16,13 +17,18 @@ pub struct Node {
 }
 
 impl rstar::PointDistance for Node {
-    fn distance_2(&self, point: &<Self::Envelope as Envelope>::Point)
-        -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar
-    {
+    fn distance_2(
+        &self,
+        point: &<Self::Envelope as Envelope>::Point,
+    ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
         self.position.haversine_distance(&point)
     }
 
-    fn distance_2_if_less_or_equal(&self, point: &<Self::Envelope as Envelope>::Point, max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
+    fn distance_2_if_less_or_equal(
+        &self,
+        point: &<Self::Envelope as Envelope>::Point,
+        max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar,
+    ) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
         // This should utilize Envelope optimisation
         let distance_2 = self.position.haversine_distance(&point);
         if distance_2 <= max_distance_2 {
@@ -40,7 +46,6 @@ impl rstar::RTreeObject for Node {
         AABB::from_point(self.position)
     }
 }
-
 
 // TODO: Evaluate the necessity of Node's contents
 // impl rstar::Point for Node {
@@ -101,9 +106,38 @@ impl Node {
     ///     }
     ///  }
     /// ```
-    pub fn from_dense<'a>(value: &'a DenseNodes, granularity: i32) -> impl Iterator<Item = Self> + 'a {
+    #[inline]
+    pub fn from_dense<'a>(
+        value: &'a DenseNodes,
+        granularity: i32,
+    ) -> impl Iterator<Item = Self> + 'a {
         // Nodes are at a granularity relative to `Nanodegree`
         let scaling_factor: f64 = (granularity as f64) * 1e-9f64;
+
+        let lanes = Simd::<i64, 4>::LANES; // Assuming 4 lanes for i64, but may vary by architecture
+        assert!(diffs.len() == out.len());
+        assert!(diffs.len() % lanes == 0);
+
+        let mut cumulative_sum = Simd::splat(0); // Start cumulative sum as a zeroed SIMD register
+
+        for (diffs_chunk, out_chunk) in diffs.chunks_exact(lanes).zip(out.chunks_exact_mut(lanes)) {
+            // Load the current chunk into a SIMD register
+            let mut current = Simd::from_slice(diffs_chunk);
+
+            // Compute the prefix sum within the register
+            for i in 1..lanes {
+                current = current + current.rotate_lanes_right(i);
+            }
+
+            // Add the cumulative sum from the last chunk
+            current += cumulative_sum;
+
+            // Store the result
+            current.write_to_slice(out_chunk);
+
+            // Update cumulative sum for the next chunk (last element in this SIMD register)
+            cumulative_sum = Simd::splat(current[lanes - 1]);
+        }
 
         value
             .lon
@@ -114,7 +148,9 @@ impl Node {
             .fold(vec![], |mut curr: Vec<Self>, ((lng, lat), id)| {
                 let new_node = match &curr.last() {
                     Some(prior_node) => Node::new(
-                        prior_node.position.add(point! { x: lng, y: lat }.mul(scaling_factor)),
+                        prior_node
+                            .position
+                            .add(point! { x: lng, y: lat }.mul(scaling_factor)),
                         *id + prior_node.id,
                     ),
                     None => Node::new(point! { x: lng, y: lat }.mul(scaling_factor), *id),

@@ -1,10 +1,12 @@
-use geo::{coord, line_string, HaversineDistance, LineInterpolatePoint, LineLocatePoint, LineString, Point};
+use geo::{
+    coord, line_string, HaversineDistance, LineInterpolatePoint, LineLocatePoint, LineString, Point,
+};
 use log::{debug, error, info};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rstar::{RTree};
+use rstar::RTree;
 use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
@@ -176,16 +178,10 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
-    pub fn nearest_edges(
-        &self,
-        point: &Point,
-    ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
-        self.index
-            .nearest_neighbor_iter(&point)
-            .flat_map(|node|
+    pub fn nearest_edges(&self, point: &Point) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
+        self.index.nearest_neighbor_iter(&point).flat_map(|node|
                 // Find all outgoing edges for the given node
-                self.graph.edges_directed(node.id, Direction::Outgoing)
-            )
+                self.graph.edges_directed(node.id, Direction::Outgoing))
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
@@ -232,18 +228,23 @@ impl Graph {
         // & Collapse the layers into a final vector
         let points = transition.backtrack(linestring, distance);
 
-        points.iter()
+        points
+            .iter()
             .map(|coord| {
                 let (lng, lat) = coord.x_y();
                 coord! { x: lng, y: lat }
             })
             .collect::<LineString>()
     }
-    
-    pub(crate) fn route_raw(&self, start_node: NodeIx, finish_node: NodeIx) -> Option<(Weight, Vec<Node>)> {
+
+    pub(crate) fn route_raw(
+        &self,
+        start_node: NodeIx,
+        finish_node: NodeIx,
+    ) -> Option<(Weight, Vec<Node>)> {
         debug!("Routing {} -> {}", start_node, finish_node);
         let final_position = self.hash.get(&finish_node)?.position;
-        
+
         let (score, path) = petgraph::algo::astar(
             &self.graph,
             start_node,
@@ -252,9 +253,7 @@ impl Graph {
             |v| {
                 self.hash
                     .get(&v)
-                    .map(|v|
-                        v.position.haversine_distance(&final_position) as Weight
-                    )
+                    .map(|v| v.position.haversine_distance(&final_position) as Weight)
                     .unwrap_or(0 as Weight)
             },
         )?;
@@ -276,7 +275,7 @@ impl Graph {
     pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node>)> {
         let start_node = self.nearest_node(start)?;
         let finish_node = self.nearest_node(finish)?;
-        
+
         // TODO: Investigate lookup so we don't have to lookup finish twice
         self.route_raw(start_node.id, finish_node.id)
     }
