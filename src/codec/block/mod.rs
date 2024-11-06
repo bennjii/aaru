@@ -1,9 +1,9 @@
 //! The Block iterator and item definitions
 
-pub mod iterator;
 pub mod item;
+pub mod iterator;
 
 #[doc(inline)]
-pub use iterator::BlockIterator;
-#[doc(inline)]
 pub use item::BlockItem;
+#[doc(inline)]
+pub use iterator::BlockIterator;

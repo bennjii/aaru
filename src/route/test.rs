@@ -1,14 +1,18 @@
 #![cfg(test)]
 
+use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
+use crate::codec::element::variants::Node;
+use crate::route::Graph;
 use geo::{coord, LineString, Point};
 use std::{path::Path, time::Instant};
 use wkt::ToWkt;
-use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
-use crate::route::Graph;
-use crate::codec::element::variants::Node;
 
 fn generate_linestring(route: Vec<Node>) -> String {
-    route.iter().map(|node| node.position).collect::<LineString>().wkt_string()
+    route
+        .iter()
+        .map(|node| node.position)
+        .collect::<LineString>()
+        .wkt_string()
 }
 
 fn init_graph(file: &str) -> crate::Result<Graph> {

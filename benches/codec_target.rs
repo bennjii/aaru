@@ -1,12 +1,12 @@
+use criterion::criterion_main;
+use log::error;
 #[cfg(not(feature = "mmap"))]
 use std::fs::File;
 use std::path::PathBuf;
-use criterion::criterion_main;
-use log::{error};
 
-use rayon::iter::{ParallelBridge, ParallelIterator};
-use aaru::codec::{BlockItem, BlockIterator};
 use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
+use aaru::codec::{BlockItem, BlockIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
@@ -20,12 +20,15 @@ fn iterate_blocks_each() {
             for block in iter {
                 match block {
                     BlockItem::HeaderBlock(_) => header_blocks += 1,
-                    BlockItem::PrimitiveBlock(_) => primitive_blocks += 1
+                    BlockItem::PrimitiveBlock(_) => primitive_blocks += 1,
                 }
             }
-        },
+        }
         Err(err) => {
-            error!("Failed to load file, {:?}. Got error: {err}", path.as_os_str().to_str());
+            error!(
+                "Failed to load file, {:?}. Got error: {err}",
+                path.as_os_str().to_str()
+            );
         }
     }
 
@@ -41,16 +44,11 @@ fn parallel_iterate_blocks_each() {
     let elements = block_iter
         .into_iter()
         .par_bridge()
-        .map(|block| {
-            match block {
-                BlockItem::HeaderBlock(_) => (0, 1),
-                BlockItem::PrimitiveBlock(_) => (1, 0)
-            }
+        .map(|block| match block {
+            BlockItem::HeaderBlock(_) => (0, 1),
+            BlockItem::PrimitiveBlock(_) => (1, 0),
         })
-        .reduce(
-            || (0, 0),
-            |a, b| (a.0 + b.0, a.1 + b.1)
-        );
+        .reduce(|| (0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
 
     assert_eq!(elements, (237, 1));
 }
@@ -66,20 +64,18 @@ fn compare_to_osmpbf() {
 
     for block in reader {
         match block {
-            Ok(b) => {
-                match b.get_type() {
-                    BlobType::OsmHeader => {
-                        if b.to_headerblock().is_ok() {
-                            header_blocks += 1;
-                        }
-                    },
-                    BlobType::OsmData => {
-                        if b.to_primitiveblock().is_ok() {
-                            primitive_blocks += 1;
-                        }
+            Ok(b) => match b.get_type() {
+                BlobType::OsmHeader => {
+                    if b.to_headerblock().is_ok() {
+                        header_blocks += 1;
                     }
-                    _ => {}
                 }
+                BlobType::OsmData => {
+                    if b.to_primitiveblock().is_ok() {
+                        primitive_blocks += 1;
+                    }
+                }
+                _ => {}
             },
             Err(_) => {}
         }
@@ -91,12 +87,12 @@ fn compare_to_osmpbf() {
 
 fn target_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("iterator_target");
-    group
-        .significance_level(0.1)
-        .sample_size(30);
+    group.significance_level(0.1).sample_size(30);
 
     group.bench_function("iterate_blocks_each", |b| b.iter(|| iterate_blocks_each()));
-    group.bench_function("parallel_iterate_blocks_each", |b| b.iter(|| parallel_iterate_blocks_each()));
+    group.bench_function("parallel_iterate_blocks_each", |b| {
+        b.iter(|| parallel_iterate_blocks_each())
+    });
     group.bench_function("compared_to_osmpbf", |b| b.iter(|| compare_to_osmpbf()));
 
     group.finish();

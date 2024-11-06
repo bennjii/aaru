@@ -1,12 +1,12 @@
-use std::any::Any;
-use std::path::PathBuf;
 use criterion::criterion_main;
 use log::info;
+use std::any::Any;
+use std::path::PathBuf;
 
-use rayon::iter::ParallelIterator;
-use aaru::codec::consts::{DISTRICT_OF_COLUMBIA};
+use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 use aaru::codec::element::ProcessedElement;
 use aaru::codec::{BlockIterator, Element, ElementIterator, Parallel, ProcessedElementIterator};
+use rayon::iter::ParallelIterator;
 
 fn block_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
@@ -53,13 +53,13 @@ fn processed_iter_count() {
 
 fn sweep_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("iterator_sweep");
-    group
-        .significance_level(0.1)
-        .sample_size(30);
+    group.significance_level(0.1).sample_size(30);
 
     group.bench_function("block_iter_count", |b| b.iter(|| block_iter_count()));
     group.bench_function("element_iter_count", |b| b.iter(|| element_iter_count()));
-    group.bench_function("processed_iter_count", |b| b.iter(|| processed_iter_count()));
+    group.bench_function("processed_iter_count", |b| {
+        b.iter(|| processed_iter_count())
+    });
     group.finish();
 }
 

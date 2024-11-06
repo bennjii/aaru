@@ -2,9 +2,9 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use std::ops::{Add, Mul};
 use geo::{point, HaversineDistance, Point};
 use rstar::{Envelope, AABB};
+use std::ops::{Add, Mul};
 
 use crate::codec::osm;
 use crate::codec::osm::DenseNodes;
@@ -16,15 +16,20 @@ pub struct Node {
 }
 
 impl rstar::PointDistance for Node {
-    fn distance_2(&self, point: &<Self::Envelope as Envelope>::Point)
-        -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar
-    {
-        self.position.haversine_distance(&point)
+    fn distance_2(
+        &self,
+        point: &<Self::Envelope as Envelope>::Point,
+    ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
+        self.position.haversine_distance(point)
     }
 
-    fn distance_2_if_less_or_equal(&self, point: &<Self::Envelope as Envelope>::Point, max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
+    fn distance_2_if_less_or_equal(
+        &self,
+        point: &<Self::Envelope as Envelope>::Point,
+        max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar,
+    ) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
         // This should utilize Envelope optimisation
-        let distance_2 = self.position.haversine_distance(&point);
+        let distance_2 = self.position.haversine_distance(point);
         if distance_2 <= max_distance_2 {
             return Some(distance_2);
         }
@@ -40,7 +45,6 @@ impl rstar::RTreeObject for Node {
         AABB::from_point(self.position)
     }
 }
-
 
 // TODO: Evaluate the necessity of Node's contents
 // impl rstar::Point for Node {
@@ -101,7 +105,8 @@ impl Node {
     ///     }
     ///  }
     /// ```
-    pub fn from_dense<'a>(value: &'a DenseNodes, granularity: i32) -> impl Iterator<Item = Self> + 'a {
+    #[inline]
+    pub fn from_dense(value: &DenseNodes, granularity: i32) -> impl Iterator<Item = Self> + '_ {
         // Nodes are at a granularity relative to `Nanodegree`
         let scaling_factor: f64 = (granularity as f64) * 1e-9f64;
 
@@ -114,7 +119,9 @@ impl Node {
             .fold(vec![], |mut curr: Vec<Self>, ((lng, lat), id)| {
                 let new_node = match &curr.last() {
                     Some(prior_node) => Node::new(
-                        prior_node.position.add(point! { x: lng, y: lat }.mul(scaling_factor)),
+                        prior_node
+                            .position
+                            .add(point! { x: lng, y: lat }.mul(scaling_factor)),
                         *id + prior_node.id,
                     ),
                     None => Node::new(point! { x: lng, y: lat }.mul(scaling_factor), *id),

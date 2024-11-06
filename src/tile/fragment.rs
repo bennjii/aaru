@@ -12,19 +12,20 @@ use fast_hilbert::xy2h;
 pub struct Fragment {
     x: u32,
     y: u32,
-    zoom: u8
+    zoom: u8,
 }
 
 impl Fragment {
     pub fn new(z: &u8, x: &u32, y: &u32) -> Self {
-        Self { zoom: *z, x: *x, y: *y }
+        Self {
+            zoom: *z,
+            x: *x,
+            y: *y,
+        }
     }
 
     pub fn with_zoom(self, z: u8) -> Self {
-        Self {
-            zoom: z,
-            ..self
-        }
+        Self { zoom: z, ..self }
     }
 
     /// `detail(zoom)`
@@ -54,12 +55,7 @@ impl Fragment {
         match self.zoom {
             24 => None,
             _ => {
-                Some([
-                    (0, 0),
-                    (1, 0),
-                    (0, 1),
-                    (1, 1),
-                ].map(|(dx, dy)| Fragment {
+                Some([(0, 0), (1, 0), (0, 1), (1, 1)].map(|(dx, dy)| Fragment {
                     // Increase zoom level
                     zoom: self.zoom + 1,
                     // Get TL, TR, BL, BR sub-fragments

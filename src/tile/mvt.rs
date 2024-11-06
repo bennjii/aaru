@@ -3,8 +3,8 @@
 //! Contains the required implementation logic to convert
 //! tile data from `Value` items into a `Tile`.
 
-use axum::http::{HeaderValue, StatusCode};
 use axum::http::header::CONTENT_TYPE;
+use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use prost::Message;
 
@@ -14,9 +14,7 @@ const MVT_CONTENT_TYPE: &str = "application/vnd.mapbox-vector-tile";
 
 impl From<Vec<Layer>> for Tile {
     fn from(value: Vec<Layer>) -> Self {
-        Self {
-            layers: value,
-        }
+        Self { layers: value }
     }
 }
 

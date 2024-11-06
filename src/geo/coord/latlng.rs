@@ -1,12 +1,12 @@
 use std::fmt::{Debug, Formatter};
 
-use crate::geo::error::GeoError;
-use crate::codec::osm::{PrimitiveBlock};
-use crate::geo::{Project, SRID3857_MAX_LNG};
+use crate::codec::osm::PrimitiveBlock;
 use crate::geo::coord::vec::Vector;
+use crate::geo::error::GeoError;
 use crate::geo::project::SlippyTile;
+use crate::geo::{Project, SRID3857_MAX_LNG};
 
-#[cfg(feature="grpc_server")]
+#[cfg(feature = "grpc_server")]
 use crate::server::route::router_service::Coordinate;
 #[cfg(feature = "grpc_server")]
 use tonic::Status;
@@ -28,7 +28,7 @@ pub struct LatLng {
     pub lat: NanoDegree,
 }
 
-#[cfg(feature="grpc_server")]
+#[cfg(feature = "grpc_server")]
 impl TryFrom<Coordinate> for LatLng {
     type Error = GeoError;
 
@@ -37,15 +37,14 @@ impl TryFrom<Coordinate> for LatLng {
     }
 }
 
-#[cfg(feature="grpc_server")]
+#[cfg(feature = "grpc_server")]
 impl TryFrom<Option<Coordinate>> for LatLng {
     type Error = Status;
 
     fn try_from(value: Option<Coordinate>) -> Result<Self, Self::Error> {
         value.map_or(
             Err(Status::invalid_argument("Missing coordinate")),
-            |coord| LatLng::try_from(coord)
-                .map_err(|err| Status::internal(format!("{:?}", err)))
+            |coord| LatLng::try_from(coord).map_err(|err| Status::internal(format!("{:?}", err))),
         )
     }
 }
@@ -53,7 +52,7 @@ impl TryFrom<Option<Coordinate>> for LatLng {
 impl From<(&i64, &i64)> for LatLng {
     /// Format is: (Lat, Lng)
     fn from((lat, lng): (&i64, &i64)) -> Self {
-        Self::new(lat.clone(), lng.clone())
+        Self::new(*lat, *lng)
     }
 }
 
@@ -63,7 +62,7 @@ impl LatLng {
         LatLng { lat, lng }
     }
 
-    #[cfg(feature="grpc_server")]
+    #[cfg(feature = "grpc_server")]
     /// Converts from `LatLng` into the `Coordinate` proto message
     pub fn coordinate(&self) -> Coordinate {
         Coordinate {
@@ -74,19 +73,17 @@ impl LatLng {
 
     pub fn from_degree(lat: Degree, lng: Degree) -> Result<Self, GeoError> {
         if !(lat > -90f64 && lat < 90f64) {
-            return Err(
-                GeoError::InvalidCoordinate(
-                    format!("Latitude must be greater than -90 and less than 90. Given: {}", lat)
-                )
-            );
+            return Err(GeoError::InvalidCoordinate(format!(
+                "Latitude must be greater than -90 and less than 90. Given: {}",
+                lat
+            )));
         }
 
         if !(lng < 180f64 && lng > -180f64) {
-            return Err(
-                GeoError::InvalidCoordinate(
-                    format!("Longitude must be greater than -180 and less than 180. Given: {}", lng)
-                )
-            );
+            return Err(GeoError::InvalidCoordinate(format!(
+                "Longitude must be greater than -180 and less than 180. Given: {}",
+                lng
+            )));
         }
 
         Ok(Self::from_degree_unchecked(lat, lng))
@@ -95,7 +92,7 @@ impl LatLng {
     pub fn from_degree_unchecked(lat: Degree, lng: Degree) -> Self {
         LatLng {
             lat: (lat * 1e7) as i64,
-            lng: (lng * 1e7) as i64
+            lng: (lng * 1e7) as i64,
         }
     }
 
@@ -112,7 +109,7 @@ impl LatLng {
     }
 
     pub fn nano_lng(&self) -> NanoDegree {
-        self.lng as i64
+        self.lng
     }
 
     pub fn expand(&self) -> (Degree, Degree) {
@@ -146,7 +143,7 @@ impl LatLng {
     pub fn delta(lat: &i64, lng: &i64, prior: Self) -> Self {
         LatLng {
             lat: lat + prior.nano_lat(),
-            lng: lng + prior.nano_lng()
+            lng: lng + prior.nano_lng(),
         }
     }
 
@@ -165,34 +162,30 @@ impl Debug for LatLng {
     }
 }
 
-impl rstar::Point for LatLng
-{
+impl rstar::Point for LatLng {
     type Scalar = NanoDegree;
     const DIMENSIONS: usize = 2;
 
-    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self
-    {
+    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
         LatLng {
             lng: generator(0),
-            lat: generator(1)
+            lat: generator(1),
         }
     }
 
-    fn nth(&self, index: usize) -> Self::Scalar
-    {
+    fn nth(&self, index: usize) -> Self::Scalar {
         match index {
             0 => self.lat,
             1 => self.lng,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
-    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar
-    {
+    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
         match index {
             0 => &mut self.lat,
             1 => &mut self.lng,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

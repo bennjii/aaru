@@ -1,26 +1,26 @@
 #![doc = include_str!("../docs/head.md")]
 #![allow(dead_code)]
 
-use crate::geo::error::GeoError;
 #[cfg(feature = "codec")]
 use crate::codec::error::CodecError;
+use crate::geo::error::GeoError;
 #[cfg(feature = "route")]
 use crate::route::error::RouteError;
 #[cfg(feature = "tile")]
 use crate::tile::error::TileError;
 
-#[doc(hidden)]
-pub mod util;
+#[cfg(feature = "codec")]
+pub mod codec;
+pub mod geo;
+#[cfg(feature = "route")]
+pub mod route;
 #[cfg(feature = "grpc_server")]
 #[doc(hidden)]
 pub mod server;
 #[cfg(feature = "tile")]
 pub mod tile;
-#[cfg(feature = "route")]
-pub mod route;
-#[cfg(feature = "codec")]
-pub mod codec;
-pub mod geo;
+#[doc(hidden)]
+pub mod util;
 
 #[derive(Debug)]
 pub enum Error {
@@ -42,4 +42,3 @@ impl_err!(CodecError, Codec);
 impl_err!(RouteError, Route);
 #[cfg(feature = "tile")]
 impl_err!(TileError, Tile);
-
