@@ -52,7 +52,7 @@ impl TryFrom<Option<Coordinate>> for LatLng {
 impl From<(&i64, &i64)> for LatLng {
     /// Format is: (Lat, Lng)
     fn from((lat, lng): (&i64, &i64)) -> Self {
-        Self::new(lat.clone(), lng.clone())
+        Self::new(*lat, *lng)
     }
 }
 
@@ -109,7 +109,7 @@ impl LatLng {
     }
 
     pub fn nano_lng(&self) -> NanoDegree {
-        self.lng as i64
+        self.lng
     }
 
     pub fn expand(&self) -> (Degree, Degree) {

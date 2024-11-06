@@ -1,6 +1,5 @@
 #![doc = include_str!("../docs/head.md")]
 #![allow(dead_code)]
-#![feature(portable_simd)]
 
 #[cfg(feature = "codec")]
 use crate::codec::error::CodecError;

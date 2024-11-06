@@ -9,9 +9,9 @@ pub mod err_macro {
     #[macro_export]
     macro_rules! impl_err {
         ($from:ty, $variant:ident) => {
-            impl From<$from> for crate::Error {
+            impl From<$from> for $crate::Error {
                 fn from(value: $from) -> Self {
-                    crate::Error::$variant(value)
+                    $crate::Error::$variant(value)
                 }
             }
         };

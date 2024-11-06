@@ -8,10 +8,11 @@ use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub struct BlockIterator {
     blobs: Vec<BlobItem>,
-    buf: Box<Vec<u8>>,
+    buf: Arc<Vec<u8>>,
     index: usize,
 }
 
@@ -20,12 +21,14 @@ impl BlockIterator {
     pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
         let file = File::open(path)?;
 
-        let mut buf = Box::new(Vec::new()); // vec![0; file.metadata()?.size() as usize];
+        let mut buf = Vec::new();
         let mut reader = BufReader::new(file);
         reader.read_to_end(&mut buf)?;
 
-        let iter = BlobIterator::with_existing(buf.clone())?;
-        let blobs: Vec<BlobItem> = iter.collect();
+        let buf = Arc::new(buf);
+
+        let iter = BlobIterator::with_existing(Arc::clone(&buf))?;
+        let blobs = iter.collect::<Vec<_>>();
 
         Ok(BlockIterator {
             index: 0,
@@ -35,12 +38,10 @@ impl BlockIterator {
     }
 
     #[inline]
-    pub fn par_iter<'a>(&'a mut self) -> impl ParallelIterator<Item = BlockItem> + 'a {
-        // let buffer = self.buf.as_slice();
-
+    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=BlockItem> + '_ {
         self.blobs
             .par_iter()
-            .filter_map(|blob| BlockItem::from_blob_item(&blob, self.buf.as_slice()))
+            .filter_map(|blob| BlockItem::from_blob_item(blob, self.buf.as_slice()))
     }
 }
 
@@ -50,7 +51,7 @@ impl Iterator for BlockIterator {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let blob = self.blobs.get(self.index)?;
-        let block = BlockItem::from_blob_item(blob, &self.buf);
+        let block = BlockItem::from_blob_item(blob, self.buf.as_slice());
         self.index += 1;
         block
     }

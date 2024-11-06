@@ -25,7 +25,7 @@ impl TileItem<(), 0> for LatLng {
     }
 
     fn lat_lng(&self) -> LatLng {
-        self.clone()
+        *self
     }
 
     fn keys<'a>() -> [&'a str; 0] {

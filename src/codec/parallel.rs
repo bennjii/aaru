@@ -12,7 +12,7 @@ pub trait Parallel {
     ///
     /// The traversing function must be
     /// both `Send` and `Sync`.
-    fn for_each<F>(self, f: F) -> ()
+    fn for_each<F>(self, f: F)
     where
         F: for<'a> Fn(Self::Item<'_>) + Send + Sync;
 

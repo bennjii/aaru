@@ -2,7 +2,6 @@ use geo::{Centroid, ConvexHull, LineString, Polygon};
 use log::error;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-
 #[cfg(feature = "tile")]
 use crate::codec::mvt::Value;
 use crate::geo::cluster::haversine::haversine_distance;
@@ -84,7 +83,7 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<T>, u8)> for Clustered<N
 
             points: value,
             convex_hull,
-            phantom_data: PhantomData::default(),
+            phantom_data: PhantomData,
         })
     }
 }
@@ -94,7 +93,7 @@ impl<const N: usize, P, T: TileItem<P, N>> From<Vec<T>> for Cluster<N, P, T> {
         Self {
             noise: value,
             clustered: Vec::new(),
-            phantom_data: PhantomData::default(),
+            phantom_data: PhantomData,
         }
     }
 }
@@ -136,7 +135,7 @@ impl<const N: usize, P, T: TileItem<P, N>> TryFrom<(Vec<(u32, T)>, u8)> for Clus
         Ok(Self {
             clustered,
             noise,
-            phantom_data: PhantomData::default(),
+            phantom_data: PhantomData,
         })
     }
 }
@@ -160,7 +159,7 @@ impl<const N: usize, P, T: TileItem<P, N>> Default for IntoCluster<N, P, T> {
             distance: haversine_distance,
             c: Vec::new(),
             v: Vec::new(),
-            phantom_data: PhantomData::default(),
+            phantom_data: PhantomData,
         }
     }
 }

@@ -165,7 +165,7 @@ impl<'a> Transition<'a> {
 
     /// Collapses transition layers, `layers`, into a single vector of
     /// the finalised points
-    fn collapse(&self, layers: &Vec<ImbuedLayer>) -> Vec<Point> {
+    fn collapse(&self, layers: &[ImbuedLayer]) -> Vec<Point> {
         if let Some(nodes) = layers.last() {
             // All nodes with a possible route, sorted by best probability
             // TODO: A Dijkstra reverse search would yield better results as to route-depth and partial patching
@@ -185,9 +185,8 @@ impl<'a> Transition<'a> {
                     let mut previous_best = Some(best_node);
                     move || {
                         // Perform rollup on the candidates to walk-back the path
-                        previous_best.take().map(|prev| {
+                        previous_best.take().inspect(|prev| {
                             previous_best = prev.borrow().prev_best;
-                            prev
                         })
                     }
                 })
@@ -317,7 +316,7 @@ impl<'a> Transition<'a> {
                     return None;
                 }
 
-                return Some(candidates);
+                Some(candidates)
             })
             .collect::<Vec<_>>();
 

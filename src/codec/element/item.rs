@@ -41,7 +41,7 @@ impl ProcessedElement {
         match element {
             // TODO: Try making just an iterator return
             Element::DenseNodes(dense_nodes) => Node::from_dense(dense_nodes, granularity)
-                .map(|node| ProcessedElement::Node(node))
+                .map(ProcessedElement::Node)
                 .collect(),
             Element::Node(node) => vec![ProcessedElement::Node(Node::from(node))],
             Element::Way(way) => vec![ProcessedElement::Way(Way::from_raw(way, block))],
@@ -55,13 +55,13 @@ impl<'a> Element<'a> {
     pub(crate) fn from_group(group: &'a PrimitiveGroup) -> Vec<Element<'a>> {
         let mut elements: Vec<Element<'a>> = Vec::new();
 
-        elements.extend(group.ways.iter().map(|way| Element::Way(way)));
-        elements.extend(group.nodes.iter().map(|node| Element::Node(node.into())));
+        elements.extend(group.ways.iter().map(Element::Way));
+        elements.extend(group.nodes.iter().map(Element::Node));
         elements.extend(
             group
                 .relations
                 .iter()
-                .map(|relation| Element::Relation(relation)),
+                .map(Element::Relation),
         );
 
         if let Some(nodes) = &group.dense {

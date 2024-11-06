@@ -20,7 +20,7 @@ impl rstar::PointDistance for Node {
         &self,
         point: &<Self::Envelope as Envelope>::Point,
     ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
-        self.position.haversine_distance(&point)
+        self.position.haversine_distance(point)
     }
 
     fn distance_2_if_less_or_equal(
@@ -29,7 +29,7 @@ impl rstar::PointDistance for Node {
         max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar,
     ) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
         // This should utilize Envelope optimisation
-        let distance_2 = self.position.haversine_distance(&point);
+        let distance_2 = self.position.haversine_distance(point);
         if distance_2 <= max_distance_2 {
             return Some(distance_2);
         }
@@ -106,10 +106,10 @@ impl Node {
     ///  }
     /// ```
     #[inline]
-    pub fn from_dense<'a>(
-        value: &'a DenseNodes,
+    pub fn from_dense(
+        value: &DenseNodes,
         granularity: i32,
-    ) -> impl Iterator<Item = Self> + 'a {
+    ) -> impl Iterator<Item = Self> + '_ {
         // Nodes are at a granularity relative to `Nanodegree`
         let scaling_factor: f64 = (granularity as f64) * 1e-9f64;
 

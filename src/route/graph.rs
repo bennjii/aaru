@@ -99,7 +99,7 @@ impl Graph {
                         let weight = match way.r#type() {
                             Some(weight) => weights
                                 .get(weight.as_str())
-                                .map(|v| v.get().clone())
+                                .map(|v| *v.get())
                                 .unwrap_or(MAX_WEIGHT),
                             None => MAX_WEIGHT,
                         };
@@ -179,7 +179,7 @@ impl Graph {
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
     pub fn nearest_edges(&self, point: &Point) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
-        self.index.nearest_neighbor_iter(&point).flat_map(|node|
+        self.index.nearest_neighbor_iter(point).flat_map(|node|
                 // Find all outgoing edges for the given node
                 self.graph.edges_directed(node.id, Direction::Outgoing))
     }
@@ -263,7 +263,7 @@ impl Graph {
         let route = path
             .iter()
             .filter_map(|v| self.hash.get(v))
-            .map(|e| e.get().clone())
+            .map(|e| *e.get())
             .collect();
 
         Some((score, route))

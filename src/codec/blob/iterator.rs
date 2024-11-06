@@ -6,7 +6,7 @@ use prost::Message;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::PathBuf;
-
+use std::sync::Arc;
 use crate::codec::blob::item::BlobItem;
 use crate::codec::osm::BlobHeader;
 use crate::codec::BlockItem;
@@ -14,7 +14,7 @@ use crate::codec::BlockItem;
 const HEADER_LEN_SIZE: usize = 4;
 
 pub struct BlobIterator {
-    pub(crate) buf: Box<Vec<u8>>,
+    pub(crate) buf: Arc<Vec<u8>>,
 
     pub(crate) index: u64,
     offset: u64,
@@ -27,15 +27,16 @@ impl BlobIterator {
         let mut buf = Vec::new(); // vec![0; file.metadata()?.size() as usize];
         let mut reader = BufReader::new(file);
         reader.read_to_end(&mut buf)?;
+        let buf = Arc::new(buf);
 
         Ok(BlobIterator {
-            buf: Box::new(buf),
+            buf,
             offset: 0,
             index: 0,
         })
     }
 
-    pub fn with_existing(buf: Box<Vec<u8>>) -> Result<BlobIterator, io::Error> {
+    pub fn with_existing(buf: Arc<Vec<u8>>) -> Result<BlobIterator, io::Error> {
         // let file = File::open(path)?;
 
         // let mut buf = Vec::new(); // vec![0; file.metadata()?.size() as usize];
@@ -55,7 +56,7 @@ impl BlobIterator {
 }
 
 impl BlobIterator {
-    fn take_next(self: &mut Self) -> Option<BlobItem> {
+    fn take_next(&mut self) -> Option<BlobItem> {
         if self.buf.len() < self.offset as usize + HEADER_LEN_SIZE {
             return None;
         }

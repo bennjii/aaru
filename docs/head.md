@@ -4,8 +4,7 @@ Provides actionable area routing utilities for `OSM` data.
 
 Each component is divided into its own module.
 
-- `codec`
-Defines parser logic and iterators over `.osm.pbf` data
+- `codec` Defines parser logic and iterators over `.osm.pbf` data
 
 - `geo` Provides general purpose geo-utilities.
 

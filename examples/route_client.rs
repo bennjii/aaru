@@ -1,22 +1,22 @@
-use aaru::server::route::router_service::router_client::RouterClient;
 use aaru::server::route::router_service::{
     ClosestSnappedPointRequest, Coordinate, Costing, RouteRequest,
 };
 use tokio::time::Instant;
 use tonic;
 use tonic::transport::Channel;
+use aaru::server::route::router_service::router_service_client::RouterServiceClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let channel = Channel::from_static("http://[::1]:9001").connect().await?;
-    let mut client = RouterClient::new(channel);
+    let mut client = RouterServiceClient::new(channel);
 
     let request = tonic::Request::new(ClosestSnappedPointRequest {
         point: Some(Coordinate {
             latitude: -33.850842,
             longitude: 151.210193,
         }),
-        distance: 70f64,
+        quantity: 5,
     });
 
     let start = Instant::now();

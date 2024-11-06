@@ -13,7 +13,7 @@ pub struct ProcessedElementIterator {
     iter: BlockIterator,
 }
 
-impl<'a> ProcessedElementIterator {
+impl ProcessedElementIterator {
     pub fn new(path: PathBuf) -> Result<ProcessedElementIterator, CodecError> {
         Ok(ProcessedElementIterator {
             iter: BlockIterator::new(path)?,
@@ -24,7 +24,7 @@ impl<'a> ProcessedElementIterator {
 impl Parallel for ProcessedElementIterator {
     type Item<'a> = ProcessedElement;
 
-    fn for_each<F>(mut self, f: F) -> ()
+    fn for_each<F>(mut self, f: F)
     where
         F: Fn(ProcessedElement) + Send + Sync,
     {
