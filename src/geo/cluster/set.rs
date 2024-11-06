@@ -1,12 +1,12 @@
-use geo::{Centroid, ConvexHull, LineString, Polygon};
-use log::error;
-use std::collections::HashMap;
-use std::marker::PhantomData;
 #[cfg(feature = "tile")]
 use crate::codec::mvt::Value;
 use crate::geo::cluster::haversine::haversine_distance;
 use crate::geo::error::GeoError;
 use crate::geo::{LatLng, TileItem};
+use geo::{Centroid, ConvexHull, LineString, Polygon};
+use log::error;
+use std::collections::HashMap;
+use std::marker::PhantomData;
 #[cfg(feature = "tile")]
 use wkt::ToWkt;
 

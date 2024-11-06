@@ -1,10 +1,10 @@
+use aaru::server::route::router_service::router_service_client::RouterServiceClient;
 use aaru::server::route::router_service::{
     ClosestSnappedPointRequest, Coordinate, Costing, RouteRequest,
 };
 use tokio::time::Instant;
 use tonic;
 use tonic::transport::Channel;
-use aaru::server::route::router_service::router_service_client::RouterServiceClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

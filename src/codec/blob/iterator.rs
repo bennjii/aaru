@@ -1,15 +1,15 @@
 //! The file blob iterator
 //! Supports `mmap` reading through the optional feature
 
+use crate::codec::blob::item::BlobItem;
+use crate::codec::osm::BlobHeader;
+use crate::codec::BlockItem;
 use log::trace;
 use prost::Message;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::PathBuf;
 use std::sync::Arc;
-use crate::codec::blob::item::BlobItem;
-use crate::codec::osm::BlobHeader;
-use crate::codec::BlockItem;
 
 const HEADER_LEN_SIZE: usize = 4;
 

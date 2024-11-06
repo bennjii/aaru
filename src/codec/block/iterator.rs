@@ -38,7 +38,7 @@ impl BlockIterator {
     }
 
     #[inline]
-    pub fn par_iter(&mut self) -> impl ParallelIterator<Item=BlockItem> + '_ {
+    pub fn par_iter(&mut self) -> impl ParallelIterator<Item = BlockItem> + '_ {
         self.blobs
             .par_iter()
             .filter_map(|blob| BlockItem::from_blob_item(blob, self.buf.as_slice()))

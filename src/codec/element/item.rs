@@ -57,12 +57,7 @@ impl<'a> Element<'a> {
 
         elements.extend(group.ways.iter().map(Element::Way));
         elements.extend(group.nodes.iter().map(Element::Node));
-        elements.extend(
-            group
-                .relations
-                .iter()
-                .map(Element::Relation),
-        );
+        elements.extend(group.relations.iter().map(Element::Relation));
 
         if let Some(nodes) = &group.dense {
             elements.push(Element::DenseNodes(nodes));

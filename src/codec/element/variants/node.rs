@@ -106,10 +106,7 @@ impl Node {
     ///  }
     /// ```
     #[inline]
-    pub fn from_dense(
-        value: &DenseNodes,
-        granularity: i32,
-    ) -> impl Iterator<Item = Self> + '_ {
+    pub fn from_dense(value: &DenseNodes, granularity: i32) -> impl Iterator<Item = Self> + '_ {
         // Nodes are at a granularity relative to `Nanodegree`
         let scaling_factor: f64 = (granularity as f64) * 1e-9f64;
 

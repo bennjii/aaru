@@ -49,7 +49,7 @@ impl BlockItem {
     }
 
     #[inline]
-    fn from_blob    (blob: Blob) -> Option<Vec<u8>> {
+    fn from_blob(blob: Blob) -> Option<Vec<u8>> {
         if let Some(Data::ZlibData(data)) = blob.data {
             return BlockItem::zlib_decode(data, blob.raw_size.unwrap_or(0) as usize);
         }
