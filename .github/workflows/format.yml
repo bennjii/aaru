@@ -1,4 +1,4 @@
-name: Benchmark
+name: Format
 
 on:
   push:
@@ -39,5 +39,5 @@ jobs:
       - name: 🔍 Format
         uses: actions-rs/cargo@v1
         with:
-          command: format
+          command: fmt
           args: --check
