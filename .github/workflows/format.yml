@@ -1,4 +1,4 @@
-name: Benchmark
+name: Format
 
 on:
   push:
@@ -36,8 +36,11 @@ jobs:
           toolchain: nightly
           override: true
 
+      - name: Install `rustfmt`
+        run: rustup component add rustfmt
+
       - name: 🔍 Format
         uses: actions-rs/cargo@v1
         with:
-          command: format
+          command: fmt
           args: --check
