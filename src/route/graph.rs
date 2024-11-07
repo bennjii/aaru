@@ -1,5 +1,6 @@
 use geo::{
-    coord, line_string, HaversineDistance, LineInterpolatePoint, LineLocatePoint, LineString, Point,
+    coord, line_string, Distance, Haversine, LineInterpolatePoint, LineLocatePoint, LineString,
+    Point,
 };
 use log::{debug, error, info};
 use petgraph::prelude::DiGraphMap;
@@ -189,7 +190,7 @@ impl Graph {
         &'a self,
         point: &'a Point,
         num: usize,
-    ) -> impl Iterator<Item = (Point, Edge)> + 'a {
+    ) -> impl Iterator<Item = (Point, Edge<'a>)> + 'a {
         self.nearest_edges(point)
             .filter_map(|edge| {
                 let src = self.hash.get(&edge.source())?;
@@ -253,7 +254,7 @@ impl Graph {
             |v| {
                 self.hash
                     .get(&v)
-                    .map(|v| v.position.haversine_distance(&final_position) as Weight)
+                    .map(|v| Haversine::distance(v.position, final_position) as Weight)
                     .unwrap_or(0 as Weight)
             },
         )?;

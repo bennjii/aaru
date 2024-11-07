@@ -2,9 +2,6 @@
 //! providing distinction for header and primitive elements, as well
 //! as decoding fully, to element level.
 
-#[cfg(not(feature = "mmap"))]
-use std::fs::File;
-
 use bytes::Buf;
 use either::Either;
 use flate2::read::ZlibDecoder;
@@ -12,8 +9,6 @@ use log::{info, trace, warn};
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Read;
-#[cfg(not(feature = "mmap"))]
-use std::sync::Arc;
 
 use crate::codec::blob::item::BlobItem;
 use crate::codec::element::item::Element;
