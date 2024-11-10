@@ -24,15 +24,15 @@ path = "examples/tile.rs"
 
 [dependencies]
 # Algorithm
-rstar = { version = "0.12.0", features = ["serde"] }
+rstar = { version = "0.12.2", features = ["serde"] }
 petgraph = { version = "0.6.5", features = ["serde-1", "graphmap", "rayon"] }
 
 # Testing Deps.
-serde = { version = "1.0.200", features = ["derive"] }
+serde = { version = "1.0.214", features = ["derive"] }
 
 # Logging Utility
-log = { version = "0.4.20", features = [] }
-env_logger = "0.11.5"
+log = { version = "0.4.22", features = [] }
+dotenv = "0.15.0"
 test-log = { version = "0.2.16", features = ["log"] }
 
 # gRPC Server Dependencies [Optional-"grpc_server"]
@@ -40,45 +40,41 @@ tonic = { version = "0.12.3", features = ["tls", "tls-roots"], optional = true }
 tonic-reflection = { version = "0.12.3", optional = true }
 tonic-web = {  version = "0.12.3", optional = true }
 
-bytes = { version = "1.7.1", features = ["default"] } # Required for io::Cursor
-prost = { version = "0.13.1"}
-tokio = { version = "1.38.0", features = ["rt", "rt-multi-thread", "macros"], optional = true }
+bytes = { version = "1.8.0", features = ["default"] } # Required for io::Cursor
+prost = { version = "0.13.3"}
+tokio = { version = "1.41.0", features = ["rt", "rt-multi-thread", "macros"], optional = true }
 
 # HTTP Server Dependencies [Optional-"http_server"]
-tower-http = { version = "0.5.2", features = ["cors"], optional = true }
-axum = { version = "0.7.5", features = ["query"], optional = true }
+tower-http = { version = "0.6.1", features = ["cors"], optional = true }
+axum = { version = "0.7.7", features = ["query"], optional = true }
 axum-macros = { version = "0.4.1", optional = true }
 serde_qs = { version = "0.13.0", optional = true }
 
 # Tracing [Optional-"tracing"]
-tracing = { version = "0.1.16", optional = true }
-tracing-subscriber = { version = "0.3", features = ["tracing-log", "fmt", "env-filter"], optional = true }
-opentelemetry = { version = "0.24.0", optional = true }
-opentelemetry_sdk = { version = "0.24.1", features = ["rt-tokio"], optional = true }
-tracing-opentelemetry = {  version = "0.25.0", optional = true }
-opentelemetry-otlp = { version = "0.17.0", features = ["tls"], optional = true }
+tracing = { version = "0.1.40", optional = true }
+tracing-subscriber = { version = "0.3.18", features = ["tracing-log", "fmt", "env-filter"], optional = true }
+opentelemetry = { version = "0.26.0", optional = true }
+opentelemetry_sdk = { version = "0.26.0", features = ["rt-tokio"], optional = true }
+tracing-opentelemetry = {  version = "0.27.0", optional = true }
+opentelemetry-otlp = { version = "0.26.0", features = ["tls"], optional = true }
 
 # Optimisations and Compression
 rayon = "1.10.0"
-either = "1.11.0"
-dotenv = "0.15.0"
+either = "1.13.0"
 chrono = "0.4.38"
-flate2 = { version = "1.0.30", features = ["zlib-ng"], optional = true }
-memmap2 = { version = "0.9.4", optional = true }
+flate2 = { version = "1.0.34", features = ["zlib-ng"], optional = true }
 fast_hilbert = {  version = "2.0.0", optional = true }
-scc = { version = "2.1.1", optional = true }
-geo = "0.28.0"
-wkt = "0.11.0"
-bytemuck = "1.17.0"
-crossbeam = "0.8.4"
+scc = { version = "2.2.4", optional = true }
+geo = "0.29.1"
+wkt = "0.11.1"
 
 [build-dependencies]
-tonic-build = { version = "0.12.1", features = ["prost"] }
-prost-build = { version = "0.13.1"}
+tonic-build = { version = "0.12.3", features = ["prost"] }
+prost-build = { version = "0.13.3"}
 
 [dev-dependencies]
-osmpbf = { version = "0.3.3", features = ["zlib-ng"], default-features = false }
-criterion = { version = "0.5", features = ["html_reports"] }
+osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
+criterion = { version = "2.7.2", package = "codspeed-criterion-compat" }
 
 [[bench]]
 name = "codec_sweep"
@@ -89,8 +85,7 @@ name = "codec_target"
 harness = false
 
 [features]
-default = ["codec", "mmap", "route"]
-mmap = ["memmap2"]
+default = ["codec", "route"]
 
 tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]
 

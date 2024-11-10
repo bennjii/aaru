@@ -5,7 +5,7 @@ use std::f64::consts::E;
 use std::ops::{Div, Mul};
 use std::time::Instant;
 
-use geo::{HaversineDistance, HaversineLength, LineString, Point};
+use geo::{Distance, Haversine, Length, LineString, Point};
 use log::debug;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::ParallelSlice;
@@ -91,11 +91,10 @@ impl<'a> Transition<'a> {
                         Some((_, nodes)) => {
                             debug!("TIMING: Route=@{}", time.elapsed().as_micros());
 
-                            let direct_distance = node
-                                .borrow()
-                                .candidate
-                                .position
-                                .haversine_distance(&alt.borrow().candidate.position);
+                            let direct_distance = Haversine::distance(
+                                node.borrow().candidate.position,
+                                alt.borrow().candidate.position,
+                            );
 
                             debug!("TIMING: Distance=@{}", time.elapsed().as_micros());
 
@@ -105,7 +104,7 @@ impl<'a> Transition<'a> {
                                 .iter()
                                 .map(|node| node.position)
                                 .collect::<LineString>()
-                                .haversine_length();
+                                .length::<Haversine>();
 
                             debug!("TIMING: TravelDistance=@{}", time.elapsed().as_micros());
 
@@ -291,8 +290,10 @@ impl<'a> Transition<'a> {
                     .candidates
                     .iter()
                     .map(|candidate| {
+                        let distance =
+                            Haversine::distance(candidate.position, *layer.segment.source);
                         let emission_probability = Transition::emission_probability(
-                            candidate.position.haversine_distance(layer.segment.source),
+                            distance,
                             self.error.unwrap_or(DEFAULT_ERROR),
                         );
 

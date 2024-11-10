@@ -2,7 +2,7 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use geo::{point, HaversineDistance, Point};
+use geo::{point, Distance, Haversine, Point};
 use rstar::{Envelope, AABB};
 use std::ops::{Add, Mul};
 
@@ -20,7 +20,7 @@ impl rstar::PointDistance for Node {
         &self,
         point: &<Self::Envelope as Envelope>::Point,
     ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
-        self.position.haversine_distance(point)
+        Haversine::distance(self.position, *point)
     }
 
     fn distance_2_if_less_or_equal(
@@ -29,12 +29,11 @@ impl rstar::PointDistance for Node {
         max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar,
     ) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
         // This should utilize Envelope optimisation
-        let distance_2 = self.position.haversine_distance(point);
-        if distance_2 <= max_distance_2 {
-            return Some(distance_2);
+        let distance = Haversine::distance(self.position, *point);
+        match distance < max_distance_2 {
+            true => Some(distance),
+            false => None,
         }
-
-        None
     }
 }
 
