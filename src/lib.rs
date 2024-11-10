@@ -1,6 +1,12 @@
 #![doc = include_str!("../docs/head.md")]
 #![allow(dead_code)]
 
+#[cfg(feature = "mimalloc")]
+use mimalloc::MiMalloc;
+#[cfg_attr(feature = "mimalloc", global_allocator)]
+#[cfg(feature = "mimalloc")]
+static GLOBAL: MiMalloc = MiMalloc;
+
 #[cfg(feature = "codec")]
 use crate::codec::error::CodecError;
 use crate::geo::error::GeoError;
