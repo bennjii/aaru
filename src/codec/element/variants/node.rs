@@ -89,38 +89,6 @@ impl Node {
         self.id
     }
 
-    // #[inline]
-    // fn decode_and_scale_diff(diffs: &[i64], scale: f64) -> Vec<f64> {
-    //     const LANES: usize = Simd::<i64, 4>::LEN; // Adjust based on architecture
-    //     assert_eq!(diffs.len() % LANES, 0);
-    //
-    //     let mut cumulative_sum = Simd::splat(0i64);
-    //     let mut results = Vec::with_capacity(diffs.len());
-    //
-    //     for diff_chunk in diffs.chunks_exact(LANES) {
-    //         let mut current = Simd::from_slice(diff_chunk);
-    //
-    //         // Compute the prefix sum within the SIMD register
-    //         for i in 1..LANES {
-    //             current[i] += current[i - 1];
-    //         }
-    //
-    //         // Add cumulative sum from previous chunk
-    //         current += Simd::splat(cumulative_sum);
-    //
-    //         // Update cumulative sum for the next chunk
-    //         cumulative_sum = current[LANES - 1];
-    //
-    //         // Convert to f64 and apply scaling factor
-    //         let scaled = current.cast::<f64>() * Simd::splat(scale);
-    //
-    //         // Store the results
-    //         results.extend_from_slice(scaled.as_array());
-    //     }
-    //
-    //     results
-    // }
-
     /// Takes an `osm::DenseNodes` structure and extracts `Node`s as an
     /// iterator from `DenseNodes` with their contextual `PrimitiveBlock`.
     ///
@@ -140,16 +108,6 @@ impl Node {
     pub fn from_dense(value: &DenseNodes, granularity: i32) -> impl Iterator<Item = Self> + '_ {
         // Nodes are at a granularity relative to `Nanodegree`
         let scaling_factor: f64 = (granularity as f64) * 1e-9f64;
-
-        // let lon = Node::decode_and_scale_diff(value.lon.as_slice(), scaling_factor);
-        // let lat = Node::decode_and_scale_diff(value.lat.as_slice(), scaling_factor);
-        //
-        // lon.into_iter()
-        //     .zip(lat.into_iter())
-        //     .zip(value.id.iter())
-        //     .map(|((lon, lat), id)| {
-        //         Node { position: point! { x: lon, y: lat }, id: *id }
-        //     })
 
         value
             .lon
