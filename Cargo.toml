@@ -86,7 +86,7 @@ name = "codec_target"
 harness = false
 
 [features]
-default = ["codec", "route"]
+default = ["codec", "route", "mimalloc"]
 
 tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]
 
