@@ -1,7 +1,5 @@
 use criterion::criterion_main;
 use log::error;
-#[cfg(not(feature = "mmap"))]
-use std::fs::File;
 use std::path::PathBuf;
 
 use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
