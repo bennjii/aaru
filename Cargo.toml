@@ -75,7 +75,7 @@ prost-build = { version = "0.13.3"}
 
 [dev-dependencies]
 osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
-criterion = { version = "0.5.1", features = ["html_reports"] }
+criterion = { version = "2.7.2", package = "codspeed-criterion-compat" }
 
 [[bench]]
 name = "codec_sweep"

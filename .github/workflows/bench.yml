@@ -6,6 +6,7 @@ on:
       - master
   pull_request:
     types: [opened, synchronize]
+  workflow_dispatch:
 
 env:
   PROTOC_VERSION: 3.20.3
@@ -22,49 +23,23 @@ jobs:
         with:
           tool: protoc@${{ env.PROTOC_VERSION }}
 
-      - name: Rust Cache
-        uses: actions/cache@v4
+      - name: Toolchain, Cache and Codspeed
+        uses: moonrepo/setup-rust@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          channel: stable
+          cache-target: release
+          bins: cargo-codspeed
 
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
 
-      - name: 🔨 Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+      - name: 🔨Build
+        run: cargo codspeed build
 
-      - name: bench
-        run: cargo +nightly bench -- --output-format bencher | tee output.txt
-
-      - name: Download previous benchmark data
-        uses: actions/cache@v4
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v3
         with:
-          path: ./cache
-          key: ${{ runner.os }}-benchmark
-
-      - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: 'cargo'
-          output-file-path: output.txt
-          external-data-json-path: ./cache/benchmark-data.json
-          fail-on-alert: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-on-alert: true
-          comment-always: true
-          summary-always: true
-          alert-comment-cc-users: '@bennjii'
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rsstable_${{ github.sha }}_bench
-          path: ./target/criterion
+          run: cargo codspeed run
+          token: ${{ secrets.CODSPEED_TOKEN }}
