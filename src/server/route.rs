@@ -7,7 +7,6 @@ use tonic::{Request, Response, Status};
 
 use router_service::{RouteRequest, RouteResponse};
 
-use crate::geo::coord::latlng::LatLng;
 use crate::route::Graph;
 use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,

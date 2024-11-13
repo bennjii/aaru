@@ -27,8 +27,6 @@ pub use element::processed_iterator::ProcessedElementIterator;
 
 // Doc-Linking
 #[doc(hidden)]
-pub use crate::geo::coord::latlng::LatLng;
-#[doc(hidden)]
 pub use blob::item::BlobItem;
 #[doc(hidden)]
 pub use block::item::BlockItem;

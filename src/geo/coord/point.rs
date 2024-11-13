@@ -25,7 +25,7 @@ pub trait TileItem<T: Clone>: Into<geo::Point> + Clone {
 
     /// Until `generic_const_exprs` is merged (#76560)
     /// this will remain a vectored implementation as size is unknown
-    fn entries<'a>(&self) -> Vec<(Self::Key, T)>;
+    fn entries(&self) -> Vec<(Self::Key, T)>;
 
     fn values(&self) -> Vec<T> {
         self.entries().iter().map(|(_, value)| value).cloned().collect()

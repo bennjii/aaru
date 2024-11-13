@@ -14,8 +14,6 @@ pub mod error;
 pub mod project;
 
 #[doc(inline)]
-pub use coord::latlng::LatLng;
-#[doc(inline)]
 pub use coord::point::TileItem;
 #[doc(inline)]
 pub use project::Project;

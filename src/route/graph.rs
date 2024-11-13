@@ -20,7 +20,6 @@ use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
-use crate::geo::coord::latlng::LatLng;
 use crate::route::error::RouteError;
 use crate::route::transition::graph::Transition;
 
@@ -46,8 +45,6 @@ impl Debug for Graph {
         write!(f, "Graph with Nodes: {}", self.hash.len())
     }
 }
-
-struct Vector(LatLng);
 
 impl Graph {
     /// The weighting mapping of node keys to weight.

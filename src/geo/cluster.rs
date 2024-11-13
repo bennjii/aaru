@@ -7,7 +7,7 @@ use wkt::ToWkt;
 
 #[cfg(feature = "tile")]
 use crate::codec::mvt::Value;
-use crate::geo::{error::GeoError, TileItem};
+use crate::geo::error::GeoError;
 use crate::geo::coord::point::FeatureKey;
 
 #[derive(PartialEq, Clone)]
@@ -28,9 +28,9 @@ pub struct Clustered<T> {
     convex_hull: Polygon,
 }
 
-impl<T> Into<Point> for Clustered<T> {
-    fn into(self) -> Point {
-        self.centroid
+impl<T> From<Clustered<T>> for Point {
+    fn from(val: Clustered<T>) -> Self {
+        val.centroid
     }
 }
 
@@ -265,7 +265,7 @@ impl IntoCluster {
     pub fn cluster<T: Into<geo::Point> + Clone>(
         mut self,
         population: Vec<T>,
-    ) -> Result<Cluster<T>, GeoError> where T: Into<geo::Point> {
+    ) -> Result<Cluster<T>, GeoError> {
         self.c = vec![Classification::Noise; population.len()];
         self.v = vec![false; population.len()];
 
