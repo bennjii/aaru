@@ -1,5 +1,3 @@
-use rstar::Point;
-use std::marker::PhantomData;
 use strum::EnumCount;
 
 use crate::codec::mvt::{Feature, GeomType, Layer, Value};
@@ -8,20 +6,6 @@ use crate::geo::coord::point::TileItem;
 use crate::geo::project::projections::SlippyTile;
 use crate::geo::project::Project;
 use crate::geo::{MVT_EXTENT, MVT_VERSION};
-
-struct TileLayer<const N: usize> {
-    layer: Layer,
-    breath: PhantomData<[(); N]>,
-}
-
-impl<const N: usize> TileLayer<N> {
-    fn new(layer: Layer) -> Self {
-        Self {
-            layer,
-            breath: PhantomData::default(),
-        }
-    }
-}
 
 pub struct MVTFeature(pub Feature);
 pub struct MVTLayer(pub Layer);
@@ -96,7 +80,6 @@ where
         Self(Feature {
             id: Some(value.id()),
             tags: (0..key_length)
-                .into_iter()
                 .flat_map(|i| [i, (index as u32) * key_length + i])
                 .collect(),
             r#type: Some(i32::from(GeomType::Point)),

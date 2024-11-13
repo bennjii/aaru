@@ -4,4 +4,6 @@ repos:
     hooks:
       - id: fmt
       - id: check
+        args: ['--features', 'all']
       - id: clippy
+        args: ['--features', 'all']

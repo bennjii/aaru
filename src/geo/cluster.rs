@@ -9,6 +9,7 @@ use wkt::ToWkt;
 use crate::codec::mvt::Value;
 use crate::geo::coord::point::FeatureKey;
 use crate::geo::error::GeoError;
+use crate::geo::TileItem;
 
 #[derive(PartialEq, Clone)]
 pub enum Classification {

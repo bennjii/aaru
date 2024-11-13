@@ -99,6 +99,8 @@ tile = ["http_server", "fast_hilbert"]
 route = ["scc", "codec"]
 codec = ["flate2"]
 
+all = ["tile", "route", "codec"]
+
 [package.metadata.docs.rs]
 features = ["tile", "route", "codec"]
 
