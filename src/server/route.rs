@@ -12,11 +12,11 @@ use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,
     ClosestSnappedPointResponse, Coordinate, MapMatchRequest, MapMatchResponse,
 };
+use geo::LineString;
 use router_service::router_service_server::RouterService;
 #[cfg(feature = "tracing")]
 use tracing::Level;
 use wkt::ToWkt;
-use geo::LineString;
 
 pub mod router_service {
     tonic::include_proto!("aaru.v1");

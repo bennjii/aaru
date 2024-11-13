@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use geo::Coord;
+use std::fmt::Display;
 use strum::{EnumCount, IntoEnumIterator, VariantArray};
 
 pub trait FeatureKey: IntoEnumIterator + VariantArray + EnumCount + Display + Copy {}
@@ -28,7 +28,11 @@ pub trait TileItem<T: Clone>: Into<geo::Point> + Clone {
     fn entries(&self) -> Vec<(Self::Key, T)>;
 
     fn values(&self) -> Vec<T> {
-        self.entries().iter().map(|(_, value)| value).cloned().collect()
+        self.entries()
+            .iter()
+            .map(|(_, value)| value)
+            .cloned()
+            .collect()
     }
 
     fn keys() -> &'static [Self::Key] {

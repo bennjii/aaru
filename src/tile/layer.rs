@@ -1,5 +1,5 @@
-use std::marker::PhantomData;
 use rstar::Point;
+use std::marker::PhantomData;
 use strum::EnumCount;
 
 use crate::codec::mvt::{Feature, GeomType, Layer, Value};
@@ -51,7 +51,10 @@ where
     }
 }
 
-impl<T> From<(Clustered<T>, u8, String)> for MVTLayer where T: TileItem<Value> {
+impl<T> From<(Clustered<T>, u8, String)> for MVTLayer
+where
+    T: TileItem<Value>,
+{
     fn from((value, zoom, name): (Clustered<T>, u8, String)) -> Self {
         let keys = T::keys();
         let values = value.points.iter().flat_map(|v| v.values()).collect();
@@ -83,7 +86,8 @@ where
 
         // We know we're centered to the tile corner, so we just need it's
         // internal offset.
-        let SlippyTile((_, px), (_, py), _) = SlippyTile::project(Into::<geo::Point>::into(value.clone()), zoom);
+        let SlippyTile((_, px), (_, py), _) =
+            SlippyTile::project(Into::<geo::Point>::into(value.clone()), zoom);
 
         fn zig(value: u32) -> u32 {
             (value << 1) ^ (value >> 31)

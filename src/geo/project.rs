@@ -46,8 +46,7 @@ pub use projections::WebMercator;
 
 impl Project for SlippyTile {
     /// See the [OSM Wiki](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Mathematics) for the projection source.
-    fn project(value: geo::Point, zoom: u8) -> Self
-    {
+    fn project(value: geo::Point, zoom: u8) -> Self {
         let offset = |value: f64| {
             let n = value.floor() as u32;
             let offset = ((MVT_EXTENT as f64) * (value - value.floor())) as u32;
@@ -73,8 +72,7 @@ impl Project for SlippyTile {
 }
 
 impl Project for WebMercator {
-    fn project(value: geo::Point, _: u8) -> Self
-    {
+    fn project(value: geo::Point, _: u8) -> Self {
         WebMercator(value)
     }
 }

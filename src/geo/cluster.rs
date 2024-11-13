@@ -7,8 +7,8 @@ use wkt::ToWkt;
 
 #[cfg(feature = "tile")]
 use crate::codec::mvt::Value;
-use crate::geo::error::GeoError;
 use crate::geo::coord::point::FeatureKey;
+use crate::geo::error::GeoError;
 
 #[derive(PartialEq, Clone)]
 pub enum Classification {
@@ -60,8 +60,14 @@ impl<T: Clone> TileItem<Value> for Clustered<T> {
 
     fn entries(&self) -> Vec<(Self::Key, Value)> {
         vec![
-            (Self::Key::NumberOfPoints, Value::from_int(self.points.len() as i64)),
-            (Self::Key::ConvexHull, Value::from_string(self.convex_hull.wkt_string())),
+            (
+                Self::Key::NumberOfPoints,
+                Value::from_int(self.points.len() as i64),
+            ),
+            (
+                Self::Key::ConvexHull,
+                Value::from_string(self.convex_hull.wkt_string()),
+            ),
         ]
     }
 }
@@ -78,7 +84,7 @@ pub fn geohash_to_u64(geohash: &str) -> Option<u64> {
     for (i, c) in geohash.chars().enumerate() {
         if let Some(index) = base32_alphabet.find(c) {
             // Map 5-bit index to 8-bit value by shifting and padding
-            let byte_value = (index as u8) << 3;  // Shift left by 3 to fit into 8-bit space
+            let byte_value = (index as u8) << 3; // Shift left by 3 to fit into 8-bit space
             result |= (byte_value as u64) << (8 * (7 - i)); // Shift and accumulate in u64
         } else {
             return None; // Invalid character in the geohash
@@ -92,7 +98,8 @@ impl<T: Into<geo::Point> + Clone> TryFrom<Vec<T>> for Clustered<T> {
     type Error = GeoError;
 
     fn try_from(points: Vec<T>) -> Result<Self, Self::Error> {
-        let value = points.iter()
+        let value = points
+            .iter()
             .cloned()
             .map(|point| Into::<geo::Point>::into(point))
             .collect::<Vec<geo::Point>>();
@@ -104,9 +111,9 @@ impl<T: Into<geo::Point> + Clone> TryFrom<Vec<T>> for Clustered<T> {
             .centroid()
             .ok_or(GeoError::InvalidCoordinate("".to_string()))?;
 
-        let id = geohash_to_u64(
-        &geohash::encode(Coord::from(centroid), 8)?
-        ).ok_or(GeoError::InvalidCoordinate("GeoHash too wide, expected depth of 8.".parse().unwrap()))?;
+        let id = geohash_to_u64(&geohash::encode(Coord::from(centroid), 8)?).ok_or(
+            GeoError::InvalidCoordinate("GeoHash too wide, expected depth of 8.".parse().unwrap()),
+        )?;
 
         Ok(Self {
             id,
@@ -160,10 +167,7 @@ impl<T: Into<geo::Point> + Clone> TryFrom<Vec<(u32, T)>> for Cluster<T> {
             }
         });
 
-        Ok(Self {
-            clustered,
-            noise,
-        })
+        Ok(Self { clustered, noise })
     }
 }
 
@@ -217,10 +221,7 @@ impl IntoCluster {
     }
 
     pub fn distance(self, distance: fn(_: geo::Point, _: geo::Point) -> f64) -> Self {
-        Self {
-            distance,
-            ..self
-        }
+        Self { distance, ..self }
     }
 
     #[inline]
@@ -234,7 +235,12 @@ impl IntoCluster {
     }
 
     #[inline]
-    fn expand_cluster(&mut self, population: &[geo::Point], queue: &mut Vec<usize>, cluster: usize) -> bool {
+    fn expand_cluster(
+        &mut self,
+        population: &[geo::Point],
+        queue: &mut Vec<usize>,
+        cluster: usize,
+    ) -> bool {
         let mut new_cluster = false;
         while let Some(ind) = queue.pop() {
             let neighbors = self.range_query(population[ind], population);
@@ -269,7 +275,8 @@ impl IntoCluster {
         self.c = vec![Classification::Noise; population.len()];
         self.v = vec![false; population.len()];
 
-        let as_points = population.iter()
+        let as_points = population
+            .iter()
             .cloned()
             .map(|p| p.into())
             .collect::<Vec<geo::Point>>();
