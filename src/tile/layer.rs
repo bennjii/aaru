@@ -51,9 +51,9 @@ where
     }
 }
 
-impl From<(Clustered<Value>, u8, String)> for MVTLayer where {
-    fn from((value, zoom, name): (Clustered<Value>, u8, String)) -> Self {
-        let keys = Clustered::<Value>::keys();
+impl<T> From<(Clustered<T>, u8, String)> for MVTLayer where T: TileItem<Value> {
+    fn from((value, zoom, name): (Clustered<T>, u8, String)) -> Self {
+        let keys = T::keys();
         let values = value.points.iter().flat_map(|v| v.values()).collect();
 
         let features = value

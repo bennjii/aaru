@@ -1,13 +1,13 @@
-#[cfg(feature = "tile")]
-use crate::codec::mvt::Value;
-use crate::geo::{project::SlippyTile, error::GeoError, TileItem};
-
 use geo::{Centroid, ConvexHull, Coord, Distance, Haversine, LineString, Point, Polygon};
 use log::error;
 use std::collections::HashMap;
 use strum::{EnumCount, EnumIter, EnumProperty, VariantArray};
 #[cfg(feature = "tile")]
 use wkt::ToWkt;
+
+#[cfg(feature = "tile")]
+use crate::codec::mvt::Value;
+use crate::geo::{error::GeoError, TileItem};
 use crate::geo::coord::point::FeatureKey;
 
 #[derive(PartialEq, Clone)]
@@ -20,7 +20,7 @@ pub enum Classification {
 /// Describes a set of clustered points, with a centroid of the cluster and
 /// the respective convex hull describing the cluster's shape.
 #[derive(Clone)]
-pub struct Clustered<T> where T: TileItem {
+pub struct Clustered<T> {
     pub id: u64,
     pub points: Vec<T>,
 
@@ -43,7 +43,7 @@ pub struct Cluster<T> {
 }
 
 #[derive(EnumCount, EnumProperty, EnumIter, VariantArray, strum::Display, Copy, Clone)]
-enum ClusteredFeatureKeys {
+pub enum ClusteredFeatureKeys {
     NumberOfPoints,
     ConvexHull,
 }
@@ -51,7 +51,7 @@ enum ClusteredFeatureKeys {
 impl FeatureKey for ClusteredFeatureKeys {}
 
 #[cfg(feature = "tile")]
-impl TileItem<Value> for Clustered<Value> {
+impl<T: Clone> TileItem<Value> for Clustered<T> {
     type Key = ClusteredFeatureKeys;
 
     fn id(&self) -> u64 {
