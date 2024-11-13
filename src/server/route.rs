@@ -17,6 +17,7 @@ use router_service::router_service_server::RouterService;
 #[cfg(feature = "tracing")]
 use tracing::Level;
 use wkt::ToWkt;
+use geo::LineString;
 
 pub mod router_service {
     tonic::include_proto!("aaru.v1");
@@ -91,8 +92,8 @@ impl RouterService for RouteService {
         let coordinates = mapmatch
             .data
             .iter()
-            .map(|coord| LatLng::try_from(Some(*coord)))
-            .collect::<Result<Vec<_>, Status>>()?;
+            .map(|coord| coord! { x: coord.longitude, y: coord.longitude })
+            .collect::<LineString>();
 
         let linestring = self.graph.map_match(coordinates, mapmatch.distance);
 

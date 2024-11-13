@@ -211,15 +211,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: f64) -> LineString {
-        let linestring: LineString = coordinates
-            .iter()
-            .map(|coord| {
-                let (lng, lat) = coord.expand();
-                coord! { x: lng, y: lat }
-            })
-            .collect();
-
+    pub fn map_match(&self, linestring: LineString, distance: f64) -> LineString {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         // Create our hidden markov model solver

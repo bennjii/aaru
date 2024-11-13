@@ -68,6 +68,8 @@ scc = { version = "2.2.4", optional = true }
 geo = "0.29.1"
 wkt = "0.11.1"
 mimalloc = { version = "0.1.43", optional = true }
+geohash = "0.13.1"
+strum = { version = "0.26.3", features = ["phf", "derive"] }
 
 [build-dependencies]
 tonic-build = { version = "0.12.3", features = ["prost"] }

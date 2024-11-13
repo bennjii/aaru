@@ -1,10 +1,7 @@
 use std::fmt::{Debug, Formatter};
 
 use crate::codec::osm::PrimitiveBlock;
-use crate::geo::coord::vec::Vector;
 use crate::geo::error::GeoError;
-use crate::geo::project::SlippyTile;
-use crate::geo::{Project, SRID3857_MAX_LNG};
 
 #[cfg(feature = "grpc_server")]
 use crate::server::route::router_service::Coordinate;
@@ -56,6 +53,7 @@ impl From<(&i64, &i64)> for LatLng {
     }
 }
 
+#[deprecated(since = "0.2.0", note = "Use geo::Point instead")]
 impl LatLng {
     /// Constructs a new `LatLng` from a given `lat` and `lng`.
     pub fn new(lat: NanoDegree, lng: NanoDegree) -> Self {
@@ -121,13 +119,6 @@ impl LatLng {
         [self.lng(), self.lat()]
     }
 
-    pub fn hash(&self, zoom: u8) -> u32 {
-        let SlippyTile((_, px), (_, py), zoom) = SlippyTile::project(self, zoom);
-
-        let hash_size = (SRID3857_MAX_LNG / 2) / 2_u32.pow(zoom as u32);
-        hash_size * ((SRID3857_MAX_LNG + px) / hash_size) + ((SRID3857_MAX_LNG + py) / hash_size)
-    }
-
     /// Offsets the `LatLng` from the given parent primitive.
     /// According to: <https://arc.net/l/quote/ccrekhxu>
     pub fn offset(&mut self, group: &PrimitiveBlock) -> &mut Self {
@@ -145,14 +136,6 @@ impl LatLng {
             lat: lat + prior.nano_lat(),
             lng: lng + prior.nano_lng(),
         }
-    }
-
-    pub fn vec_to(&self, other: &LatLng) -> (Degree, Degree) {
-        (self.lng() - other.lng(), self.lat() - other.lat())
-    }
-
-    pub fn as_vec(&self) -> Vector<Degree> {
-        Vector::from(self)
     }
 }
 
