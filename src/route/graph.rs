@@ -11,8 +11,8 @@ use rstar::RTree;
 use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::time::Instant;
-
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
@@ -89,12 +89,13 @@ impl Graph {
 
         info!("Ingesting...");
 
-        let (graph, index): (GraphStructure, Vec<Node>) = reader.par_red(
-            |(mut graph, mut tree): (GraphStructure, Vec<Node>), element: ProcessedElement| {
+        let global_graph = Mutex::new(GraphStructure::new());
+        let index: Vec<Node> = reader.par_red(
+            |mut tree: Vec<Node>, element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         if !way.is_road() {
-                            return (graph, tree);
+                            return tree;
                         }
 
                         // Get the weight from the weight table
@@ -109,7 +110,7 @@ impl Graph {
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
-                                graph.add_edge(*a, *b, weight);
+                                global_graph.lock().unwrap().add_edge(*a, *b, weight);
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
                             }
@@ -121,20 +122,22 @@ impl Graph {
                     }
                 }
 
-                (graph, tree)
+                tree
             },
-            |(mut a_graph, mut a_tree), (b_graph, b_tree)| {
+            |mut a_tree, b_tree| {
                 // TODO: Add `Graph` merge optimisations
                 // a_graph.extend(b_graph.all_edges());
-                for (source, target, weight) in b_graph.all_edges() {
-                    a_graph.add_edge(source, target, *weight);
-                }
+                // for (source, target, weight) in b_graph.all_edges() {
+                //     a_graph.add_edge(source, target, *weight);
+                // }
 
                 a_tree.extend(b_tree);
-                (a_graph, a_tree)
+                a_tree
             },
-            || (GraphStructure::default(), Vec::new()),
+            || Vec::new(),
         );
+
+        let graph = global_graph.into_inner().unwrap();
 
         debug!("Graphical ingestion took: {:?}", start_time.elapsed());
         start_time = Instant::now();
