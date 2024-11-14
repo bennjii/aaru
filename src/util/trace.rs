@@ -10,6 +10,7 @@
 //! OTEL_SERVICE_NAME=aaru
 //! ```
 
+#[cfg(feature = "grpc_server")]
 use opentelemetry::trace::TracerProvider;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;

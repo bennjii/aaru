@@ -1,6 +1,6 @@
 [package]
 name = "aaru"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 readme = "readme.md"
 description = "Actionable Area Routing Utilities for OSM and MVT"
@@ -68,6 +68,8 @@ scc = { version = "2.2.4", optional = true }
 geo = "0.29.1"
 wkt = "0.11.1"
 mimalloc = { version = "0.1.43", optional = true }
+geohash = "0.13.1"
+strum = { version = "0.26.3", features = ["phf", "derive"] }
 
 [build-dependencies]
 tonic-build = { version = "0.12.3", features = ["prost"] }
@@ -94,8 +96,10 @@ grpc_server = ["tonic", "tonic-reflection", "tonic-web", "tower-http", "tokio"]
 http_server = ["tower-http", "axum", "axum-macros", "serde_qs", "tokio"]
 
 tile = ["http_server", "fast_hilbert"]
-route = ["scc", "codec"]
+route = ["grpc_server", "scc", "codec"]
 codec = ["flate2"]
+
+all = ["tile", "route", "codec"]
 
 [package.metadata.docs.rs]
 features = ["tile", "route", "codec"]
@@ -107,3 +111,8 @@ lto = true
 [profile.bench]
 opt-level = 3
 lto = true
+
+[[example]]
+name = "Route Client"
+path = "examples/route_client.rs"
+required-features = ["grpc_server"]

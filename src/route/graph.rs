@@ -20,7 +20,6 @@ use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
-use crate::geo::coord::latlng::LatLng;
 use crate::route::error::RouteError;
 use crate::route::transition::graph::Transition;
 
@@ -46,8 +45,6 @@ impl Debug for Graph {
         write!(f, "Graph with Nodes: {}", self.hash.len())
     }
 }
-
-struct Vector(LatLng);
 
 impl Graph {
     /// The weighting mapping of node keys to weight.
@@ -211,15 +208,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, coordinates: Vec<LatLng>, distance: f64) -> LineString {
-        let linestring: LineString = coordinates
-            .iter()
-            .map(|coord| {
-                let (lng, lat) = coord.expand();
-                coord! { x: lng, y: lat }
-            })
-            .collect();
-
+    pub fn map_match(&self, linestring: LineString, distance: f64) -> LineString {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         // Create our hidden markov model solver

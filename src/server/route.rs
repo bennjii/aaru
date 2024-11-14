@@ -7,12 +7,12 @@ use tonic::{Request, Response, Status};
 
 use router_service::{RouteRequest, RouteResponse};
 
-use crate::geo::coord::latlng::LatLng;
 use crate::route::Graph;
 use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,
     ClosestSnappedPointResponse, Coordinate, MapMatchRequest, MapMatchResponse,
 };
+use geo::LineString;
 use router_service::router_service_server::RouterService;
 #[cfg(feature = "tracing")]
 use tracing::Level;
@@ -91,8 +91,8 @@ impl RouterService for RouteService {
         let coordinates = mapmatch
             .data
             .iter()
-            .map(|coord| LatLng::try_from(Some(*coord)))
-            .collect::<Result<Vec<_>, Status>>()?;
+            .map(|coord| coord! { x: coord.longitude, y: coord.longitude })
+            .collect::<LineString>();
 
         let linestring = self.graph.map_match(coordinates, mapmatch.distance);
 

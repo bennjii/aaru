@@ -1,0 +1,9 @@
+repos:
+  - repo: https://github.com/backplane/pre-commit-rust-hooks
+    rev: v1.1.0
+    hooks:
+      - id: fmt
+      - id: check
+        args: ['--features', 'all']
+      - id: clippy
+        args: ['--features', 'all']

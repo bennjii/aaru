@@ -1,7 +1,5 @@
 //! Required structures to project between standards
 
-use crate::geo::coord::point::TileItem;
-
 /// Allows for projection between two standards.
 pub trait Project {
     /// Projects a position between two standards.
@@ -16,18 +14,14 @@ pub trait Project {
     /// let SlippyTile((x, px), (y, py), z) = SlippyTile::project(&value, 19);
     /// // We now have the slippy tile coordinate of the original lat/lng.
     /// ```
-    fn project<G, T, const N: usize>(value: &T, zoom: u8) -> Self
-    where
-        T: TileItem<G, N>;
+    fn project(value: geo::Point, zoom: u8) -> Self;
 }
 
 #[doc(hidden)]
 pub mod projections {
-    use crate::geo::coord::latlng::LatLng;
-
     /// In the definition given here, it simply wraps a LatLng definition of a point.
     /// *Learn more [here](https://en.wikipedia.org/wiki/Web_Mercator_projection?useskin=vector).*
-    pub struct WebMercator(pub LatLng);
+    pub struct WebMercator(pub geo::Point);
 
     /// A Slippy tile is one which has a defined x and y, which is distinct to its zoom level.
     /// It can also have a distance *inside* the tile, which is the 2nd parameter.
@@ -52,10 +46,7 @@ pub use projections::WebMercator;
 
 impl Project for SlippyTile {
     /// See the [OSM Wiki](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Mathematics) for the projection source.
-    fn project<G, T, const N: usize>(value: &T, zoom: u8) -> Self
-    where
-        T: TileItem<G, N>,
-    {
+    fn project(value: geo::Point, zoom: u8) -> Self {
         let offset = |value: f64| {
             let n = value.floor() as u32;
             let offset = ((MVT_EXTENT as f64) * (value - value.floor())) as u32;
@@ -63,7 +54,7 @@ impl Project for SlippyTile {
         };
 
         // Get the Lat/Lng for the values origin
-        let (lng, lat) = value.lat_lng().expand();
+        let (lng, lat) = value.x_y();
 
         // Obtain the X tile position (at desired zoom) and offset inside tile
         let shl_zoom = 1 << zoom;
@@ -81,10 +72,7 @@ impl Project for SlippyTile {
 }
 
 impl Project for WebMercator {
-    fn project<G, T, const N: usize>(value: &T, _: u8) -> Self
-    where
-        T: TileItem<G, N>,
-    {
-        WebMercator(value.lat_lng())
+    fn project(value: geo::Point, _: u8) -> Self {
+        WebMercator(value)
     }
 }
