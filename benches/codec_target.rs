@@ -6,9 +6,9 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::path::PathBuf;
 use tokio::runtime::Runtime;
 
-async fn iterate_blocks_each() {
+fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
-    let iterator = BlockIterator::new(path.clone()).await;
+    let iterator = BlockIterator::new(path.clone());
 
     let mut primitive_blocks = 0;
     let mut header_blocks = 0;
@@ -34,10 +34,10 @@ async fn iterate_blocks_each() {
     assert_eq!(primitive_blocks, 237);
 }
 
-async fn parallel_iterate_blocks_each() {
+fn parallel_iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
-    let mut block_iter = BlockIterator::new(path).await.unwrap();
+    let mut block_iter = BlockIterator::new(path).unwrap();
 
     let elements = block_iter
         .par_iter()
@@ -86,13 +86,9 @@ fn target_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("iterator_target");
     group.significance_level(0.1).sample_size(30);
 
-    group.bench_function("iterate_blocks_each", |b| {
-        b.to_async(Runtime::new().expect("Must have runtime"))
-            .iter(|| iterate_blocks_each())
-    });
+    group.bench_function("iterate_blocks_each", |b| b.iter(|| iterate_blocks_each()));
     group.bench_function("parallel_iterate_blocks_each", |b| {
-        b.to_async(Runtime::new().expect("Must have runtime"))
-            .iter(|| parallel_iterate_blocks_each())
+        b.iter(|| parallel_iterate_blocks_each())
     });
     group.bench_function("compared_to_osmpbf", |b| b.iter(|| compare_to_osmpbf()));
 

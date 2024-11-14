@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create the router
     #[cfg(feature = "tracing")]
     tracing::info!("Creating Router");
-    let router = RouteService::from_file(SYDNEY).await.expect("-");
+    let router = RouteService::from_file(SYDNEY).expect("-");
 
     #[cfg(feature = "tracing")]
     tracing::info!("Router Created");

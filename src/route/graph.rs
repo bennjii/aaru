@@ -75,13 +75,13 @@ impl Graph {
     }
 
     /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
-    pub async fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
+    pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
         let mut start_time = Instant::now();
         let fixed_start_time = Instant::now();
 
         let path = PathBuf::from(filename);
 
-        let reader = ProcessedElementIterator::new(path).await?;
+        let reader = ProcessedElementIterator::new(path)?;
         let weights = Graph::weights()?;
 
         debug!("Iterator warming took: {:?}", start_time.elapsed());
@@ -134,7 +134,7 @@ impl Graph {
                 a_tree.extend(b_tree);
                 a_tree
             },
-            || Vec::new(),
+            Vec::new,
         );
 
         let graph = global_graph.into_inner().unwrap();

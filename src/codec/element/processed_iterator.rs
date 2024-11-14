@@ -14,9 +14,9 @@ pub struct ProcessedElementIterator {
 }
 
 impl ProcessedElementIterator {
-    pub async fn new(path: PathBuf) -> Result<ProcessedElementIterator, CodecError> {
+    pub fn new(path: PathBuf) -> Result<ProcessedElementIterator, CodecError> {
         Ok(ProcessedElementIterator {
-            iter: BlockIterator::new(path).await?,
+            iter: BlockIterator::new(path)?,
         })
     }
 }

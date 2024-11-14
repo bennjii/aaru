@@ -30,9 +30,9 @@ pub struct RouteService {
 }
 
 impl RouteService {
-    pub async fn from_file(file: &str) -> crate::Result<RouteService> {
+    pub fn from_file(file: &str) -> crate::Result<RouteService> {
         let path = Path::new(file);
-        let graph = Graph::new(path.as_os_str().to_ascii_lowercase()).await?;
+        let graph = Graph::new(path.as_os_str().to_ascii_lowercase())?;
 
         Ok(RouteService { graph })
     }

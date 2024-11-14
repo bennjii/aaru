@@ -10,10 +10,10 @@ use std::path::{Path, PathBuf};
 use tokio::runtime::Runtime;
 use tokio::time::Instant;
 
-async fn ingest_and_count() {
+fn ingest_and_count() {
     let timer = Instant::now();
     let path = PathBuf::from(Path::new(DISTRICT_OF_COLUMBIA));
-    let reader = ProcessedElementIterator::new(path).await.expect("!");
+    let reader = ProcessedElementIterator::new(path).expect("!");
 
     let (ways, nodes) = reader.par_red(
         |(ways, nodes), element| match element {
@@ -32,11 +32,11 @@ async fn ingest_and_count() {
     );
 }
 
-async fn ingest_as_full_graph() {
+fn ingest_as_full_graph() {
     let path = Path::new(DISTRICT_OF_COLUMBIA)
         .as_os_str()
         .to_ascii_lowercase();
-    let graph = Graph::new(path).await.expect("Could not generate graph");
+    let graph = Graph::new(path).expect("Could not generate graph");
     info!("Graph generated, size: {}", graph.size());
 }
 
@@ -44,13 +44,9 @@ fn ingestion_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("ingestion_benchmark");
     group.significance_level(0.1).sample_size(30);
 
-    group.bench_function("ingest_and_count", |b| {
-        b.to_async(Runtime::new().expect("Must have runtime"))
-            .iter(|| ingest_and_count())
-    });
+    group.bench_function("ingest_and_count", |b| b.iter(|| ingest_and_count()));
     group.bench_function("ingest_as_full_graph", |b| {
-        b.to_async(Runtime::new().expect("Must have runtime"))
-            .iter(|| ingest_as_full_graph())
+        b.iter(|| ingest_as_full_graph())
     });
     group.finish();
 }

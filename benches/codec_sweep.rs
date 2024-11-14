@@ -9,22 +9,18 @@ use std::path::PathBuf;
 use tokio::runtime::{Handle, Runtime};
 use tokio::task::spawn_blocking;
 
-async fn block_iter_count() {
+fn block_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
-    let mut iter = BlockIterator::new(path)
-        .await
-        .expect("Could not create iterator");
+    let mut iter = BlockIterator::new(path).expect("Could not create iterator");
 
     iter.par_iter().for_each(|item| {
         info!("Block: {:?}", item.type_id());
     });
 }
 
-async fn element_iter_count() {
+fn element_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
-    let iter = ElementIterator::new(path)
-        .await
-        .expect("Could not create iterator");
+    let iter = ElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(
         |item| match item {
@@ -40,11 +36,9 @@ async fn element_iter_count() {
     info!("There are {nodes} nodes");
 }
 
-async fn processed_iter_count() {
+fn processed_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
-    let iter = ProcessedElementIterator::new(path)
-        .await
-        .expect("Could not create iterator");
+    let iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(
         |item| match item {
@@ -62,17 +56,10 @@ fn sweep_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("iterator_sweep");
     group.significance_level(0.1).sample_size(30);
 
-    group.bench_function("block_iter_count", |b| {
-        b.to_async(Runtime::new().expect("Must have runtime"))
-            .iter(|| block_iter_count())
-    });
-    group.bench_function("element_iter_count", |b| {
-        b.to_async(Runtime::new().expect("Must have runtime"))
-            .iter(|| element_iter_count())
-    });
+    group.bench_function("block_iter_count", |b| b.iter(|| block_iter_count()));
+    group.bench_function("element_iter_count", |b| b.iter(|| element_iter_count()));
     group.bench_function("processed_iter_count", |b| {
-        b.to_async(Runtime::new().expect("Must have runtime"))
-            .iter(|| processed_iter_count())
+        b.iter(|| processed_iter_count())
     });
     group.finish();
 }
