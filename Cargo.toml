@@ -1,6 +1,6 @@
 [package]
 name = "aaru"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 readme = "readme.md"
 description = "Actionable Area Routing Utilities for OSM and MVT"
@@ -96,7 +96,7 @@ grpc_server = ["tonic", "tonic-reflection", "tonic-web", "tower-http", "tokio"]
 http_server = ["tower-http", "axum", "axum-macros", "serde_qs", "tokio"]
 
 tile = ["http_server", "fast_hilbert"]
-route = ["scc", "codec"]
+route = ["grpc_server", "scc", "codec"]
 codec = ["flate2"]
 
 all = ["tile", "route", "codec"]
