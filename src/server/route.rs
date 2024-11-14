@@ -74,10 +74,7 @@ impl RouterService for RouteService {
                     })
                     .collect();
 
-                Ok(Response::new(RouteResponse {
-                    cost: cost as u32,
-                    shape,
-                }))
+                Ok(Response::new(RouteResponse { cost, shape }))
             },
         )
     }
@@ -167,7 +164,7 @@ impl RouterService for RouteService {
             dist_to_a.partial_cmp(&dist_to_b).unwrap_or(Ordering::Equal)
         });
 
-        let nearest_point = nearest_points.get(0).map_or(
+        let nearest_point = nearest_points.first().map_or(
             Err(Status::internal("Could not find appropriate point")),
             |(coord, _)| {
                 Ok(Coordinate {

@@ -87,6 +87,10 @@ harness = false
 name = "codec_target"
 harness = false
 
+[[bench]]
+name = "total_ingestion"
+harness = false
+
 [features]
 default = ["codec", "route", "mimalloc"]
 

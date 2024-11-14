@@ -47,6 +47,10 @@ impl Debug for Graph {
 }
 
 impl Graph {
+    pub fn size(&self) -> usize {
+        self.hash.len()
+    }
+
     /// The weighting mapping of node keys to weight.
     pub fn weights<'a>() -> Result<HashMap<&'a str, Weight>, RouteError> {
         let weights: HashMap<&str, Weight> = HashMap::new();

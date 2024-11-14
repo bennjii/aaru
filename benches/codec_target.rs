@@ -37,11 +37,10 @@ async fn iterate_blocks_each() {
 async fn parallel_iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
-    let block_iter = BlockIterator::new(path).await.unwrap();
+    let mut block_iter = BlockIterator::new(path).await.unwrap();
 
     let elements = block_iter
-        .into_iter()
-        .par_bridge()
+        .par_iter()
         .map(|block| match block {
             BlockItem::HeaderBlock(_) => (0, 1),
             BlockItem::PrimitiveBlock(_) => (1, 0),

@@ -1,7 +1,13 @@
 use aaru::codec::consts::SYDNEY;
+use aaru::codec::element::ProcessedElement;
+use aaru::codec::parallel::Parallel;
+use aaru::codec::ProcessedElementIterator;
 use aaru::server::route::router_service::router_service_server::RouterServiceServer;
 use aaru::server::route::{router_service, RouteService};
 use dotenv::dotenv;
+use log::info;
+use std::path::{Path, PathBuf};
+use tokio::time::Instant;
 use tonic::codegen::http::Method;
 use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
@@ -19,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create the router
     #[cfg(feature = "tracing")]
     tracing::info!("Creating Router");
-    let router = RouteService::from_file(SYDNEY).expect("-").await;
+    let router = RouteService::from_file(SYDNEY).await.expect("-");
 
     #[cfg(feature = "tracing")]
     tracing::info!("Router Created");
