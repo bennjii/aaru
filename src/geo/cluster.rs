@@ -5,11 +5,10 @@ use strum::{EnumCount, EnumIter, EnumProperty, VariantArray};
 #[cfg(feature = "tile")]
 use wkt::ToWkt;
 
-#[cfg(feature = "tile")]
-use crate::codec::mvt::Value;
 use crate::geo::coord::point::FeatureKey;
 use crate::geo::error::GeoError;
-use crate::geo::TileItem;
+#[cfg(feature = "tile")]
+use crate::{codec::mvt::Value, geo::TileItem};
 
 #[derive(PartialEq, Clone)]
 pub enum Classification {

@@ -4,12 +4,14 @@
 use crate::codec::blob::item::BlobItem;
 use crate::codec::osm::BlobHeader;
 use crate::codec::BlockItem;
+
 use log::trace;
 use prost::Message;
-use std::fs::File;
-use std::io::{self, BufReader, Read};
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::fs::File;
+use tokio::io;
+use tokio::io::{AsyncReadExt, BufReader};
 
 const HEADER_LEN_SIZE: usize = 4;
 
@@ -21,12 +23,12 @@ pub struct BlobIterator {
 }
 
 impl BlobIterator {
-    pub fn new(path: PathBuf) -> Result<BlobIterator, io::Error> {
-        let file = File::open(path)?;
+    pub async fn new(path: PathBuf) -> Result<BlobIterator, io::Error> {
+        let file = File::open(path).await?;
 
         let mut buf = Vec::new(); // vec![0; file.metadata()?.size() as usize];
         let mut reader = BufReader::new(file);
-        reader.read_to_end(&mut buf)?;
+        reader.read_to_end(&mut buf).await?;
         let buf = Arc::new(buf);
 
         Ok(BlobIterator {

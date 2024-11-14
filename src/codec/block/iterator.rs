@@ -3,12 +3,13 @@
 use crate::codec::blob::iterator::BlobIterator;
 use crate::codec::block::item::BlockItem;
 use crate::codec::BlobItem;
+
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::fs::File;
-use std::io;
-use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::fs::File;
+use tokio::io;
+use tokio::io::{AsyncReadExt, BufReader};
 
 pub struct BlockIterator {
     blobs: Vec<BlobItem>,
@@ -18,12 +19,12 @@ pub struct BlockIterator {
 
 impl BlockIterator {
     #[inline]
-    pub fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
-        let file = File::open(path)?;
+    pub async fn new(path: PathBuf) -> Result<BlockIterator, io::Error> {
+        let file = File::open(path).await?;
 
         let mut buf = Vec::new();
         let mut reader = BufReader::new(file);
-        reader.read_to_end(&mut buf)?;
+        reader.read_to_end(&mut buf).await?;
 
         let buf = Arc::new(buf);
 

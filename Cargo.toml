@@ -42,7 +42,7 @@ tonic-web = {  version = "0.12.3", optional = true }
 
 bytes = { version = "1.8.0", features = ["default"] } # Required for io::Cursor
 prost = { version = "0.13.3"}
-tokio = { version = "1.41.0", features = ["rt", "rt-multi-thread", "macros"], optional = true }
+tokio = { version = "1.41.1", features = ["rt", "rt-multi-thread", "macros", "fs"], optional = true }
 
 # HTTP Server Dependencies [Optional-"http_server"]
 tower-http = { version = "0.6.1", features = ["cors"], optional = true }
@@ -77,7 +77,7 @@ prost-build = { version = "0.13.3"}
 
 [dev-dependencies]
 osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
-criterion = { version = "2.7.2", package = "codspeed-criterion-compat" }
+criterion = { version = "2.7.2", features = ["async_tokio"], package = "codspeed-criterion-compat" }
 
 [[bench]]
 name = "codec_sweep"
