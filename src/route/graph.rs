@@ -36,9 +36,9 @@ const MAX_WEIGHT: Weight = 255 as Weight;
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
-    graph: GraphStructure,
+    pub(crate) graph: GraphStructure,
     pub(crate) index: RTree<Node>,
-    hash: HashMap<NodeIx, Node>,
+    pub(crate) hash: HashMap<NodeIx, Node>,
 }
 
 impl Debug for Graph {

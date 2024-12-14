@@ -3,11 +3,11 @@ use std::ops::{Div, Mul};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
-use geo::{Distance, Haversine, HaversineDistance, Length, LineString, Point, Relate};
+use geo::{Distance, Euclidean, Haversine, HaversineDistance, Length, LineString, Point, Relate};
 use log::{debug, error, info};
-use pathfinding::prelude::dijkstra_partial;
+use pathfinding::prelude::{build_path, dijkstra_partial};
 use petgraph::graph::NodeIndex;
-use petgraph::{Directed, Graph};
+use petgraph::{Directed, Direction, Graph};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rayon::slice::ParallelSlice;
 use scc::HashMap;
@@ -137,93 +137,87 @@ impl<'a> Transition<'a> {
             .collect::<Vec<_>>()
     }
 
-    /// Refines the candidates into TransitionNodes with their respective
-    /// emission and transition probabilities in the hidden markov model.
+    /// Refines a single node within an initial layer to all nodes in the
+    /// following layer with their respective emission and transition
+    /// probabilities in the hidden markov model.
     ///
-    /// Based on the method used in FMM
+    /// Based on the method used in FMM / MM2
     #[inline]
-    fn refine_candidates(&self, left_ix: NodeIndex, right_ix: NodeIndex) -> Option<f64> {
+    fn refine_candidates(
+        &self,
+        left_ix: NodeIndex,
+        right_ixs: &[NodeIndex],
+    ) -> Vec<(NodeIndex, Option<f64>)> {
         let left_candidate = self.candidates.get(&left_ix).unwrap().clone();
-        let right_candidate = self.candidates.get(&right_ix).unwrap().clone();
-
         let left = left_candidate.2;
-        let right = right_candidate.2;
 
         debug!(
-            "Routing from Layer::{}::{} to Layer::{}::{}.",
-            left_candidate.0, left_candidate.1, right_candidate.0, right_candidate.1,
+            "Routing from Layer::{}::{} to Layer::{}::*.",
+            left_candidate.0,
+            left_candidate.1,
+            left_candidate.0 + 1,
         );
-
-        // TODO: Refactor how this works to it can be paralleled.
-        // Now we modify the nodes to refine them
 
         let mut time = Instant::now();
-
-        debug!(
-            "Transition is routing between {} and {}",
-            left.map_edge.0, right.map_edge.0
-        );
-
-        // Routing between these nodes is possibly incorrect...
-        // Since these represent the source node entry of the
-        // gathered nnode- is there a better way to "route" this
-        // maybe seen in FMM, where we consider **WHICH** node
-        // we should be routing from, SINCE it is directional.
         let start = left.map_edge.0;
-        let end = right.map_edge.0;
-
         let threshold_distance = 20.0;
 
-        // let paths = dijkstra_partial(
-        //     &start,
-        //     |node| self.map
-        //         .edges_directed(*node, Direction::Outgoing)
-        //         .map(|(a, b, c)| (a, *c)),
-        //     |node| HaversineDistance::distance(self.map..node.position, right.position) > threshold_distance
-        // ));
+        let (parents, _) = dijkstra_partial(
+            &start,
+            |node| {
+                self.map
+                    .graph
+                    .edges_directed(*node, Direction::Outgoing)
+                    .map(|(a, _, c)| (a, *c))
+            },
+            |node| {
+                // Distance from the start to the current node must not exceede the threshold (UB)
+                Haversine::distance(self.map.hash.get(node).unwrap().position, left.position)
+                    > threshold_distance
+            },
+        );
 
-        if left.map_edge.0 == right.map_edge.1 || right.map_edge.0 == left.map_edge.1 {
-            debug!("Found same edge, skipping route.");
-            return None;
-        }
+        debug!("TIMING: DijkstraPartial=@{}", time.elapsed().as_micros());
 
-        debug!("TIMING: Obtain=@{}", time.elapsed().as_micros());
-        time = Instant::now();
+        let tp = right_ixs
+            .iter()
+            .map(|target| {
+                (
+                    *target,
+                    self.candidates.get(target).map(|candidate| {
+                        let time = Instant::now();
+                        let path = build_path(&candidate.2.map_edge.0, &parents);
+                        debug!(
+                            "TIMING: Route::{}=@{}",
+                            candidate.1,
+                            time.elapsed().as_micros()
+                        );
 
-        let tp = match self.map.route_raw(start, end) {
-            Some((_, nodes)) => {
-                debug!("TIMING: Route=@{}", time.elapsed().as_micros());
-                let direct_distance = Haversine::distance(left.position, right.position);
-                debug!("TIMING: Distance=@{}", time.elapsed().as_micros());
+                        let direct_distance =
+                            Euclidean::distance(left.position, candidate.2.position);
+                        let travel_distance = path
+                            .iter()
+                            .filter_map(|index| self.map.hash.get(index))
+                            .map(|node| node.position)
+                            .collect::<LineString>()
+                            .length::<Haversine>();
 
-                // TODO: Consider doing this by default on route
-                // TODO: Consider returning these nodes to "interpolate" the route
-                let travel_distance = nodes
-                    .iter()
-                    .map(|node| node.position)
-                    .collect::<LineString>()
-                    .length::<Haversine>();
+                        debug!(
+                            "TIMING: Distance::{}=@{}",
+                            candidate.1,
+                            time.elapsed().as_micros()
+                        );
 
-                debug!("TIMING: TravelDistance=@{}", time.elapsed().as_micros());
-
-                // Compare actual distance with straight-line-distance
-                let transition_probability =
-                    Transition::transition_probability(travel_distance, direct_distance);
-
-                debug!("TIMING: CommitChanges=@{}", time.elapsed().as_micros());
-                Some(transition_probability)
-            }
-            None => {
-                debug!("Found no route between nodes.");
-                None
-            }
-        };
+                        Transition::transition_probability(travel_distance, direct_distance)
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
 
         debug!(
-            "TIMING: Full={} ({} -> {})",
+            "TIMING: Full={} ({} -> *)",
             time.elapsed().as_micros(),
             left.position.wkt_string(),
-            right.position.wkt_string()
         );
 
         tp
@@ -319,24 +313,27 @@ impl<'a> Transition<'a> {
             .flat_map(|vectors| {
                 vectors[0]
                     .iter()
-                    .flat_map(|&a| vectors[1].iter().map(move |&b| (a, b)))
+                    .map(|&a| (a, vectors[1].as_slice()))
+                    // .flat_map(|&a| vectors[1].iter().map(move |&b| (a, b)))
                     .collect::<Vec<_>>()
             })
             .map(|(left, right)| {
-                debug!("Refining between {:?} and {:?}...", left, right);
-                (left, right, self.refine_candidates(left, right))
+                // debug!("Refining between {:?} and {:?}...", left, right);
+                (left, self.refine_candidates(left, right))
             })
             .collect::<Vec<_>>();
 
         let route_size = transition_probabilities.len();
-        for (left, right, weight) in transition_probabilities {
-            debug!(
-                "Refined transition between {:?} and {:?} with TP(Weight)={:?}",
-                left, right, weight
-            );
+        for (left, weights) in transition_probabilities {
+            for (right, weight) in weights {
+                // debug!(
+                // "Refined transition between {:?} and {:?} with TP(Weight)={:?}",
+                // left, right, weight
+                // );
 
-            if let Some(weight) = weight {
-                self.graph.write().unwrap().add_edge(left, right, weight);
+                if let Some(weight) = weight {
+                    self.graph.write().unwrap().add_edge(left, right, weight);
+                }
             }
         }
         info!("Made compute for {} total routings.", route_size);
