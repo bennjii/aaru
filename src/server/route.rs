@@ -146,13 +146,13 @@ impl RouterService for RouteService {
             .map_err(|err| Status::internal(format!("{:?}", err)))?;
 
         info!(
-            "Got request for {} for distances <= {}",
+            "Got request for {} for nodes within {} square meters",
             point.wkt_string(),
-            request.quantity
+            request.search_radius
         );
         let mut nearest_points = self
             .graph
-            .nearest_projected_nodes(&point, request.quantity as usize)
+            .nearest_projected_nodes(&point, request.search_radius)
             .collect::<Vec<_>>();
 
         debug!("Found {} points", nearest_points.len());

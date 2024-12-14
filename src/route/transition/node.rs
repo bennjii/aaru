@@ -9,7 +9,7 @@ pub type ImbuedLayer<'t> = Vec<RefCell<TransitionNode<'t>>>;
 
 #[derive(Clone)]
 pub struct TransitionNode<'a> {
-    pub candidate: &'a TransitionCandidate<'a>,
+    pub candidate: &'a TransitionCandidate,
     pub prev_best: Option<&'a RefCell<TransitionNode<'a>>>,
     pub current_path: Box<Vec<Node>>,
     pub emission_probability: f64,
@@ -23,12 +23,16 @@ pub struct RefinedTransitionLayer<'a> {
 }
 
 pub struct TransitionLayer<'a> {
-    pub candidates: Vec<TransitionCandidate<'a>>,
+    pub candidates: Vec<TransitionCandidate>,
     pub segment: TrajectorySegment<'a>,
 }
 
-pub struct TransitionCandidate<'a> {
-    pub index: NodeIx,
-    pub edge: Edge<'a>,
+// Transition probability is kept
+// on the node's edge toward the next/prev
+// in the graph from [`crate::transition`].
+#[derive(Clone, Copy, Debug)]
+pub struct TransitionCandidate {
+    pub map_edge: (NodeIx, NodeIx),
     pub position: Point,
+    pub emission_probability: f64,
 }

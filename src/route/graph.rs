@@ -1,14 +1,15 @@
 use geo::{
-    coord, line_string, Distance, Haversine, LineInterpolatePoint, LineLocatePoint, LineString,
-    Point,
+    coord, line_string, Destination, Distance, Euclidean, Geodesic, Haversine,
+    LineInterpolatePoint, LineLocatePoint, LineString, Point,
 };
 use log::{debug, error, info};
+use pathfinding::prelude::{astar, dijkstra_partial};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rstar::RTree;
-use scc::HashMap;
+use rstar::{RTree, AABB};
+use scc::{Bag, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -36,7 +37,7 @@ const MAX_WEIGHT: Weight = 255 as Weight;
 /// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
     graph: GraphStructure,
-    index: RTree<Node>,
+    pub(crate) index: RTree<Node>,
     hash: HashMap<NodeIx, Node>,
 }
 
@@ -47,6 +48,10 @@ impl Debug for Graph {
 }
 
 impl Graph {
+    pub fn index(&self) -> &RTree<Node> {
+        &self.index
+    }
+
     pub fn size(&self) -> usize {
         self.hash.len()
     }
@@ -182,20 +187,34 @@ impl Graph {
         self.index.nearest_neighbor(&point)
     }
 
+    #[inline]
+    pub fn square_scan(&self, point: &Point, distance: f64) -> Vec<&Node> {
+        let bottom_right = Geodesic::destination(*point, 135.0, distance);
+        let top_left = Geodesic::destination(*point, 315.0, distance);
+        let bbox = AABB::from_corners(top_left, bottom_right);
+
+        self.index().locate_in_envelope(&bbox).collect::<Vec<_>>()
+    }
+
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
-    pub fn nearest_edges(&self, point: &Point) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
-        self.index.nearest_neighbor_iter(point).flat_map(|node|
-                // Find all outgoing edges for the given node
-                self.graph.edges_directed(node.id, Direction::Outgoing))
+    #[inline]
+    pub fn nearest_edges(
+        &self,
+        point: &Point,
+        distance: f64,
+    ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
+        self.square_scan(point, distance)
+            .into_iter()
+            .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
     pub fn nearest_projected_nodes<'a>(
         &'a self,
         point: &'a Point,
-        num: usize,
+        distance: f64,
     ) -> impl Iterator<Item = (Point, Edge<'a>)> + 'a {
-        self.nearest_edges(point)
+        self.nearest_edges(point, distance)
             .filter_map(|edge| {
                 let src = self.hash.get(&edge.source())?;
                 let trg = self.hash.get(&edge.target())?;
@@ -211,7 +230,6 @@ impl Graph {
                     .and_then(|frac| linestring.line_interpolate_point(frac))
                     .map(|point| (point, edge))
             })
-            .take(num)
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
@@ -242,28 +260,55 @@ impl Graph {
         debug!("Routing {} -> {}", start_node, finish_node);
         let final_position = self.hash.get(&finish_node)?.position;
 
-        let (score, path) = petgraph::algo::astar(
-            &self.graph,
-            start_node,
-            |finish| finish == finish_node,
-            |e| *e.weight(),
-            |v| {
+        if let Some((path, score)) = astar(
+            &start_node,
+            |node| {
+                self.graph
+                    .edges_directed(*node, Direction::Outgoing)
+                    .map(|(a, b, c)| (a, *c))
+            },
+            |node| {
                 self.hash
-                    .get(&v)
-                    .map(|v| Haversine::distance(v.position, final_position) as Weight)
+                    .get(node)
+                    .map(|v| Euclidean::distance(v.position, final_position) as Weight)
                     .unwrap_or(0 as Weight)
             },
-        )?;
+            |node| *node == finish_node,
+        ) {
+            let route = path
+                .iter()
+                .filter_map(|v| self.hash.get(v))
+                .map(|e| *e.get())
+                .collect();
 
-        // debug!("Route Obtained. Score={}, PathLength={}", score, path.len());
+            return Some((score, route));
+        }
 
-        let route = path
-            .iter()
-            .filter_map(|v| self.hash.get(v))
-            .map(|e| *e.get())
-            .collect();
+        None
 
-        Some((score, route))
+        // let (score, path) = petgraph::algo::astar(
+        //     &self.graph,
+        //     start_node,
+        //     |finish| finish == finish_node,
+        //     |e| *e.weight(),
+        //     |v| {
+        //         0 as Weight
+        //         // self.hash
+        //         //     .get(&v)
+        //         //     .map(|v| Euclidean::distance(v.position, final_position) as Weight)
+        //         //     .unwrap_or(0 as Weight)
+        //     },
+        // )?;
+
+        // // debug!("Route Obtained. Score={}, PathLength={}", score, path.len());
+
+        // let route = path
+        //     .iter()
+        //     .filter_map(|v| self.hash.get(v))
+        //     .map(|e| *e.get())
+        //     .collect();
+
+        // Some((score, route))
     }
 
     /// Finds the optimal route between a start and end point.
