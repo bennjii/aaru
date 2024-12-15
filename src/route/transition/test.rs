@@ -7,11 +7,12 @@ use std::{
 
 use geo::{
     coord, point, wkt, Coord, Destination, Distance, Geodesic, Haversine, HaversineDestination,
-    MapCoordsInPlace,
+    LineString, MapCoordsInPlace,
 };
 use petgraph::{graph::NodeIndex, Directed, Graph as Petgraph};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rstar::AABB;
+use wkt::ToWkt;
 
 use crate::{codec::consts::SYDNEY, route::Graph};
 
@@ -29,9 +30,11 @@ fn test_transition() {
 
     let now = Instant::now();
     let transition = Transition::new(&GLOBAL_GRAPH);
+
     let linestring = wkt! {
-        LINESTRING (151.19462 -33.885309, 151.193783 -33.887126, 151.189685 -33.890243, 151.185329 -33.892915, 151.179487 -33.896864, 151.178023 -33.898694, 151.179283 -33.902523, 151.181273 -33.906295, 151.184916 -33.907203, 151.187641 -33.906851, 151.189315 -33.905061, 151.192024 -33.902145, 151.19432 -33.899576, 151.194438 -33.898957, 151.19425 -33.898556)
+        LINESTRING (151.19462 -33.885309, 151.193783 -33.887126,151.189685 -33.890243, 151.185329 -33.892915, 151.179487 -33.896864, 151.178023 -33.898694, 151.179283 -33.902523, 151.181273 -33.906295, 151.184916 -33.907203, 151.187641 -33.906851, 151.189315 -33.905061, 151.192024 -33.902145, 151.19432 -33.899576, 151.194438 -33.898957, 151.19425 -33.898556)
     };
+
     println!(
         "[TRANSITION] Init. Elapsed: {}us (us = 0.001 ms)",
         now.elapsed().as_micros()
@@ -42,6 +45,15 @@ fn test_transition() {
     println!(
         "[TRANSITION] Backtracked. Elapsed: {}us (us = 0.001 ms)",
         now.elapsed().as_micros()
+    );
+
+    println!(
+        "[TRANSITION] Backtracked. {}",
+        points
+            .iter()
+            .map(|v| v.position)
+            .collect::<LineString>()
+            .wkt_string()
     );
 
     assert!(points.len() > 1);

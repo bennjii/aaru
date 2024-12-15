@@ -1,11 +1,20 @@
+use std::collections::HashMap as StandardHashMap;
 use std::f64::consts::E;
-use std::ops::{Div, Mul};
+use std::fs::File;
+use std::hash::Hash;
+use std::io::Write;
+use std::ops::{Deref, Div, Mul};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
-use geo::{Distance, Euclidean, Haversine, HaversineDistance, Length, LineString, Point, Relate};
+use geo::{
+    point, Distance, Euclidean, GeometryCollection, HasDimensions, Haversine, HaversineDistance,
+    Length, LineString, MultiLineString, MultiPoint, Point, Relate, Simplify, SimplifyVw,
+};
 use log::{debug, error, info};
-use pathfinding::prelude::{build_path, dijkstra_partial};
+use pathfinding::prelude::{
+    build_path, dijkstra_partial, dijkstra_reach, DijkstraReachable, DijkstraReachableItem,
+};
 use petgraph::graph::NodeIndex;
 use petgraph::{Directed, Direction, Graph};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -13,6 +22,7 @@ use rayon::slice::ParallelSlice;
 use scc::HashMap;
 use wkt::ToWkt;
 
+use crate::route::graph::NodeIx;
 use crate::route::transition::node::TransitionCandidate;
 use crate::route::Graph as RouteGraph;
 
@@ -41,6 +51,27 @@ const DEFAULT_ERROR: f64 = 20f64;
 
 type LayerId = usize;
 type NodeId = usize;
+
+#[derive(Clone, Copy, Debug)]
+struct TransitionPair<K>
+where
+    K: Into<f64> + Div<Output = K> + PartialOrd,
+{
+    shortest_distance: K,
+    path_length: K,
+}
+
+/// A 0.0-1.0 probability of transitioning from one node to another
+#[derive(Clone, Copy, Debug)]
+pub struct TransitionProbability(pub(crate) f64);
+
+impl Deref for TransitionProbability {
+    type Target = f64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 pub struct Transition<'a> {
     map: &'a RouteGraph,
@@ -80,14 +111,35 @@ impl<'a> Transition<'a> {
     /// Calculates the transition probability of between two candidates
     /// given the `shortest_dist` between them, and the `euclidean_dist`
     /// of the segment we are transitioning over
-    pub(crate) fn transition_probability<K: Into<f64>, T: Div<Output = K> + PartialOrd>(
-        shortest_dist: T,
-        euclidean_dist: T,
-    ) -> f64 {
-        match euclidean_dist >= shortest_dist {
-            true => 1.0f64,
-            false => (euclidean_dist / shortest_dist).into(),
+    pub fn transition_probability<K: Into<f64> + Div<Output = K> + PartialOrd>(
+        pair: TransitionPair<K>,
+    ) -> TransitionProbability {
+        match pair.shortest_distance >= pair.path_length {
+            true => TransitionProbability(1.0f64),
+            false => TransitionProbability((pair.shortest_distance / pair.path_length).into()),
         }
+    }
+
+    /// May return None if a cycle is detected.
+    pub(crate) fn context_aware_pathbuilder<N, C>(
+        target: &N,
+        parents: &StandardHashMap<N, (N, C)>,
+    ) -> Option<Vec<N>>
+    where
+        N: Eq + Hash + Copy,
+    {
+        let mut rev = vec![*target];
+        let mut next = target;
+        while let Some((parent, _)) = parents.get(next) {
+            if rev.contains(parent) {
+                return None;
+            }
+
+            rev.push(*parent);
+            next = parent;
+        }
+        rev.reverse();
+        Some(rev)
     }
 
     /// Generates the layers of the transition graph, where each layer
@@ -102,7 +154,7 @@ impl<'a> Transition<'a> {
             .enumerate()
             .map(|(layer_id, point)| {
                 self.map
-                    // We'll do a best-effort 100m2 search (square) radius
+                    // We'll do a best-effort search (square) radius
                     .nearest_projected_nodes(point, distance)
                     .enumerate()
                     .map(|(node_id, (position, map_edge))| {
@@ -120,15 +172,9 @@ impl<'a> Transition<'a> {
                         };
 
                         let node_index = self.graph.write().unwrap().add_node(position);
-                        if let Err(error) = self
+                        let _ = self
                             .candidates
-                            .insert(node_index, (layer_id, node_id, candidate))
-                        {
-                            error!(
-                                "Failed to insert candidate transition probability. Error={:?}",
-                                error
-                            );
-                        }
+                            .insert(node_index, (layer_id, node_id, candidate));
 
                         node_index
                     })
@@ -147,7 +193,7 @@ impl<'a> Transition<'a> {
         &self,
         left_ix: NodeIndex,
         right_ixs: &[NodeIndex],
-    ) -> Vec<(NodeIndex, Option<f64>)> {
+    ) -> Vec<(NodeIndex, TransitionProbability, Vec<i64>)> {
         let left_candidate = self.candidates.get(&left_ix).unwrap().clone();
         let left = left_candidate.2;
 
@@ -158,61 +204,181 @@ impl<'a> Transition<'a> {
             left_candidate.0 + 1,
         );
 
-        let mut time = Instant::now();
+        let time = Instant::now();
         let start = left.map_edge.0;
-        let threshold_distance = 20.0;
+        let threshold_distance = 3_000;
 
-        let (parents, _) = dijkstra_partial(
-            &start,
-            |node| {
-                self.map
-                    .graph
-                    .edges_directed(*node, Direction::Outgoing)
-                    .map(|(a, _, c)| (a, *c))
-            },
-            |node| {
-                // Distance from the start to the current node must not exceede the threshold (UB)
-                Haversine::distance(self.map.hash.get(node).unwrap().position, left.position)
-                    > threshold_distance
-            },
-        );
+        let reach = dijkstra_reach(&start, |node, a| {
+            self.map
+                .graph
+                .edges_directed(*node, Direction::Outgoing)
+                .map(|(_, next, w)| {
+                    (
+                        next,
+                        // (a as i64) + ...
+                        *w, // Haversine::distance(
+                           //     self.map.hash.get(node).unwrap().position,
+                           //     self.map.hash.get(&next).unwrap().position,
+                           // ) as u32, // Total accrued distance
+                    )
+                })
+                .collect::<Vec<_>>()
+        });
 
-        debug!("TIMING: DijkstraPartial=@{}", time.elapsed().as_micros());
+        debug!("Created reach.");
 
-        let tp = right_ixs
-            .iter()
-            .map(|target| {
+        // WHEN NO LONGER NEEDING PATHS, THIS CAN BE GREATLY SHORTENED (INLINED)
+        //
+
+        let probabilities = reach
+            .map(|predicate| {
                 (
-                    *target,
-                    self.candidates.get(target).map(|candidate| {
-                        let time = Instant::now();
-                        let path = build_path(&candidate.2.map_edge.0, &parents);
-                        debug!(
-                            "TIMING: Route::{}=@{}",
-                            candidate.1,
-                            time.elapsed().as_micros()
-                        );
-
-                        let direct_distance =
-                            Euclidean::distance(left.position, candidate.2.position);
-                        let travel_distance = path
-                            .iter()
-                            .filter_map(|index| self.map.hash.get(index))
-                            .map(|node| node.position)
-                            .collect::<LineString>()
-                            .length::<Haversine>();
-
-                        debug!(
-                            "TIMING: Distance::{}=@{}",
-                            candidate.1,
-                            time.elapsed().as_micros()
-                        );
-
-                        Transition::transition_probability(travel_distance, direct_distance)
-                    }),
+                    predicate.clone(),
+                    Haversine::distance(
+                        left.position,
+                        self.map.hash.get(&predicate.node).unwrap().position,
+                    ) as u32,
                 )
             })
-            .collect::<Vec<_>>();
+            .take_while(|(_, distance)| *distance < threshold_distance)
+            .map(|(k, j)| {
+                (
+                    k.node,
+                    (
+                        // Invalid position so the build_path function
+                        // will terminate as the found call will return None
+                        k.parent.unwrap_or(-1),
+                        TransitionPair {
+                            shortest_distance: j as f64,
+                            path_length: k.total_cost as f64,
+                        },
+                    ),
+                )
+            })
+            .collect::<StandardHashMap<i64, (i64, TransitionPair<f64>)>>();
+
+        debug!(
+            "Generated {} parent possibilities to pair with.",
+            probabilities.len()
+        );
+
+        let mut vector = vec![];
+
+        vector.push((
+            self.map.hash.get(&left.map_edge.0).unwrap().position,
+            vec![],
+        ));
+
+        probabilities.iter().for_each(|(_, (key, _))| {
+            vector.push((
+                self.map
+                    .hash
+                    .get(key)
+                    .map(|e| e.position)
+                    .unwrap_or(point! {x: 0.0, y: 0.0}),
+                build_path(key, &probabilities),
+            ));
+        });
+
+        // END OF DEBUG: START PROCESSING...
+
+        let paths = right_ixs
+            .into_iter()
+            .filter_map(|key| {
+                self.candidates.get(key).and_then(|candidate| {
+                    probabilities
+                        .get(&candidate.2.map_edge.0)
+                        .map(|(_parent, prob)| (key, (candidate.2.map_edge.0, prob)))
+                })
+            })
+            .filter_map(|(key, (to, pair))| {
+                let path = Transition::context_aware_pathbuilder(&to, &probabilities);
+                Some((key, pair, path?))
+            })
+            .map(|(right, lengths, path)| {
+                (*right, Transition::transition_probability(*lengths), path)
+            })
+            .collect::<Vec<(NodeIndex, TransitionProbability, Vec<i64>)>>();
+
+        // let (points, lines): (Vec<Point>, Vec<Vec<i64>>) = vector.into_iter().unzip();
+        // debug!(
+        //     "OutgoingLines=\nGEOMETRYCOLLECTION({}, {})",
+        //     points.into_iter().collect::<MultiPoint>().wkt_string(),
+        //     lines
+        //         .iter()
+        //         .map(|path| {
+        //             path.into_iter()
+        //                 .filter_map(|index| self.map.hash.get(index).map(|p| p.position))
+        //                 .filter(|line| !line.is_empty())
+        //                 .collect::<LineString>()
+        //         })
+        //         .collect::<MultiLineString>()
+        //         .wkt_string()
+        // );
+
+        debug!(
+            "Success rate of {}/{}={}",
+            paths.len(),
+            probabilities.len(),
+            paths.len() as f64 / probabilities.len() as f64
+        );
+
+        // debug!(
+        //     "TIMING: DijkstraPartial=@{} (Size={})",
+        //     time.elapsed().as_micros(),
+        //     parents.len()
+        // );
+
+        // let tp = right_ixs
+        //     .iter()
+        //     .map(|target| {
+        //         (
+        //             *target,
+        //             self.candidates.get(target).map(|candidate| {
+        //                 let target = candidate.2;
+        //                 if !parents.contains_key(&target.map_edge.0) {
+        //                     // debug!("Doesnt contain the key.");
+        //                     return (0.0f64, vec![]);
+        //                 }
+
+        //                 // debug!("DOES contain the key.");
+
+        //                 let time = Instant::now();
+        //                 let path = build_path(&target.map_edge.0, &parents);
+        //                 // debug!(
+        //                 //     "TIMING: Route::{}=@{}",
+        //                 //     candidate.1,
+        //                 //     time.elapsed().as_micros()
+        //                 // );
+
+        //                 let direct_distance =
+        //                     Haversine::distance(left.position, candidate.2.position);
+        //                 let travel_distance = path
+        //                     .iter()
+        //                     .filter_map(|index| self.map.hash.get(index))
+        //                     .map(|node| node.position)
+        //                     .collect::<LineString>()
+        //                     .length::<Haversine>();
+
+        //                 // debug!(
+        //                 //     "TIMING: Distance::{}=@{}",
+        //                 //     candidate.1,
+        //                 //     time.elapsed().as_micros()
+        //                 // );
+        //                 //
+        //                 // debug!(
+        //                 // "Direct={}. Travel={}. StartNode={start}",
+        //                 // direct_distance, travel_distance
+        //                 // );
+        //                 let p =
+        //                     Transition::transition_probability(travel_distance, direct_distance);
+
+        //                 (p, path)
+        //             }),
+        //         )
+        //     })
+        //     // .inspect(|element| debug!("=> {:?}", element))
+        //     .collect::<Vec<_>>();
 
         debug!(
             "TIMING: Full={} ({} -> *)",
@@ -220,12 +386,12 @@ impl<'a> Transition<'a> {
             left.position.wkt_string(),
         );
 
-        tp
+        paths
     }
 
     /// Collapses transition layers, `layers`, into a single vector of
     /// the finalised points
-    fn collapse(&self, start: NodeIndex, end: NodeIndex) -> Vec<Point> {
+    fn collapse(&self, start: NodeIndex, end: NodeIndex) -> Vec<NodeIndex> {
         // Use the internal graph to backtrack using dijkstras.
         // Make sure to add the start and end positions which are used
         // to trace between as the target end-position. We're essentially
@@ -239,11 +405,7 @@ impl<'a> Transition<'a> {
             petgraph::algo::astar(&*graph, start, |node| node == end, |e| *e.weight(), |_| 0.0)
         {
             debug!("Minimal trip found with score of {score}.");
-            return path
-                .iter()
-                .filter_map(|node| self.candidates.get(node))
-                .map(|can| can.2.position)
-                .collect::<Vec<_>>();
+            return path;
         }
 
         // Return no points by default
@@ -255,7 +417,7 @@ impl<'a> Transition<'a> {
     /// its prior most appropriate points
     ///
     /// Consumes the graph.
-    pub fn backtrack(self, linestring: LineString, distance: f64) -> Vec<Point> {
+    pub fn backtrack(self, linestring: LineString, distance: f64) -> Vec<TransitionCandidate> {
         let time = Instant::now();
         debug!("BACKTRACK::TIMING:: Start=@{}", time.elapsed().as_micros());
 
@@ -269,6 +431,17 @@ impl<'a> Transition<'a> {
             "BACKTRACK::TIMING:: GeneratedPoints=@{}",
             time.elapsed().as_micros()
         );
+
+        let all_points = layers
+            .iter()
+            .flat_map(|candidates| {
+                candidates.iter().filter_map(|candidate| {
+                    self.candidates.get(candidate).map(|node| node.2.position)
+                })
+            })
+            .collect::<MultiPoint>();
+
+        info!("WKT(PTS)={}", all_points.wkt_string());
 
         // Add in the start and end points to the graph
         let (source, target) = {
@@ -323,17 +496,47 @@ impl<'a> Transition<'a> {
             })
             .collect::<Vec<_>>();
 
+        let all_lines = transition_probabilities
+            .iter()
+            .flat_map(|(candidate, vec)| {
+                vec.iter()
+                    .map(|(_, _, nix)| {
+                        nix.iter()
+                            .filter_map(|n| {
+                                self.map.hash.get(n).map(|k| k.position).or_else(|| {
+                                    debug!("!!: Can't find key n={n}");
+                                    None
+                                })
+                            })
+                            .collect::<LineString>()
+                    })
+                    .filter(|line| !line.is_empty())
+            })
+            .collect::<MultiLineString>();
+
+        // File::create("output.txt")
+        //     .unwrap()
+        //     .write_all(all_lines.wkt_string().as_bytes())
+        //     .unwrap();
+
+        info!("WKT(LS)={}", all_lines.wkt_string());
+
         let route_size = transition_probabilities.len();
+        let mut map: HashMap<(NodeIndex, NodeIndex), (TransitionProbability, Vec<NodeIx>)> =
+            HashMap::new();
         for (left, weights) in transition_probabilities {
-            for (right, weight) in weights {
+            for (right, weight, path) in weights {
+                map.insert((left, right), (weight, path))
+                    .expect("TODO: panic message");
                 // debug!(
-                // "Refined transition between {:?} and {:?} with TP(Weight)={:?}",
-                // left, right, weight
+                //     "Refined transition between {:?} and {:?} with TP(Weight)={:?}",
+                //     left, right, weight
                 // );
 
-                if let Some(weight) = weight {
-                    self.graph.write().unwrap().add_edge(left, right, weight);
-                }
+                self.graph
+                    .write()
+                    .unwrap()
+                    .add_edge(left, right, 1f64 - weight.deref());
             }
         }
         info!("Made compute for {} total routings.", route_size);
@@ -352,6 +555,29 @@ impl<'a> Transition<'a> {
             time.elapsed().as_micros()
         );
 
+        let total_linestring = collapsed
+            .windows(2)
+            .filter_map(|candidate| {
+                if let [a, b] = candidate {
+                    return map.get(&(*a, *b)).or_else(|| map.get(&(*b, *a))).map(|pp| {
+                        pp.1.iter()
+                            .filter_map(|index| self.map.hash.get(index))
+                            .map(|node| node.position)
+                            .collect::<Vec<_>>()
+                    });
+                }
+
+                None
+            })
+            .flatten()
+            .collect::<LineString>();
+
+        debug!("Total Route: {}", total_linestring.wkt_string());
+
         collapsed
+            .iter()
+            .filter_map(|node| self.candidates.get(node))
+            .map(|can| can.2)
+            .collect::<Vec<_>>()
     }
 }

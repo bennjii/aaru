@@ -12,12 +12,17 @@ pub struct Way {
     #[allow(unused)]
     id: i64,
     road_tag: Option<String>,
+    one_way: bool,
     refs: Vec<i64>,
 }
 
 impl Way {
     pub fn is_road(&self) -> bool {
         self.road_tag.is_some()
+    }
+
+    pub fn is_one_way(&self) -> bool {
+        self.one_way
     }
 
     pub fn refs(&self) -> &Vec<i64> {
@@ -36,6 +41,7 @@ impl Way {
                 prior
             }),
             road_tag: value.road_tag(block),
+            one_way: value.one_way(block),
         }
     }
 }
@@ -65,6 +71,7 @@ const VALID_ROADWAYS: [&str; 12] = [
 ];
 
 impl osm::Way {
+    #[inline]
     pub fn road_tag(&self, block: &PrimitiveBlock) -> Option<String> {
         self.keys
             .iter()
@@ -77,5 +84,20 @@ impl osm::Way {
             })
             .find(|(key, value)| key == "highway" && VALID_ROADWAYS.contains(&value.as_str()))
             .map(|(_, value)| value)
+    }
+
+    #[inline]
+    pub fn one_way(&self, block: &PrimitiveBlock) -> bool {
+        self.keys
+            .iter()
+            .zip(self.vals.iter())
+            .map(|(&k, &v)| {
+                (
+                    make_string(k as usize, block),
+                    make_string(v as usize, block),
+                )
+            })
+            .find(|(key, _)| key == "oneway")
+            .map_or(false, |(_, value)| value == "yes")
     }
 }

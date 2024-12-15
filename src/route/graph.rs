@@ -116,6 +116,9 @@ impl Graph {
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
                                 global_graph.lock().unwrap().add_edge(*a, *b, weight);
+                                if !way.is_one_way() {
+                                    global_graph.lock().unwrap().add_edge(*b, *a, weight);
+                                }
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
                             }
@@ -246,7 +249,7 @@ impl Graph {
         points
             .iter()
             .map(|coord| {
-                let (lng, lat) = coord.x_y();
+                let (lng, lat) = coord.position.x_y();
                 coord! { x: lng, y: lat }
             })
             .collect::<LineString>()
