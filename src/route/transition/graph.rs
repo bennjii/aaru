@@ -16,6 +16,7 @@ use pathfinding::prelude::{
     build_path, dijkstra_partial, dijkstra_reach, DijkstraReachable, DijkstraReachableItem,
 };
 use petgraph::graph::NodeIndex;
+use petgraph::visit::{EdgeRef, NodeRef};
 use petgraph::{Directed, Direction, Graph};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rayon::slice::ParallelSlice;
@@ -76,7 +77,7 @@ impl Deref for TransitionProbability {
 pub struct Transition<'a> {
     map: &'a RouteGraph,
     // keep in mind we dont need layerid and nodeid, but theyre useful for debugging so we'll keep for now.
-    graph: Arc<RwLock<Graph<Point, f64, Directed>>>,
+    graph: Arc<RwLock<Graph<(Point, f64), f64, Directed>>>,
     candidates: HashMap<NodeIndex, (LayerId, NodeId, TransitionCandidate)>,
     error: Option<f64>,
 }
@@ -121,10 +122,7 @@ impl<'a> Transition<'a> {
     }
 
     /// May return None if a cycle is detected.
-    pub(crate) fn context_aware_pathbuilder<N, C>(
-        target: &N,
-        parents: &StandardHashMap<N, (N, C)>,
-    ) -> Option<Vec<N>>
+    pub(crate) fn pathbuilder<N, C>(target: &N, parents: &StandardHashMap<N, (N, C)>) -> Vec<N>
     where
         N: Eq + Hash + Copy,
     {
@@ -132,14 +130,15 @@ impl<'a> Transition<'a> {
         let mut next = target;
         while let Some((parent, _)) = parents.get(next) {
             if rev.contains(parent) {
-                return None;
+                debug!("Cycle detected (!!).");
+                return vec![];
             }
 
             rev.push(*parent);
             next = parent;
         }
         rev.reverse();
-        Some(rev)
+        rev
     }
 
     /// Generates the layers of the transition graph, where each layer
@@ -171,7 +170,12 @@ impl<'a> Transition<'a> {
                             emission_probability,
                         };
 
-                        let node_index = self.graph.write().unwrap().add_node(position);
+                        // Refactor to add candidate and remove extra candidate holding.
+                        let node_index = self
+                            .graph
+                            .write()
+                            .unwrap()
+                            .add_node((position, emission_probability));
                         let _ = self
                             .candidates
                             .insert(node_index, (layer_id, node_id, candidate));
@@ -206,26 +210,24 @@ impl<'a> Transition<'a> {
 
         let time = Instant::now();
         let start = left.map_edge.0;
-        let threshold_distance = 3_000;
+        let threshold_distance = 1_000;
 
         let reach = dijkstra_reach(&start, |node, a| {
             self.map
                 .graph
                 .edges_directed(*node, Direction::Outgoing)
-                .map(|(_, next, w)| {
+                .map(|(_, next, _w)| {
                     (
                         next,
                         // (a as i64) + ...
-                        *w, // Haversine::distance(
-                           //     self.map.hash.get(node).unwrap().position,
-                           //     self.map.hash.get(&next).unwrap().position,
-                           // ) as u32, // Total accrued distance
+                        Haversine::distance(
+                            self.map.hash.get(node).unwrap().position,
+                            self.map.hash.get(&next).unwrap().position,
+                        ) as u32, // Total accrued distance
                     )
                 })
                 .collect::<Vec<_>>()
         });
-
-        debug!("Created reach.");
 
         // WHEN NO LONGER NEEDING PATHS, THIS CAN BE GREATLY SHORTENED (INLINED)
         //
@@ -291,10 +293,7 @@ impl<'a> Transition<'a> {
                         .map(|(_parent, prob)| (key, (candidate.2.map_edge.0, prob)))
                 })
             })
-            .filter_map(|(key, (to, pair))| {
-                let path = Transition::context_aware_pathbuilder(&to, &probabilities);
-                Some((key, pair, path?))
-            })
+            .map(|(key, (to, pair))| (key, pair, Transition::pathbuilder(&to, &probabilities)))
             .map(|(right, lengths, path)| {
                 (*right, Transition::transition_probability(*lengths), path)
             })
@@ -323,63 +322,6 @@ impl<'a> Transition<'a> {
             paths.len() as f64 / probabilities.len() as f64
         );
 
-        // debug!(
-        //     "TIMING: DijkstraPartial=@{} (Size={})",
-        //     time.elapsed().as_micros(),
-        //     parents.len()
-        // );
-
-        // let tp = right_ixs
-        //     .iter()
-        //     .map(|target| {
-        //         (
-        //             *target,
-        //             self.candidates.get(target).map(|candidate| {
-        //                 let target = candidate.2;
-        //                 if !parents.contains_key(&target.map_edge.0) {
-        //                     // debug!("Doesnt contain the key.");
-        //                     return (0.0f64, vec![]);
-        //                 }
-
-        //                 // debug!("DOES contain the key.");
-
-        //                 let time = Instant::now();
-        //                 let path = build_path(&target.map_edge.0, &parents);
-        //                 // debug!(
-        //                 //     "TIMING: Route::{}=@{}",
-        //                 //     candidate.1,
-        //                 //     time.elapsed().as_micros()
-        //                 // );
-
-        //                 let direct_distance =
-        //                     Haversine::distance(left.position, candidate.2.position);
-        //                 let travel_distance = path
-        //                     .iter()
-        //                     .filter_map(|index| self.map.hash.get(index))
-        //                     .map(|node| node.position)
-        //                     .collect::<LineString>()
-        //                     .length::<Haversine>();
-
-        //                 // debug!(
-        //                 //     "TIMING: Distance::{}=@{}",
-        //                 //     candidate.1,
-        //                 //     time.elapsed().as_micros()
-        //                 // );
-        //                 //
-        //                 // debug!(
-        //                 // "Direct={}. Travel={}. StartNode={start}",
-        //                 // direct_distance, travel_distance
-        //                 // );
-        //                 let p =
-        //                     Transition::transition_probability(travel_distance, direct_distance);
-
-        //                 (p, path)
-        //             }),
-        //         )
-        //     })
-        //     // .inspect(|element| debug!("=> {:?}", element))
-        //     .collect::<Vec<_>>();
-
         debug!(
             "TIMING: Full={} ({} -> *)",
             time.elapsed().as_micros(),
@@ -401,9 +343,13 @@ impl<'a> Transition<'a> {
         //
 
         let graph = self.graph.read().unwrap();
-        if let Some((score, path)) =
-            petgraph::algo::astar(&*graph, start, |node| node == end, |e| *e.weight(), |_| 0.0)
-        {
+        if let Some((score, path)) = petgraph::algo::astar(
+            &*graph,
+            start,
+            |node| node == end,
+            |e| *e.weight() + graph.node_weight(e.target()).map_or(0.0, |v| v.1),
+            |_| 0.0,
+        ) {
             debug!("Minimal trip found with score of {score}.");
             return path;
         }
@@ -441,17 +387,17 @@ impl<'a> Transition<'a> {
             })
             .collect::<MultiPoint>();
 
-        info!("WKT(PTS)={}", all_points.wkt_string());
+        // info!("WKT(PTS)={}", all_points.wkt_string());
 
         // Add in the start and end points to the graph
         let (source, target) = {
             let mut graph = self.graph.write().unwrap();
-            let source = graph.add_node(start);
+            let source = graph.add_node((start, 0.0));
             layers.first().unwrap().iter().for_each(|node| {
                 graph.add_edge(source, *node, 0.0f64);
             });
 
-            let target = graph.add_node(end);
+            let target = graph.add_node((end, 0.0));
             layers.last().unwrap().iter().for_each(|node| {
                 graph.add_edge(*node, target, 0.0f64);
             });
@@ -496,30 +442,27 @@ impl<'a> Transition<'a> {
             })
             .collect::<Vec<_>>();
 
-        let all_lines = transition_probabilities
-            .iter()
-            .flat_map(|(candidate, vec)| {
-                vec.iter()
-                    .map(|(_, _, nix)| {
-                        nix.iter()
-                            .filter_map(|n| {
-                                self.map.hash.get(n).map(|k| k.position).or_else(|| {
-                                    debug!("!!: Can't find key n={n}");
-                                    None
-                                })
-                            })
-                            .collect::<LineString>()
-                    })
-                    .filter(|line| !line.is_empty())
-            })
-            .collect::<MultiLineString>();
+        // let all_lines = transition_probabilities
+        //     .iter()
+        //     .flat_map(|(candidate, vec)| {
+        //         vec.iter()
+        //             .map(|(_, _, nix)| {
+        //                 nix.iter()
+        //                     .filter_map(|n| {
+        //                         self.map.hash.get(n).map(|k| k.position).or_else(|| None)
+        //                     })
+        //                     .collect::<LineString>()
+        //             })
+        //             .filter(|line| !line.is_empty())
+        //     })
+        //     .collect::<MultiLineString>();
 
         // File::create("output.txt")
         //     .unwrap()
         //     .write_all(all_lines.wkt_string().as_bytes())
         //     .unwrap();
 
-        info!("WKT(LS)={}", all_lines.wkt_string());
+        // info!("WKT(LS)={}", all_lines.wkt_string());
 
         let route_size = transition_probabilities.len();
         let mut map: HashMap<(NodeIndex, NodeIndex), (TransitionProbability, Vec<NodeIx>)> =
@@ -532,11 +475,21 @@ impl<'a> Transition<'a> {
                 //     "Refined transition between {:?} and {:?} with TP(Weight)={:?}",
                 //     left, right, weight
                 // );
+                //
 
+                let normalised_ep = self
+                    .candidates
+                    .get(&left)
+                    .unwrap()
+                    .2
+                    .emission_probability
+                    .log10();
+                // TODO: Re-integrate EP
+                let normalised_tp = -weight.deref().log10();
                 self.graph
                     .write()
                     .unwrap()
-                    .add_edge(left, right, 1f64 - weight.deref());
+                    .add_edge(left, right, normalised_tp);
             }
         }
         info!("Made compute for {} total routings.", route_size);

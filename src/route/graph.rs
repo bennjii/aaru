@@ -9,7 +9,7 @@ use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rstar::{RTree, AABB};
-use scc::{Bag, HashMap};
+use scc::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::Mutex;
