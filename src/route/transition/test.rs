@@ -1,14 +1,11 @@
 use std::{
     path::Path,
     sync::{Arc, LazyLock, Mutex},
-    thread::sleep,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
-use geo::{
-    coord, point, wkt, Coord, Destination, Distance, Geodesic, Haversine, HaversineDestination,
-    LineString, MapCoordsInPlace,
-};
+use geo::{wkt, Destination, Distance, Geodesic, Haversine, LineString};
+use log::debug;
 use petgraph::{graph::NodeIndex, Directed, Graph as Petgraph};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rstar::AABB;
@@ -23,9 +20,23 @@ static GLOBAL_GRAPH: LazyLock<Graph> = LazyLock::new(|| {
     Graph::new(path.as_os_str().to_ascii_lowercase()).expect("Couldn't create graph.")
 });
 
-#[test]
-fn test_transition() {
+#[tokio::test]
+async fn test_transition() {
     env_logger::init();
+
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        for deadlock in parking_lot::deadlock::check_deadlock() {
+            for deadlock in deadlock {
+                println!(
+                    "Found a deadlock! {}:\n{:?}",
+                    deadlock.thread_id(),
+                    deadlock.backtrace()
+                );
+            }
+        }
+    });
+
     println!("Graph Created. Transitioning...");
 
     let now = Instant::now();
@@ -41,7 +52,7 @@ fn test_transition() {
     );
 
     let now = Instant::now();
-    let points = transition.backtrack(linestring, 100.0);
+    let points = transition.backtrack(linestring, 50.0);
     println!(
         "[TRANSITION] Backtracked. Elapsed: {}us (us = 0.001 ms)",
         now.elapsed().as_micros()
@@ -120,7 +131,6 @@ fn test_par_layers() {
     type LayerId = usize;
     type NodeId = usize;
 
-    let now = Instant::now();
     let path = Path::new(SYDNEY);
     let graph = Graph::new(path.as_os_str().to_ascii_lowercase()).expect("Couldn't create graph.");
 

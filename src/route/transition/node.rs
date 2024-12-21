@@ -2,7 +2,7 @@ use geo::Point;
 use std::cell::RefCell;
 
 use crate::codec::element::variants::Node;
-use crate::route::graph::{Edge, NodeIx};
+use crate::route::graph::NodeIx;
 use crate::route::transition::segment::TrajectorySegment;
 
 pub type ImbuedLayer<'t> = Vec<RefCell<TransitionNode<'t>>>;

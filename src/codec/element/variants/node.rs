@@ -2,8 +2,7 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use geo::{point, Destination, Distance, Euclidean, Geodesic, Haversine, Point};
-use rstar::primitives::CachedEnvelope;
+use geo::{point, Destination, Distance, Euclidean, Geodesic, Point};
 use rstar::{Envelope, AABB};
 use std::ops::{Add, Mul};
 

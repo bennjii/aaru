@@ -2,9 +2,8 @@ use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 use aaru::codec::{BlockItem, BlockIterator};
 use criterion::criterion_main;
 use log::error;
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::ParallelIterator;
 use std::path::PathBuf;
-use tokio::runtime::Runtime;
 
 fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);

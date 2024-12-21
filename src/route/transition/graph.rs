@@ -1,24 +1,19 @@
 use std::collections::HashMap as StandardHashMap;
 use std::f64::consts::E;
-use std::fs::File;
 use std::hash::Hash;
-use std::io::Write;
-use std::ops::{Deref, Div, Mul};
-use std::sync::{Arc, Mutex, RwLock};
+use std::ops::{self, Deref, Div, Mul};
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
-use geo::{
-    point, Distance, Euclidean, GeometryCollection, HasDimensions, Haversine, HaversineDistance,
-    Length, LineString, MultiLineString, MultiPoint, Point, Relate, Simplify, SimplifyVw,
-};
-use log::{debug, error, info};
-use pathfinding::prelude::{
-    build_path, dijkstra_partial, dijkstra_reach, DijkstraReachable, DijkstraReachableItem,
-};
+use geo::{point, Distance, Haversine, LineString, Point};
+use log::{debug, info};
+use pathfinding::prelude::{build_path, dijkstra_reach};
 use petgraph::graph::NodeIndex;
-use petgraph::visit::{EdgeRef, NodeRef};
+use petgraph::visit::EdgeRef;
 use petgraph::{Directed, Direction, Graph};
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
 use rayon::slice::ParallelSlice;
 use scc::HashMap;
 use wkt::ToWkt;
@@ -129,11 +124,6 @@ impl<'a> Transition<'a> {
         let mut rev = vec![*target];
         let mut next = target;
         while let Some((parent, _)) = parents.get(next) {
-            if rev.contains(parent) {
-                debug!("Cycle detected (!!).");
-                return vec![];
-            }
-
             rev.push(*parent);
             next = parent;
         }
@@ -170,7 +160,6 @@ impl<'a> Transition<'a> {
                             emission_probability,
                         };
 
-                        // Refactor to add candidate and remove extra candidate holding.
                         let node_index = self
                             .graph
                             .write()
@@ -182,7 +171,7 @@ impl<'a> Transition<'a> {
 
                         node_index
                     })
-                    .collect::<Vec<NodeIndex>>()
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>()
     }
@@ -212,7 +201,7 @@ impl<'a> Transition<'a> {
         let start = left.map_edge.0;
         let threshold_distance = 1_000;
 
-        let reach = dijkstra_reach(&start, |node, a| {
+        let reach = dijkstra_reach(&start, |node, _| {
             self.map
                 .graph
                 .edges_directed(*node, Direction::Outgoing)
@@ -220,10 +209,13 @@ impl<'a> Transition<'a> {
                     (
                         next,
                         // (a as i64) + ...
-                        Haversine::distance(
-                            self.map.hash.get(node).unwrap().position,
-                            self.map.hash.get(&next).unwrap().position,
-                        ) as u32, // Total accrued distance
+                        if *node != next {
+                            let position_a = self.map.hash.get(node).unwrap().position;
+                            let position_b = self.map.hash.get(&next).unwrap().position;
+                            Haversine::distance(position_a, position_b) as u32
+                        } else {
+                            0
+                        }, // Total accrued distance
                     )
                 })
                 .collect::<Vec<_>>()
@@ -371,21 +363,22 @@ impl<'a> Transition<'a> {
         let start = *as_points.first().unwrap();
         let end = *as_points.last().unwrap();
 
+        debug!("BACKTRACK::TIMING:: Start=@{}", time.elapsed().as_micros());
+
         // Deconstruct the trajectory into individual segments
         let layers = self.generate_layers(as_points, distance);
         debug!(
             "BACKTRACK::TIMING:: GeneratedPoints=@{}",
             time.elapsed().as_micros()
         );
-
-        let all_points = layers
-            .iter()
-            .flat_map(|candidates| {
-                candidates.iter().filter_map(|candidate| {
-                    self.candidates.get(candidate).map(|node| node.2.position)
-                })
-            })
-            .collect::<MultiPoint>();
+        // let all_points = layers
+        //     .iter()
+        //     .flat_map(|candidates| {
+        //         candidates.iter().filter_map(|candidate| {
+        //             self.candidates.get(candidate).map(|node| node.2.position)
+        //         })
+        //     })
+        //     .collect::<MultiPoint>();
 
         // info!("WKT(PTS)={}", all_points.wkt_string());
 
@@ -436,6 +429,7 @@ impl<'a> Transition<'a> {
                     // .flat_map(|&a| vectors[1].iter().map(move |&b| (a, b)))
                     .collect::<Vec<_>>()
             })
+            .into_par_iter()
             .map(|(left, right)| {
                 // debug!("Refining between {:?} and {:?}...", left, right);
                 (left, self.refine_candidates(left, right))
@@ -465,8 +459,9 @@ impl<'a> Transition<'a> {
         // info!("WKT(LS)={}", all_lines.wkt_string());
 
         let route_size = transition_probabilities.len();
-        let mut map: HashMap<(NodeIndex, NodeIndex), (TransitionProbability, Vec<NodeIx>)> =
+        let map: HashMap<(NodeIndex, NodeIndex), (TransitionProbability, Vec<NodeIx>)> =
             HashMap::new();
+
         for (left, weights) in transition_probabilities {
             for (right, weight, path) in weights {
                 map.insert((left, right), (weight, path))

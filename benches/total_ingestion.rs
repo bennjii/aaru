@@ -1,13 +1,12 @@
 use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 use aaru::codec::element::ProcessedElement;
-use aaru::codec::{Element, ElementIterator, Parallel, ProcessedElementIterator};
+use aaru::codec::{Parallel, ProcessedElementIterator};
 
 use criterion::criterion_main;
 use log::info;
 
 use aaru::route::Graph;
 use std::path::{Path, PathBuf};
-use tokio::runtime::Runtime;
 use tokio::time::Instant;
 
 fn ingest_and_count() {

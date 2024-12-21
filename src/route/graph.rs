@@ -1,9 +1,9 @@
 use geo::{
-    coord, line_string, Destination, Distance, Euclidean, Geodesic, Haversine,
-    LineInterpolatePoint, LineLocatePoint, LineString, Point,
+    coord, line_string, Destination, Distance, Euclidean, Geodesic, LineInterpolatePoint,
+    LineLocatePoint, LineString, Point,
 };
 use log::{debug, error, info};
-use pathfinding::prelude::{astar, dijkstra_partial};
+use pathfinding::prelude::astar;
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
@@ -212,6 +212,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
+    #[inline]
     pub fn nearest_projected_nodes<'a>(
         &'a self,
         point: &'a Point,
@@ -268,7 +269,7 @@ impl Graph {
             |node| {
                 self.graph
                     .edges_directed(*node, Direction::Outgoing)
-                    .map(|(a, b, c)| (a, *c))
+                    .map(|(a, _b, c)| (a, *c))
             },
             |node| {
                 self.hash

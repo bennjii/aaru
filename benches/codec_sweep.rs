@@ -6,8 +6,6 @@ use log::info;
 use rayon::iter::ParallelIterator;
 use std::any::Any;
 use std::path::PathBuf;
-use tokio::runtime::{Handle, Runtime};
-use tokio::task::spawn_blocking;
 
 fn block_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
