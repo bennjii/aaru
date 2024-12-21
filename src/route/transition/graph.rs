@@ -54,7 +54,7 @@ type LayerId = usize;
 type NodeId = usize;
 
 #[derive(Clone, Copy, Debug)]
-struct TransitionPair<K>
+pub struct TransitionPair<K>
 where
     K: Into<f64> + Div<Output = K> + PartialOrd,
 {
