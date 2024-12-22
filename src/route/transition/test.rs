@@ -39,12 +39,12 @@ async fn test_transition() {
 
     println!("Graph Created. Transitioning...");
 
-    let now = Instant::now();
-    let transition = Transition::new(&GLOBAL_GRAPH);
-
     let linestring = wkt! {
         LINESTRING (151.19462 -33.885309, 151.193783 -33.887126,151.189685 -33.890243, 151.185329 -33.892915, 151.179487 -33.896864, 151.178023 -33.898694, 151.179283 -33.902523, 151.181273 -33.906295, 151.184916 -33.907203, 151.187641 -33.906851, 151.189315 -33.905061, 151.192024 -33.902145, 151.19432 -33.899576, 151.194438 -33.898957, 151.19425 -33.898556)
     };
+
+    let now = Instant::now();
+    let transition = Transition::new(&GLOBAL_GRAPH, linestring);
 
     println!(
         "[TRANSITION] Init. Elapsed: {}us (us = 0.001 ms)",
@@ -52,7 +52,8 @@ async fn test_transition() {
     );
 
     let now = Instant::now();
-    let points = transition.backtrack(linestring, 50.0);
+    let mres = transition.generate_probabilities(50.0).backtrack();
+
     println!(
         "[TRANSITION] Backtracked. Elapsed: {}us (us = 0.001 ms)",
         now.elapsed().as_micros()
@@ -60,14 +61,14 @@ async fn test_transition() {
 
     println!(
         "[TRANSITION] Backtracked. {}",
-        points
+        mres.matched
             .iter()
             .map(|v| v.position)
             .collect::<LineString>()
             .wkt_string()
     );
 
-    assert!(points.len() > 1);
+    assert!(mres.matched.len() > 1);
 }
 
 #[test]

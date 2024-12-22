@@ -1,13 +1,13 @@
 use std::collections::HashMap as StandardHashMap;
 use std::f64::consts::E;
 use std::hash::Hash;
-use std::ops::{self, Deref, Div, Mul};
+use std::ops::{Deref, Div, Mul};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
-use geo::{point, Distance, Haversine, LineString, Point};
-use log::{debug, info};
-use pathfinding::prelude::{build_path, dijkstra_reach};
+use geo::{Distance, Haversine, LineString, Point};
+use log::debug;
+use pathfinding::prelude::dijkstra_reach;
 use petgraph::graph::NodeIndex;
 use petgraph::visit::EdgeRef;
 use petgraph::{Directed, Direction, Graph};
@@ -69,21 +69,41 @@ impl Deref for TransitionProbability {
     }
 }
 
+type CandidateEdge = (f64, Vec<NodeIx>);
+type CandidatePoint = (Point, f64);
+
+type ArcGraph<A, B> = Arc<RwLock<Graph<A, B, Directed>>>;
+
+// TODO: Move LayerID and NodeID into TransitionCandidate.
+
 pub struct Transition<'a> {
     map: &'a RouteGraph,
     // keep in mind we dont need layerid and nodeid, but theyre useful for debugging so we'll keep for now.
-    graph: Arc<RwLock<Graph<(Point, f64), f64, Directed>>>,
+    graph: ArcGraph<CandidatePoint, CandidateEdge>,
     candidates: HashMap<NodeIndex, (LayerId, NodeId, TransitionCandidate)>,
     error: Option<f64>,
+
+    layers: Vec<Vec<NodeIndex>>,
+    points: Vec<Point>,
+}
+
+pub struct MatchResult {
+    pub interpolated: LineString,
+    pub matched: Vec<TransitionCandidate>,
 }
 
 impl<'a> Transition<'a> {
-    pub fn new(map: &'a RouteGraph) -> Self {
+    pub fn new(map: &'a RouteGraph, linestring: LineString) -> Self {
+        let points = linestring.into_points();
+
         Transition {
             map,
+            points,
+
             graph: Arc::new(RwLock::new(Graph::new())),
             candidates: HashMap::new(),
             error: None,
+            layers: vec![],
         }
     }
 
@@ -136,9 +156,9 @@ impl<'a> Transition<'a> {
     /// represents a candidate transition point, within the `distance`
     /// search radius of the linestring point, which was found by the
     /// projection of the linestring point upon the closest edges within this radius.
-    pub fn generate_layers(&self, linestring: Vec<Point>, distance: f64) -> Vec<Vec<NodeIndex>> {
+    pub fn generate_layers(&self, distance: f64) -> Vec<Vec<NodeIndex>> {
         // Create the base transition graph
-        linestring
+        self.points
             .par_iter()
             .enumerate()
             .map(|(layer_id, point)| {
@@ -187,7 +207,7 @@ impl<'a> Transition<'a> {
         left_ix: NodeIndex,
         right_ixs: &[NodeIndex],
     ) -> Vec<(NodeIndex, TransitionProbability, Vec<i64>)> {
-        let left_candidate = self.candidates.get(&left_ix).unwrap().clone();
+        let left_candidate = *self.candidates.get(&left_ix).unwrap();
         let left = left_candidate.2;
 
         debug!(
@@ -208,11 +228,10 @@ impl<'a> Transition<'a> {
                 .map(|(_, next, _w)| {
                     (
                         next,
-                        // (a as i64) + ...
                         if *node != next {
-                            let position_a = self.map.hash.get(node).unwrap().position;
-                            let position_b = self.map.hash.get(&next).unwrap().position;
-                            Haversine::distance(position_a, position_b) as u32
+                            let source = self.map.get_position(node).unwrap();
+                            let target = self.map.get_position(&next).unwrap();
+                            Haversine::distance(source, target) as u32
                         } else {
                             0
                         }, // Total accrued distance
@@ -221,16 +240,13 @@ impl<'a> Transition<'a> {
                 .collect::<Vec<_>>()
         });
 
-        // WHEN NO LONGER NEEDING PATHS, THIS CAN BE GREATLY SHORTENED (INLINED)
-        //
-
         let probabilities = reach
             .map(|predicate| {
                 (
                     predicate.clone(),
                     Haversine::distance(
                         left.position,
-                        self.map.hash.get(&predicate.node).unwrap().position,
+                        self.map.get_position(&predicate.node).unwrap(),
                     ) as u32,
                 )
             })
@@ -256,28 +272,28 @@ impl<'a> Transition<'a> {
             probabilities.len()
         );
 
-        let mut vector = vec![];
+        // let mut vector = vec![];
 
-        vector.push((
-            self.map.hash.get(&left.map_edge.0).unwrap().position,
-            vec![],
-        ));
+        // vector.push((
+        //     self.map.hash.get(&left.map_edge.0).unwrap().position,
+        //     vec![],
+        // ));
 
-        probabilities.iter().for_each(|(_, (key, _))| {
-            vector.push((
-                self.map
-                    .hash
-                    .get(key)
-                    .map(|e| e.position)
-                    .unwrap_or(point! {x: 0.0, y: 0.0}),
-                build_path(key, &probabilities),
-            ));
-        });
+        // probabilities.iter().for_each(|(_, (key, _))| {
+        //     vector.push((
+        //         self.map
+        //             .hash
+        //             .get(key)
+        //             .map(|e| e.position)
+        //             .unwrap_or(point! {x: 0.0, y: 0.0}),
+        //         build_path(key, &probabilities),
+        //     ));
+        // });
 
         // END OF DEBUG: START PROCESSING...
 
         let paths = right_ixs
-            .into_iter()
+            .iter()
             .filter_map(|key| {
                 self.candidates.get(key).and_then(|candidate| {
                     probabilities
@@ -334,12 +350,13 @@ impl<'a> Transition<'a> {
         // determined in `refine_candidates`.
         //
 
+        // There should be exclusive read-access by the time collapse is called.
         let graph = self.graph.read().unwrap();
         if let Some((score, path)) = petgraph::algo::astar(
             &*graph,
             start,
             |node| node == end,
-            |e| *e.weight() + graph.node_weight(e.target()).map_or(0.0, |v| v.1),
+            |e| e.weight().0 + graph.node_weight(e.target()).map_or(0.0, |v| v.1),
             |_| 0.0,
         ) {
             debug!("Minimal trip found with score of {score}.");
@@ -351,72 +368,11 @@ impl<'a> Transition<'a> {
         vec![]
     }
 
-    /// Backtracks the HMM from the most appropriate final point to
-    /// its prior most appropriate points
-    ///
-    /// Consumes the graph.
-    pub fn backtrack(self, linestring: LineString, distance: f64) -> Vec<TransitionCandidate> {
-        let time = Instant::now();
-        debug!("BACKTRACK::TIMING:: Start=@{}", time.elapsed().as_micros());
-
-        let as_points = linestring.into_points();
-        let start = *as_points.first().unwrap();
-        let end = *as_points.last().unwrap();
-
-        debug!("BACKTRACK::TIMING:: Start=@{}", time.elapsed().as_micros());
-
+    pub fn generate_probabilities(self, distance: f64) -> Self {
         // Deconstruct the trajectory into individual segments
-        let layers = self.generate_layers(as_points, distance);
-        debug!(
-            "BACKTRACK::TIMING:: GeneratedPoints=@{}",
-            time.elapsed().as_micros()
-        );
-        // let all_points = layers
-        //     .iter()
-        //     .flat_map(|candidates| {
-        //         candidates.iter().filter_map(|candidate| {
-        //             self.candidates.get(candidate).map(|node| node.2.position)
-        //         })
-        //     })
-        //     .collect::<MultiPoint>();
-
-        // info!("WKT(PTS)={}", all_points.wkt_string());
-
-        // Add in the start and end points to the graph
-        let (source, target) = {
-            let mut graph = self.graph.write().unwrap();
-            let source = graph.add_node((start, 0.0));
-            layers.first().unwrap().iter().for_each(|node| {
-                graph.add_edge(source, *node, 0.0f64);
-            });
-
-            let target = graph.add_node((end, 0.0));
-            layers.last().unwrap().iter().for_each(|node| {
-                graph.add_edge(*node, target, 0.0f64);
-            });
-
-            drop(graph);
-            (source, target)
-        };
-
-        info!("Identified {} layers to backtrack.", layers.len());
-        let total_comp = layers
-            .windows(2)
-            .fold(0, |acc, layers| acc + (layers[0].len() * layers[1].len()));
-
-        info!(
-            "Performing a total of {} routes (Avg. 300us = {}us = {}ms - In series). Breakdown:",
-            total_comp,
-            total_comp * 300,
-            total_comp * 300 / 1000
-        );
-        for (index, layer) in layers.iter().enumerate() {
-            info!("Layer::{} has {} nodes.", index, layer.len());
-        }
+        let layers = self.generate_layers(distance);
 
         // Declaring all the pairs of indicies that need to be refined.
-        //
-        // TODO: Consider how to parallise it too...
         let transition_probabilities = layers
             .par_windows(2)
             .inspect(|pair| {
@@ -426,52 +382,14 @@ impl<'a> Transition<'a> {
                 vectors[0]
                     .iter()
                     .map(|&a| (a, vectors[1].as_slice()))
-                    // .flat_map(|&a| vectors[1].iter().map(move |&b| (a, b)))
                     .collect::<Vec<_>>()
             })
             .into_par_iter()
-            .map(|(left, right)| {
-                // debug!("Refining between {:?} and {:?}...", left, right);
-                (left, self.refine_candidates(left, right))
-            })
+            .map(|(left, right)| (left, self.refine_candidates(left, right)))
             .collect::<Vec<_>>();
-
-        // let all_lines = transition_probabilities
-        //     .iter()
-        //     .flat_map(|(candidate, vec)| {
-        //         vec.iter()
-        //             .map(|(_, _, nix)| {
-        //                 nix.iter()
-        //                     .filter_map(|n| {
-        //                         self.map.hash.get(n).map(|k| k.position).or_else(|| None)
-        //                     })
-        //                     .collect::<LineString>()
-        //             })
-        //             .filter(|line| !line.is_empty())
-        //     })
-        //     .collect::<MultiLineString>();
-
-        // File::create("output.txt")
-        //     .unwrap()
-        //     .write_all(all_lines.wkt_string().as_bytes())
-        //     .unwrap();
-
-        // info!("WKT(LS)={}", all_lines.wkt_string());
-
-        let route_size = transition_probabilities.len();
-        let map: HashMap<(NodeIndex, NodeIndex), (TransitionProbability, Vec<NodeIx>)> =
-            HashMap::new();
 
         for (left, weights) in transition_probabilities {
             for (right, weight, path) in weights {
-                map.insert((left, right), (weight, path))
-                    .expect("TODO: panic message");
-                // debug!(
-                //     "Refined transition between {:?} and {:?} with TP(Weight)={:?}",
-                //     left, right, weight
-                // );
-                //
-
                 let normalised_ep = self
                     .candidates
                     .get(&left)
@@ -479,35 +397,60 @@ impl<'a> Transition<'a> {
                     .2
                     .emission_probability
                     .log10();
-                // TODO: Re-integrate EP
+
                 let normalised_tp = -weight.deref().log10();
-                self.graph
-                    .write()
-                    .unwrap()
-                    .add_edge(left, right, normalised_tp);
+
+                self.graph.write().unwrap().add_edge(
+                    left,
+                    right,
+                    (normalised_ep + normalised_tp, path),
+                );
             }
         }
-        info!("Made compute for {} total routings.", route_size);
 
-        debug!(
-            "BACKTRACK::TIMING:: RefinedLayers=@{}",
-            time.elapsed().as_micros()
-        );
+        self
+    }
 
-        debug!("Refined all layers, collapsing...");
+    /// Backtracks the HMM from the most appropriate final point to
+    /// its prior most appropriate points
+    ///
+    /// Consumes the graph.
+    pub fn backtrack(self) -> MatchResult {
+        let start = *self.points.first().unwrap();
+        let end = *self.points.last().unwrap();
+
+        // Add in the start and end points to the graph
+        let (source, target) = {
+            let mut graph = self.graph.write().unwrap();
+            let source = graph.add_node((start, 0.0));
+            self.layers.first().unwrap().iter().for_each(|node| {
+                // TODO: Add the starting NodeIx in
+                graph.add_edge(source, *node, (0.0f64, vec![]));
+            });
+
+            let target = graph.add_node((end, 0.0));
+            self.layers.last().unwrap().iter().for_each(|node| {
+                graph.add_edge(*node, target, (0.0f64, vec![]));
+            });
+
+            drop(graph);
+            (source, target)
+        };
 
         // Now we refine the candidates
         let collapsed = self.collapse(source, target);
-        debug!(
-            "BACKTRACK::TIMING:: Collapsed=@{}",
-            time.elapsed().as_micros()
-        );
 
-        let total_linestring = collapsed
+        let get_edge = |a: &NodeIndex, b: &NodeIndex| -> Option<(f64, Vec<NodeIx>)> {
+            let reader = self.graph.read().ok()?;
+            let edge_index = reader.find_edge(*a, *b)?;
+            reader.edge_weight(edge_index).cloned()
+        };
+
+        let interpolated = collapsed
             .windows(2)
             .filter_map(|candidate| {
                 if let [a, b] = candidate {
-                    return map.get(&(*a, *b)).or_else(|| map.get(&(*b, *a))).map(|pp| {
+                    return get_edge(a, b).or_else(|| get_edge(b, a)).map(|pp| {
                         pp.1.iter()
                             .filter_map(|index| self.map.hash.get(index))
                             .map(|node| node.position)
@@ -520,12 +463,17 @@ impl<'a> Transition<'a> {
             .flatten()
             .collect::<LineString>();
 
-        debug!("Total Route: {}", total_linestring.wkt_string());
+        debug!("Total Route: {}", interpolated.wkt_string());
 
-        collapsed
+        let matched = collapsed
             .iter()
             .filter_map(|node| self.candidates.get(node))
             .map(|can| can.2)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+
+        MatchResult {
+            interpolated,
+            matched,
+        }
     }
 }

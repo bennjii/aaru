@@ -56,6 +56,11 @@ impl Graph {
         self.hash.len()
     }
 
+    #[inline]
+    pub fn get_position(&self, node_index: &i64) -> Option<Point<f64>> {
+        self.hash.get(node_index).map(|point| point.position)
+    }
+
     /// The weighting mapping of node keys to weight.
     pub fn weights<'a>() -> Result<HashMap<&'a str, Weight>, RouteError> {
         let weights: HashMap<&str, Weight> = HashMap::new();
@@ -241,13 +246,14 @@ impl Graph {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         // Create our hidden markov model solver
-        let transition = Transition::new(self);
+        let transition = Transition::new(self, linestring);
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        let points = transition.backtrack(linestring, distance);
+        let match_result = transition.generate_probabilities(distance).backtrack();
 
-        points
+        match_result
+            .matched
             .iter()
             .map(|coord| {
                 let (lng, lat) = coord.position.x_y();
