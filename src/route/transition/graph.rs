@@ -356,7 +356,17 @@ impl<'a> Transition<'a> {
             &*graph,
             start,
             |node| node == end,
-            |e| e.weight().0 + graph.node_weight(e.target()).map_or(0.0, |v| v.1),
+            |e| {
+                let edge_cost = e.weight().0;
+                // let node_cost = graph.node_weight(e.source()).map_or(0.0, |v| -v.1);
+                // let normalised_node_cost = if node_cost == 0f64 {
+                //     0f64
+                // } else {
+                //     -(1f64 / node_cost).log10()
+                // };
+
+                edge_cost
+            },
             |_| 0.0,
         ) {
             debug!("Minimal trip found with score of {score}.");
@@ -368,12 +378,13 @@ impl<'a> Transition<'a> {
         vec![]
     }
 
-    pub fn generate_probabilities(self, distance: f64) -> Self {
+    pub fn generate_probabilities(mut self, distance: f64) -> Self {
         // Deconstruct the trajectory into individual segments
-        let layers = self.generate_layers(distance);
+        self.layers = self.generate_layers(distance);
 
         // Declaring all the pairs of indicies that need to be refined.
-        let transition_probabilities = layers
+        let transition_probabilities = self
+            .layers
             .par_windows(2)
             .inspect(|pair| {
                 debug!("Unpacking {:?} and {:?}...", pair[0].len(), pair[1].len());
@@ -390,21 +401,20 @@ impl<'a> Transition<'a> {
 
         for (left, weights) in transition_probabilities {
             for (right, weight, path) in weights {
-                let normalised_ep = self
-                    .candidates
-                    .get(&left)
+                // Transition Probabilities are of the range {0, 1}, such that
+                // -log_10(x) yields a value which is infinately large when x
+                // is close to 0, and 0 when x is close to 1. This is the desired
+                // behaviour since a value with a Transition Probability of 1,
+                // represents a transition which is most desirable. Therefore, has
+                // "zero" cost to move through. Whereas, one with a Transition
+                // Probability of 0, is a transition we want to discourage, thus
+                // has a +inf cost to traverse.
+                let transition_cost = -weight.deref().log10();
+
+                self.graph
+                    .write()
                     .unwrap()
-                    .2
-                    .emission_probability
-                    .log10();
-
-                let normalised_tp = -weight.deref().log10();
-
-                self.graph.write().unwrap().add_edge(
-                    left,
-                    right,
-                    (normalised_ep + normalised_tp, path),
-                );
+                    .add_edge(left, right, (transition_cost, path));
             }
         }
 
