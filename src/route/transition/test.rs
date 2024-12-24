@@ -5,7 +5,6 @@ use std::{
 };
 
 use geo::{wkt, Destination, Distance, Geodesic, Haversine, LineString};
-use log::debug;
 use petgraph::{graph::NodeIndex, Directed, Graph as Petgraph};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rstar::AABB;

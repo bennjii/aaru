@@ -1,5 +1,4 @@
 use std::collections::HashMap as StandardHashMap;
-use std::f64::consts::E;
 use std::hash::Hash;
 use std::ops::{Deref, Div, Mul};
 use std::sync::{Arc, RwLock};
@@ -23,6 +22,7 @@ use crate::route::transition::node::TransitionCandidate;
 use crate::route::Graph as RouteGraph;
 
 const DEFAULT_ERROR: f64 = 20f64;
+const TRANSITION_LOGARITHM_BASE: f64 = 1.2;
 
 // NEW API:
 //
@@ -121,7 +121,7 @@ impl<'a> Transition<'a> {
         error: T,
     ) -> f64 {
         let alpha: f64 = (dist / error).into();
-        E.powf(-0.5f64 * alpha.powi(2))
+        0.1f64 * alpha.powi(2)
     }
 
     /// Calculates the transition probability of between two candidates
@@ -272,26 +272,6 @@ impl<'a> Transition<'a> {
             probabilities.len()
         );
 
-        // let mut vector = vec![];
-
-        // vector.push((
-        //     self.map.hash.get(&left.map_edge.0).unwrap().position,
-        //     vec![],
-        // ));
-
-        // probabilities.iter().for_each(|(_, (key, _))| {
-        //     vector.push((
-        //         self.map
-        //             .hash
-        //             .get(key)
-        //             .map(|e| e.position)
-        //             .unwrap_or(point! {x: 0.0, y: 0.0}),
-        //         build_path(key, &probabilities),
-        //     ));
-        // });
-
-        // END OF DEBUG: START PROCESSING...
-
         let paths = right_ixs
             .iter()
             .filter_map(|key| {
@@ -307,29 +287,6 @@ impl<'a> Transition<'a> {
             })
             .collect::<Vec<(NodeIndex, TransitionProbability, Vec<i64>)>>();
 
-        // let (points, lines): (Vec<Point>, Vec<Vec<i64>>) = vector.into_iter().unzip();
-        // debug!(
-        //     "OutgoingLines=\nGEOMETRYCOLLECTION({}, {})",
-        //     points.into_iter().collect::<MultiPoint>().wkt_string(),
-        //     lines
-        //         .iter()
-        //         .map(|path| {
-        //             path.into_iter()
-        //                 .filter_map(|index| self.map.hash.get(index).map(|p| p.position))
-        //                 .filter(|line| !line.is_empty())
-        //                 .collect::<LineString>()
-        //         })
-        //         .collect::<MultiLineString>()
-        //         .wkt_string()
-        // );
-
-        debug!(
-            "Success rate of {}/{}={}",
-            paths.len(),
-            probabilities.len(),
-            paths.len() as f64 / probabilities.len() as f64
-        );
-
         debug!(
             "TIMING: Full={} ({} -> *)",
             time.elapsed().as_micros(),
@@ -342,14 +299,6 @@ impl<'a> Transition<'a> {
     /// Collapses transition layers, `layers`, into a single vector of
     /// the finalised points
     fn collapse(&self, start: NodeIndex, end: NodeIndex) -> Vec<NodeIndex> {
-        // Use the internal graph to backtrack using dijkstras.
-        // Make sure to add the start and end positions which are used
-        // to trace between as the target end-position. We're essentially
-        // looking for the shortest path through the graph, using the
-        // edge weighting as a consideration of the transition probability,
-        // determined in `refine_candidates`.
-        //
-
         // There should be exclusive read-access by the time collapse is called.
         let graph = self.graph.read().unwrap();
         if let Some((score, path)) = petgraph::algo::astar(
@@ -357,15 +306,13 @@ impl<'a> Transition<'a> {
             start,
             |node| node == end,
             |e| {
-                let edge_cost = e.weight().0;
-                // let node_cost = graph.node_weight(e.source()).map_or(0.0, |v| -v.1);
-                // let normalised_node_cost = if node_cost == 0f64 {
-                //     0f64
-                // } else {
-                //     -(1f64 / node_cost).log10()
-                // };
+                // Decaying Transition Cost
+                let transition_cost = e.weight().0;
 
-                edge_cost
+                // Loosely-Decaying Emission Cost
+                let emission_cost = graph.node_weight(e.source()).map_or(0.0, |v| v.1);
+
+                transition_cost + emission_cost
             },
             |_| 0.0,
         ) {
@@ -402,14 +349,16 @@ impl<'a> Transition<'a> {
         for (left, weights) in transition_probabilities {
             for (right, weight, path) in weights {
                 // Transition Probabilities are of the range {0, 1}, such that
-                // -log_10(x) yields a value which is infinately large when x
+                // -log_N(x) yields a value which is infinately large when x
                 // is close to 0, and 0 when x is close to 1. This is the desired
                 // behaviour since a value with a Transition Probability of 1,
                 // represents a transition which is most desirable. Therefore, has
                 // "zero" cost to move through. Whereas, one with a Transition
                 // Probability of 0, is a transition we want to discourage, thus
                 // has a +inf cost to traverse.
-                let transition_cost = -weight.deref().log10();
+                //
+                // t_p(x) = -log_N(x) in the range { 0 <= x <= 1 }
+                let transition_cost = -weight.deref().log(TRANSITION_LOGARITHM_BASE);
 
                 self.graph
                     .write()
