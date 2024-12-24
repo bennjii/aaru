@@ -1,12 +1,11 @@
-use criterion::criterion_main;
-use log::info;
-use std::any::Any;
-use std::path::PathBuf;
-
 use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 use aaru::codec::element::ProcessedElement;
 use aaru::codec::{BlockIterator, Element, ElementIterator, Parallel, ProcessedElementIterator};
+use criterion::criterion_main;
+use log::info;
 use rayon::iter::ParallelIterator;
+use std::any::Any;
+use std::path::PathBuf;
 
 fn block_iter_count() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);

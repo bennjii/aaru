@@ -1,10 +1,9 @@
-use criterion::criterion_main;
-use log::error;
-use std::path::PathBuf;
-
 use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
 use aaru::codec::{BlockItem, BlockIterator};
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use criterion::criterion_main;
+use log::error;
+use rayon::iter::ParallelIterator;
+use std::path::PathBuf;
 
 fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
@@ -37,11 +36,10 @@ fn iterate_blocks_each() {
 fn parallel_iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
 
-    let block_iter = BlockIterator::new(path).unwrap();
+    let mut block_iter = BlockIterator::new(path).unwrap();
 
     let elements = block_iter
-        .into_iter()
-        .par_bridge()
+        .par_iter()
         .map(|block| match block {
             BlockItem::HeaderBlock(_) => (0, 1),
             BlockItem::PrimitiveBlock(_) => (1, 0),

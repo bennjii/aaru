@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             latitude: -33.850842,
             longitude: 151.210193,
         }),
-        quantity: 5,
+        search_radius: 100.0,
     });
 
     let start = Instant::now();

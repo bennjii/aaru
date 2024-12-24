@@ -1,6 +1,7 @@
-use aaru::codec::consts::SYDNEY;
+use aaru::codec::consts::AUSTRALIA;
 use aaru::server::route::router_service::router_service_server::RouterServiceServer;
 use aaru::server::route::{router_service, RouteService};
+
 use dotenv::dotenv;
 use tonic::codegen::http::Method;
 use tonic::transport::Server;
@@ -19,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create the router
     #[cfg(feature = "tracing")]
     tracing::info!("Creating Router");
-    let router = RouteService::from_file(SYDNEY).expect("-");
+    let router = RouteService::from_file(AUSTRALIA).expect("-");
 
     #[cfg(feature = "tracing")]
     tracing::info!("Router Created");

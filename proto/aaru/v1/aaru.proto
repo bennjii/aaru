@@ -47,7 +47,7 @@ message RouteResponse {
 // Specifies the distance and a position from which to search
 message ClosestSnappedPointRequest {
   Coordinate point = 1;
-  uint32 quantity = 2;
+  double search_radius = 2;
 }
 
 message ClosestPointRequest {

@@ -1,32 +1,110 @@
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
-use std::cmp::Ordering;
-use std::f64::consts::E;
-use std::ops::{Div, Mul};
+use std::collections::HashMap as StandardHashMap;
+use std::hash::Hash;
+use std::ops::{Deref, Div, Mul};
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
-use geo::{Distance, Haversine, Length, LineString, Point};
+use geo::{Distance, Haversine, LineString, Point};
 use log::debug;
-use rayon::iter::{IndexedParallelIterator, ParallelIterator};
-use rayon::prelude::ParallelSlice;
+use pathfinding::prelude::dijkstra_reach;
+use petgraph::graph::NodeIndex;
+use petgraph::visit::EdgeRef;
+use petgraph::{Directed, Direction, Graph};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
+use rayon::slice::ParallelSlice;
+use scc::HashMap;
 use wkt::ToWkt;
 
-use crate::route::transition::node::{
-    ImbuedLayer, TransitionCandidate, TransitionLayer, TransitionNode,
-};
-use crate::route::transition::segment::TrajectorySegment;
-use crate::route::Graph;
+use crate::route::graph::NodeIx;
+use crate::route::transition::node::TransitionCandidate;
+use crate::route::Graph as RouteGraph;
 
 const DEFAULT_ERROR: f64 = 20f64;
+const TRANSITION_LOGARITHM_BASE: f64 = 1.2;
+
+// NEW API:
+//
+// + === + === +
+//   \        /
+//    \     /
+//       +
+//
+// We need a way to represent the graph as a whole.
+// We will use petgraph's DiGraph for this,
+// since it will be a directed graph, built in reverse, tracking backwards.
+//
+// We must first add all the nodes into the graph,
+// then we can add the edges with their weights in
+// the transition.
+//
+// Finally, to backtrack, we can use the provided
+// algorithms to perform dijkstra on it to backtrack.
+// possibly just using the astar algo since the
+// api is easier to use.
+//
+
+type LayerId = usize;
+type NodeId = usize;
+
+#[derive(Clone, Copy, Debug)]
+pub struct TransitionPair<K>
+where
+    K: Into<f64> + Div<Output = K> + PartialOrd,
+{
+    shortest_distance: K,
+    path_length: K,
+}
+
+/// A 0.0-1.0 probability of transitioning from one node to another
+#[derive(Clone, Copy, Debug)]
+pub struct TransitionProbability(pub(crate) f64);
+
+impl Deref for TransitionProbability {
+    type Target = f64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+type CandidateEdge = (f64, Vec<NodeIx>);
+type CandidatePoint = (Point, f64);
+
+type ArcGraph<A, B> = Arc<RwLock<Graph<A, B, Directed>>>;
+
+// TODO: Move LayerID and NodeID into TransitionCandidate.
 
 pub struct Transition<'a> {
-    graph: &'a Graph,
+    map: &'a RouteGraph,
+    // keep in mind we dont need layerid and nodeid, but theyre useful for debugging so we'll keep for now.
+    graph: ArcGraph<CandidatePoint, CandidateEdge>,
+    candidates: HashMap<NodeIndex, (LayerId, NodeId, TransitionCandidate)>,
     error: Option<f64>,
+
+    layers: Vec<Vec<NodeIndex>>,
+    points: Vec<Point>,
+}
+
+pub struct MatchResult {
+    pub interpolated: LineString,
+    pub matched: Vec<TransitionCandidate>,
 }
 
 impl<'a> Transition<'a> {
-    pub fn new(graph: &'a Graph) -> Self {
-        Transition { graph, error: None }
+    pub fn new(map: &'a RouteGraph, linestring: LineString) -> Self {
+        let points = linestring.into_points();
+
+        Transition {
+            map,
+            points,
+
+            graph: Arc::new(RwLock::new(Graph::new())),
+            candidates: HashMap::new(),
+            error: None,
+            layers: vec![],
+        }
     }
 
     pub fn set_error(self, error: f64) -> Self {
@@ -38,177 +116,208 @@ impl<'a> Transition<'a> {
 
     /// Calculates the emission probability of `dist` (the GPS error from
     /// the observed point and matched point) with a given GPS `error`
-    fn emission_probability<K: Into<f64>, T: Div<Output = K> + Mul>(dist: T, error: T) -> f64 {
+    pub(crate) fn emission_probability<K: Into<f64>, T: Div<Output = K> + Mul>(
+        dist: T,
+        error: T,
+    ) -> f64 {
         let alpha: f64 = (dist / error).into();
-        E.powf(-0.5f64 * alpha.powi(2))
+        0.1f64 * alpha.powi(2)
     }
 
     /// Calculates the transition probability of between two candidates
     /// given the `shortest_dist` between them, and the `euclidean_dist`
     /// of the segment we are transitioning over
-    fn transition_probability<K: Into<f64>, T: Div<Output = K> + PartialOrd>(
-        shortest_dist: T,
-        euclidean_dist: T,
-    ) -> f64 {
-        match euclidean_dist >= shortest_dist {
-            true => 1.0f64,
-            false => (euclidean_dist / shortest_dist).into(),
+    pub fn transition_probability<K: Into<f64> + Div<Output = K> + PartialOrd>(
+        pair: TransitionPair<K>,
+    ) -> TransitionProbability {
+        match pair.shortest_distance >= pair.path_length {
+            true => TransitionProbability(1.0f64),
+            false => TransitionProbability((pair.shortest_distance / pair.path_length).into()),
         }
     }
 
-    /// Refines the candidates into TransitionNodes with their respective
-    /// emission and transition probabilities in the hidden markov model.
+    /// May return None if a cycle is detected.
+    pub(crate) fn pathbuilder<N, C>(target: &N, parents: &StandardHashMap<N, (N, C)>) -> Vec<N>
+    where
+        N: Eq + Hash + Copy,
+    {
+        let mut rev = vec![*target];
+        let mut next = target;
+        while let Some((parent, _)) = parents.get(next) {
+            rev.push(*parent);
+            next = parent;
+        }
+        rev.reverse();
+        rev
+    }
+
+    /// Generates the layers of the transition graph, where each layer
+    /// represents a point in the linestring, and each node in the layer
+    /// represents a candidate transition point, within the `distance`
+    /// search radius of the linestring point, which was found by the
+    /// projection of the linestring point upon the closest edges within this radius.
+    pub fn generate_layers(&self, distance: f64) -> Vec<Vec<NodeIndex>> {
+        // Create the base transition graph
+        self.points
+            .par_iter()
+            .enumerate()
+            .map(|(layer_id, point)| {
+                self.map
+                    // We'll do a best-effort search (square) radius
+                    .nearest_projected_nodes(point, distance)
+                    .enumerate()
+                    .map(|(node_id, (position, map_edge))| {
+                        // We have the actual projected position, and it's associated edge.
+                        let distance = Haversine::distance(position, *point);
+                        let emission_probability = Transition::emission_probability(
+                            distance,
+                            self.error.unwrap_or(DEFAULT_ERROR),
+                        );
+
+                        let candidate = TransitionCandidate {
+                            map_edge: (map_edge.0, map_edge.1),
+                            position,
+                            emission_probability,
+                        };
+
+                        let node_index = self
+                            .graph
+                            .write()
+                            .unwrap()
+                            .add_node((position, emission_probability));
+                        let _ = self
+                            .candidates
+                            .insert(node_index, (layer_id, node_id, candidate));
+
+                        node_index
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
+    }
+
+    /// Refines a single node within an initial layer to all nodes in the
+    /// following layer with their respective emission and transition
+    /// probabilities in the hidden markov model.
     ///
-    /// Based on the method used in FMM
-    fn refine_candidates<'t>(&'t self, layer_a: &'t ImbuedLayer<'t>, layer_b: &'t ImbuedLayer<'t>) {
-        // TODO: Refactor how this works to it can be paralleled.
-        // Now we modify the nodes to refine them
-        layer_a.iter().for_each(|node| {
-            debug!(
-                "Outward routing from {} to {} nodes",
-                node.borrow().candidate.index,
-                layer_b.len()
-            );
+    /// Based on the method used in FMM / MM2
+    #[inline]
+    fn refine_candidates(
+        &self,
+        left_ix: NodeIndex,
+        right_ixs: &[NodeIndex],
+    ) -> Vec<(NodeIndex, TransitionProbability, Vec<i64>)> {
+        let left_candidate = *self.candidates.get(&left_ix).unwrap();
+        let left = left_candidate.2;
 
-            // Iterate for each sub-node to a node
-            layer_b
-                .iter()
-                // .filter(|b| node.borrow().candidate.index != b.borrow().candidate.index)
-                .for_each(|alt| {
-                    let mut time = Instant::now();
+        debug!(
+            "Routing from Layer::{}::{} to Layer::{}::*.",
+            left_candidate.0,
+            left_candidate.1,
+            left_candidate.0 + 1,
+        );
 
-                    debug!(
-                        "Transition is routing between {} and {}",
-                        node.borrow().candidate.index,
-                        alt.borrow().candidate.index
-                    );
-                    let start = node.borrow().candidate.edge.0;
-                    let end = alt.borrow().candidate.edge.0;
-                    debug!("TIMING: Obtain=@{}", time.elapsed().as_micros());
-                    time = Instant::now();
+        let time = Instant::now();
+        let start = left.map_edge.0;
+        let threshold_distance = 1_000;
 
-                    match self.graph.route_raw(start, end) {
-                        Some((_, nodes)) => {
-                            debug!("TIMING: Route=@{}", time.elapsed().as_micros());
-
-                            let direct_distance = Haversine::distance(
-                                node.borrow().candidate.position,
-                                alt.borrow().candidate.position,
-                            );
-
-                            debug!("TIMING: Distance=@{}", time.elapsed().as_micros());
-
-                            // TODO: Consider doing this by default on route
-                            // TODO: Consider returning these nodes to "interpolate" the route
-                            let travel_distance = nodes
-                                .iter()
-                                .map(|node| node.position)
-                                .collect::<LineString>()
-                                .length::<Haversine>();
-
-                            debug!("TIMING: TravelDistance=@{}", time.elapsed().as_micros());
-
-                            // Compare actual distance with straight-line-distance
-                            let transition_probability = Transition::transition_probability(
-                                travel_distance,
-                                direct_distance,
-                            );
-
-                            let net_probability = node.borrow().cumulative_probability
-                                + transition_probability.log(E)
-                                + alt.borrow().emission_probability.log(E);
-
-                            debug!("TIMING: Probabilities=@{}", time.elapsed().as_micros());
-
-                            // Only one-such borrow must exist at one time,
-                            // simply do not borrow again in this scope.
-                            let mut mutable_ptr = alt.borrow_mut();
-
-                            debug!("TIMING: GettingMutBorrow=@{}", time.elapsed().as_micros());
-
-                            // Only if it probabilistic to route do we make the change
-                            if net_probability >= mutable_ptr.cumulative_probability {
-                                debug!("Committing changes, cumulative probability reached.");
-
-                                // Extension...
-                                //
-                                // NodeRelation {
-                                //     node,
-                                //     // Storing other information is irrelevant,
-                                //     // as it means we loose paralellism, since
-                                //     // the information is relative to the node.
-                                //     transition_probability,
-                                //     path: nodes
-                                // }
-
-                                mutable_ptr.cumulative_probability = net_probability;
-                                mutable_ptr.transition_probability = transition_probability;
-                                mutable_ptr.prev_best = Some(node);
-                                *mutable_ptr.current_path.borrow_mut() = nodes;
-                            } else {
-                                debug!(
-                                    "Insufficient, cannot make change. Cumulative was: {}",
-                                    mutable_ptr.cumulative_probability
-                                );
-                            }
-
-                            debug!("TIMING: CommitChanges=@{}", time.elapsed().as_micros());
-                        }
-                        None => debug!("Found no route between nodes."),
-                    }
-
-                    debug!("TIMING: Full={}", time.elapsed().as_micros());
-                });
+        let reach = dijkstra_reach(&start, |node, _| {
+            self.map
+                .graph
+                .edges_directed(*node, Direction::Outgoing)
+                .map(|(_, next, _w)| {
+                    (
+                        next,
+                        if *node != next {
+                            let source = self.map.get_position(node).unwrap();
+                            let target = self.map.get_position(&next).unwrap();
+                            Haversine::distance(source, target) as u32
+                        } else {
+                            0
+                        }, // Total accrued distance
+                    )
+                })
+                .collect::<Vec<_>>()
         });
+
+        let probabilities = reach
+            .map(|predicate| {
+                (
+                    predicate.clone(),
+                    Haversine::distance(
+                        left.position,
+                        self.map.get_position(&predicate.node).unwrap(),
+                    ) as u32,
+                )
+            })
+            .take_while(|(_, distance)| *distance < threshold_distance)
+            .map(|(k, j)| {
+                (
+                    k.node,
+                    (
+                        // Invalid position so the build_path function
+                        // will terminate as the found call will return None
+                        k.parent.unwrap_or(-1),
+                        TransitionPair {
+                            shortest_distance: j as f64,
+                            path_length: k.total_cost as f64,
+                        },
+                    ),
+                )
+            })
+            .collect::<StandardHashMap<i64, (i64, TransitionPair<f64>)>>();
+
+        debug!(
+            "Generated {} parent possibilities to pair with.",
+            probabilities.len()
+        );
+
+        let paths = right_ixs
+            .iter()
+            .filter_map(|key| {
+                self.candidates.get(key).and_then(|candidate| {
+                    probabilities
+                        .get(&candidate.2.map_edge.0)
+                        .map(|(_parent, prob)| (key, (candidate.2.map_edge.0, prob)))
+                })
+            })
+            .map(|(key, (to, pair))| (key, pair, Transition::pathbuilder(&to, &probabilities)))
+            .map(|(right, lengths, path)| {
+                (*right, Transition::transition_probability(*lengths), path)
+            })
+            .collect::<Vec<(NodeIndex, TransitionProbability, Vec<i64>)>>();
+
+        debug!(
+            "TIMING: Full={} ({} -> *)",
+            time.elapsed().as_micros(),
+            left.position.wkt_string(),
+        );
+
+        paths
     }
 
     /// Collapses transition layers, `layers`, into a single vector of
     /// the finalised points
-    fn collapse(&self, layers: &[ImbuedLayer]) -> Vec<Point> {
-        if let Some(nodes) = layers.last() {
-            // All nodes with a possible route, sorted by best probability
-            // TODO: A Dijkstra reverse search would yield better results as to route-depth and partial patching
-            let searchable = nodes
-                .iter()
-                .filter(|node| node.borrow().prev_best.is_some())
-                .max_by(|a, b| {
-                    a.borrow()
-                        .cumulative_probability
-                        .partial_cmp(&b.borrow().cumulative_probability)
-                        .unwrap_or(Ordering::Equal)
-                });
+    fn collapse(&self, start: NodeIndex, end: NodeIndex) -> Vec<NodeIndex> {
+        // There should be exclusive read-access by the time collapse is called.
+        let graph = self.graph.read().unwrap();
+        if let Some((score, path)) = petgraph::algo::astar(
+            &*graph,
+            start,
+            |node| node == end,
+            |e| {
+                // Decaying Transition Cost
+                let transition_cost = e.weight().0;
 
-            // Find the optimal candidate in last_layer.candidates
-            if let Some(best_node) = searchable {
-                return std::iter::from_fn({
-                    let mut previous_best = Some(best_node);
-                    move || {
-                        // Perform rollup on the candidates to walk-back the path
-                        previous_best.take().inspect(|prev| {
-                            previous_best = prev.borrow().prev_best;
-                        })
-                    }
-                })
-                .fuse()
-                .inspect(|node| {
-                    debug!(
-                        "Candidate {:?} ({}) selected.",
-                        node.borrow().candidate.index,
-                        node.borrow().candidate.position.wkt_string()
-                    )
-                })
-                .flat_map(|candidate|
-                        // TODO: Slow implementation..
-                        candidate.borrow().current_path
-                            .iter()
-                            .rev()
-                            .map(|item| item.position)
-                            .collect::<Vec<_>>())
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect::<Vec<_>>();
-            }
+                // Loosely-Decaying Emission Cost
+                let emission_cost = graph.node_weight(e.source()).map_or(0.0, |v| v.1);
+
+                transition_cost + emission_cost
+            },
+            |_| 0.0,
+        ) {
+            debug!("Minimal trip found with score of {score}.");
+            return path;
         }
 
         // Return no points by default
@@ -216,138 +325,114 @@ impl<'a> Transition<'a> {
         vec![]
     }
 
+    pub fn generate_probabilities(mut self, distance: f64) -> Self {
+        // Deconstruct the trajectory into individual segments
+        self.layers = self.generate_layers(distance);
+
+        // Declaring all the pairs of indicies that need to be refined.
+        let transition_probabilities = self
+            .layers
+            .par_windows(2)
+            .inspect(|pair| {
+                debug!("Unpacking {:?} and {:?}...", pair[0].len(), pair[1].len());
+            })
+            .flat_map(|vectors| {
+                vectors[0]
+                    .iter()
+                    .map(|&a| (a, vectors[1].as_slice()))
+                    .collect::<Vec<_>>()
+            })
+            .into_par_iter()
+            .map(|(left, right)| (left, self.refine_candidates(left, right)))
+            .collect::<Vec<_>>();
+
+        for (left, weights) in transition_probabilities {
+            for (right, weight, path) in weights {
+                // Transition Probabilities are of the range {0, 1}, such that
+                // -log_N(x) yields a value which is infinately large when x
+                // is close to 0, and 0 when x is close to 1. This is the desired
+                // behaviour since a value with a Transition Probability of 1,
+                // represents a transition which is most desirable. Therefore, has
+                // "zero" cost to move through. Whereas, one with a Transition
+                // Probability of 0, is a transition we want to discourage, thus
+                // has a +inf cost to traverse.
+                //
+                // t_p(x) = -log_N(x) in the range { 0 <= x <= 1 }
+                let transition_cost = -weight.deref().log(TRANSITION_LOGARITHM_BASE);
+
+                self.graph
+                    .write()
+                    .unwrap()
+                    .add_edge(left, right, (transition_cost, path));
+            }
+        }
+
+        self
+    }
+
     /// Backtracks the HMM from the most appropriate final point to
     /// its prior most appropriate points
-    pub fn backtrack(&'a self, line_string: LineString, distance: f64) -> Vec<Point> {
-        let time = Instant::now();
-        debug!("BACKTRACK::TIMING:: Start=@{}", time.elapsed().as_micros());
+    ///
+    /// Consumes the graph.
+    pub fn backtrack(self) -> MatchResult {
+        let start = *self.points.first().unwrap();
+        let end = *self.points.last().unwrap();
 
-        // Deconstruct the trajectory into individual segments
-        let points = line_string.into_points();
-        debug!(
-            "BACKTRACK::TIMING:: GeneratePoints=@{}",
-            time.elapsed().as_micros()
-        );
+        // Add in the start and end points to the graph
+        let (source, target) = {
+            let mut graph = self.graph.write().unwrap();
+            let source = graph.add_node((start, 0.0));
+            self.layers.first().unwrap().iter().for_each(|node| {
+                // TODO: Add the starting NodeIx in
+                graph.add_edge(source, *node, (0.0f64, vec![]));
+            });
 
-        let layers = points
-            .as_parallel_slice()
-            .par_windows(2)
-            .map(|window| TrajectorySegment::new(&window[0], &window[1]))
-            .enumerate()
-            .filter_map(|(segment_index, segment)| {
-                debug!(
-                    "Looking for nodes adjacent to {}, within distance {}.",
-                    segment.source.wkt_string(),
-                    distance
-                );
+            let target = graph.add_node((end, 0.0));
+            self.layers.last().unwrap().iter().for_each(|node| {
+                graph.add_edge(*node, target, (0.0f64, vec![]));
+            });
 
-                let candidates = self
-                    .graph
-                    // We want exactly 10 candidates to search with
-                    .nearest_projected_nodes(segment.source, 5)
-                    .enumerate()
-                    .map(|(index, (position, edge))| TransitionCandidate {
-                        index: index as i64,
-                        edge,
-                        position,
-                    })
-                    .collect::<Vec<_>>();
-
-                debug!(
-                    "Obtained {} candidates for segment {}",
-                    candidates.len(),
-                    segment_index
-                );
-                if candidates.is_empty() {
-                    return None;
-                }
-
-                Some(TransitionLayer {
-                    candidates,
-                    segment,
-                })
-            })
-            .collect::<Vec<_>>();
-
-        // If we use the bridging technique
-        // from the above function, then this
-        // can be one iterator meaning we
-        // dont have to collect and re-create,
-        // thus can be paralellized completely.
-        debug!(
-            "BACKTRACK::TIMING:: GenerateLayers=@{}",
-            time.elapsed().as_micros()
-        );
-        debug!("Formed {} transition layers.", layers.len());
-
-        // We need to keep this in the outer-scope
-        let node_layers = layers
-            .iter()
-            // Only used for debug indexing
-            .enumerate()
-            .filter_map(|(layer_index, layer)| {
-                let candidates = layer
-                    .candidates
-                    .iter()
-                    .map(|candidate| {
-                        let distance =
-                            Haversine::distance(candidate.position, *layer.segment.source);
-                        let emission_probability = Transition::emission_probability(
-                            distance,
-                            self.error.unwrap_or(DEFAULT_ERROR),
-                        );
-
-                        TransitionNode {
-                            candidate,
-                            prev_best: None,
-                            current_path: Box::new(vec![]),
-                            emission_probability,
-                            transition_probability: 0.0f64,
-                            cumulative_probability: if layer_index == 0 {
-                                emission_probability.log(E)
-                            } else {
-                                f64::NEG_INFINITY
-                            },
-                        }
-                    })
-                    .map(RefCell::new)
-                    .collect::<Vec<_>>();
-
-                if candidates.is_empty() {
-                    return None;
-                }
-
-                Some(candidates)
-            })
-            .collect::<Vec<_>>();
-
-        debug!(
-            "BACKTRACK::TIMING:: GenerateAllNodes=@{}",
-            time.elapsed().as_micros()
-        );
-        debug!("All {} layer nodes generated", node_layers.len());
-
-        // Refine Step
-        let mut layer_index = 0;
-        node_layers.windows(2).for_each(|layers| {
-            debug!("Moving onto layers {}", layer_index);
-            self.refine_candidates(&layers[0], &layers[1]);
-            layer_index += 1;
-        });
-
-        debug!(
-            "BACKTRACK::TIMING:: RefineLayers=@{}",
-            time.elapsed().as_micros()
-        );
-        debug!("Refined all layers, collapsing...");
+            drop(graph);
+            (source, target)
+        };
 
         // Now we refine the candidates
-        let collapsed = self.collapse(&node_layers);
-        debug!(
-            "BACKTRACK::TIMING:: Collapsed=@{}",
-            time.elapsed().as_micros()
-        );
+        let collapsed = self.collapse(source, target);
 
-        collapsed
+        let get_edge = |a: &NodeIndex, b: &NodeIndex| -> Option<(f64, Vec<NodeIx>)> {
+            let reader = self.graph.read().ok()?;
+            let edge_index = reader.find_edge(*a, *b)?;
+            reader.edge_weight(edge_index).cloned()
+        };
+
+        let interpolated = collapsed
+            .windows(2)
+            .filter_map(|candidate| {
+                if let [a, b] = candidate {
+                    return get_edge(a, b).or_else(|| get_edge(b, a)).map(|pp| {
+                        pp.1.iter()
+                            .filter_map(|index| self.map.hash.get(index))
+                            .map(|node| node.position)
+                            .collect::<Vec<_>>()
+                    });
+                }
+
+                None
+            })
+            .flatten()
+            .collect::<LineString>();
+
+        debug!("Total Route: {}", interpolated.wkt_string());
+
+        let matched = collapsed
+            .iter()
+            .filter_map(|node| self.candidates.get(node))
+            .map(|can| can.2)
+            .collect::<Vec<_>>();
+
+        MatchResult {
+            interpolated,
+            matched,
+        }
     }
 }
