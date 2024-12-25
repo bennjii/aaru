@@ -24,27 +24,6 @@ use crate::route::Graph as RouteGraph;
 const DEFAULT_ERROR: f64 = 20f64;
 const TRANSITION_LOGARITHM_BASE: f64 = 1.2;
 
-// NEW API:
-//
-// + === + === +
-//   \        /
-//    \     /
-//       +
-//
-// We need a way to represent the graph as a whole.
-// We will use petgraph's DiGraph for this,
-// since it will be a directed graph, built in reverse, tracking backwards.
-//
-// We must first add all the nodes into the graph,
-// then we can add the edges with their weights in
-// the transition.
-//
-// Finally, to backtrack, we can use the provided
-// algorithms to perform dijkstra on it to backtrack.
-// possibly just using the astar algo since the
-// api is easier to use.
-//
-
 type LayerId = usize;
 type NodeId = usize;
 
@@ -74,13 +53,11 @@ type CandidatePoint = (Point, f64);
 
 type ArcGraph<A, B> = Arc<RwLock<Graph<A, B, Directed>>>;
 
-// TODO: Move LayerID and NodeID into TransitionCandidate.
-
 pub struct Transition<'a> {
     map: &'a RouteGraph,
     // keep in mind we dont need layerid and nodeid, but theyre useful for debugging so we'll keep for now.
     graph: ArcGraph<CandidatePoint, CandidateEdge>,
-    candidates: HashMap<NodeIndex, (LayerId, NodeId, TransitionCandidate)>,
+    candidates: HashMap<NodeIndex, TransitionCandidate>,
     error: Option<f64>,
 
     layers: Vec<Vec<NodeIndex>>,
@@ -177,7 +154,8 @@ impl<'a> Transition<'a> {
                         let candidate = TransitionCandidate {
                             map_edge: (map_edge.0, map_edge.1),
                             position,
-                            emission_probability,
+                            layer_id,
+                            node_id,
                         };
 
                         let node_index = self
@@ -185,9 +163,7 @@ impl<'a> Transition<'a> {
                             .write()
                             .unwrap()
                             .add_node((position, emission_probability));
-                        let _ = self
-                            .candidates
-                            .insert(node_index, (layer_id, node_id, candidate));
+                        let _ = self.candidates.insert(node_index, candidate);
 
                         node_index
                     })
@@ -208,17 +184,16 @@ impl<'a> Transition<'a> {
         right_ixs: &[NodeIndex],
     ) -> Vec<(NodeIndex, TransitionProbability, Vec<i64>)> {
         let left_candidate = *self.candidates.get(&left_ix).unwrap();
-        let left = left_candidate.2;
 
         debug!(
             "Routing from Layer::{}::{} to Layer::{}::*.",
-            left_candidate.0,
-            left_candidate.1,
-            left_candidate.0 + 1,
+            left_candidate.layer_id,
+            left_candidate.node_id,
+            left_candidate.layer_id + 1,
         );
 
         let time = Instant::now();
-        let start = left.map_edge.0;
+        let start = left_candidate.map_edge.0;
         let threshold_distance = 1_000;
 
         let reach = dijkstra_reach(&start, |node, _| {
@@ -245,7 +220,7 @@ impl<'a> Transition<'a> {
                 (
                     predicate.clone(),
                     Haversine::distance(
-                        left.position,
+                        left_candidate.position,
                         self.map.get_position(&predicate.node).unwrap(),
                     ) as u32,
                 )
@@ -277,8 +252,8 @@ impl<'a> Transition<'a> {
             .filter_map(|key| {
                 self.candidates.get(key).and_then(|candidate| {
                     probabilities
-                        .get(&candidate.2.map_edge.0)
-                        .map(|(_parent, prob)| (key, (candidate.2.map_edge.0, prob)))
+                        .get(&candidate.map_edge.0)
+                        .map(|(_parent, prob)| (key, (candidate.map_edge.0, prob)))
                 })
             })
             .map(|(key, (to, pair))| (key, pair, Transition::pathbuilder(&to, &probabilities)))
@@ -290,7 +265,7 @@ impl<'a> Transition<'a> {
         debug!(
             "TIMING: Full={} ({} -> *)",
             time.elapsed().as_micros(),
-            left.position.wkt_string(),
+            left_candidate.position.wkt_string(),
         );
 
         paths
@@ -346,6 +321,8 @@ impl<'a> Transition<'a> {
             .map(|(left, right)| (left, self.refine_candidates(left, right)))
             .collect::<Vec<_>>();
 
+        let mut write_access = self.graph.write().unwrap();
+
         for (left, weights) in transition_probabilities {
             for (right, weight, path) in weights {
                 // Transition Probabilities are of the range {0, 1}, such that
@@ -359,13 +336,11 @@ impl<'a> Transition<'a> {
                 //
                 // t_p(x) = -log_N(x) in the range { 0 <= x <= 1 }
                 let transition_cost = -weight.deref().log(TRANSITION_LOGARITHM_BASE);
-
-                self.graph
-                    .write()
-                    .unwrap()
-                    .add_edge(left, right, (transition_cost, path));
+                write_access.add_edge(left, right, (transition_cost, path));
             }
         }
+
+        drop(write_access);
 
         self
     }
@@ -427,7 +402,7 @@ impl<'a> Transition<'a> {
         let matched = collapsed
             .iter()
             .filter_map(|node| self.candidates.get(node))
-            .map(|can| can.2)
+            .map(|can| *can)
             .collect::<Vec<_>>();
 
         MatchResult {

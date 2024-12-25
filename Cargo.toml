@@ -81,10 +81,8 @@ wkt = "0.11.1"
 mimalloc = { version = "0.1.43", optional = true }
 geohash = "0.13.1"
 strum = { version = "0.26.3", features = ["phf", "derive"] }
-quick-protobuf = "0.8.1"
 env_logger = "0.11.5"
 pathfinding = "4.11.0"
-parking_lot = { version = "0.12.3", features = ["deadlock_detection"] }
 
 [build-dependencies]
 tonic-build = { version = "0.12.3", features = ["prost"] }
