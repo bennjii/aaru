@@ -34,5 +34,7 @@ pub struct TransitionLayer<'a> {
 pub struct TransitionCandidate {
     pub map_edge: (NodeIx, NodeIx),
     pub position: Point,
-    pub emission_probability: f64,
+
+    pub layer_id: usize,
+    pub node_id: usize,
 }

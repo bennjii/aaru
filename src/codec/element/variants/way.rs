@@ -93,21 +93,21 @@ impl osm::Way {
     }
 
     #[inline]
-    pub fn road_tag(tags: &Vec<(String, String)>) -> Option<String> {
+    pub fn road_tag(tags: &[(String, String)]) -> Option<String> {
         tags.iter()
             .find(|(key, value)| key == "highway" && VALID_ROADWAYS.contains(&value.as_str()))
             .map(|(_, value)| value.clone())
     }
 
     #[inline]
-    pub fn one_way(tags: &Vec<(String, String)>) -> bool {
+    pub fn one_way(tags: &[(String, String)]) -> bool {
         tags.iter()
             .find(|(key, _)| key == "oneway")
             .map_or(false, |(_, value)| value == "yes")
     }
 
     #[inline]
-    pub fn roundabout(tags: &Vec<(String, String)>) -> bool {
+    pub fn roundabout(tags: &[(String, String)]) -> bool {
         tags.iter()
             .find(|(key, _)| key == "junction")
             .map_or(false, |(_, value)| value == "roundabout")

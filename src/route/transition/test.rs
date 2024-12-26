@@ -22,20 +22,6 @@ static GLOBAL_GRAPH: LazyLock<Graph> = LazyLock::new(|| {
 #[tokio::test]
 async fn test_transition() {
     env_logger::init();
-
-    std::thread::spawn(move || loop {
-        std::thread::sleep(std::time::Duration::from_secs(2));
-        for deadlock in parking_lot::deadlock::check_deadlock() {
-            for deadlock in deadlock {
-                println!(
-                    "Found a deadlock! {}:\n{:?}",
-                    deadlock.thread_id(),
-                    deadlock.backtrace()
-                );
-            }
-        }
-    });
-
     println!("Graph Created. Transitioning...");
 
     let linestring = wkt! {
@@ -154,13 +140,14 @@ fn test_par_layers() {
                 .enumerate()
                 .map(|(node_id, (position, map_edge))| {
                     // We have the actual projected position, and it's associated edge.
-                    let distance = Haversine::distance(position, *point);
-                    let emission_probability = Transition::emission_probability(distance, 20.0);
+                    let _distance = Haversine::distance(position, *point);
+                    // let emission_probability = Transition::emission_probability(distance, 20.0);
 
                     let candidate = TransitionCandidate {
                         map_edge: (map_edge.0, map_edge.1),
                         position,
-                        emission_probability,
+                        layer_id,
+                        node_id,
                     };
 
                     let node_index = petgraph
@@ -209,13 +196,14 @@ fn test_series_layers() {
                 .enumerate()
                 .map(|(node_id, (position, map_edge))| {
                     // We have the actual projected position, and it's associated edge.
-                    let distance = Haversine::distance(position, *point);
-                    let emission_probability = Transition::emission_probability(distance, 20.0);
+                    let _distance = Haversine::distance(position, *point);
+                    // let emission_probability = Transition::emission_probability(distance, 20.0);
 
                     let candidate = TransitionCandidate {
                         map_edge: (map_edge.0, map_edge.1),
                         position,
-                        emission_probability,
+                        layer_id,
+                        node_id,
                     };
 
                     let node_index = petgraph.add_node((layer_id, node_id, candidate));

@@ -138,12 +138,6 @@ impl Graph {
                 tree
             },
             |mut a_tree, b_tree| {
-                // TODO: Add `Graph` merge optimisations
-                // a_graph.extend(b_graph.all_edges());
-                // for (source, target, weight) in b_graph.all_edges() {
-                //     a_graph.add_edge(source, target, *weight);
-                // }
-
                 a_tree.extend(b_tree);
                 a_tree
             },
@@ -262,63 +256,27 @@ impl Graph {
             .collect::<LineString>()
     }
 
-    pub(crate) fn route_raw(
+    pub(crate) fn route_nodes(
         &self,
         start_node: NodeIx,
         finish_node: NodeIx,
     ) -> Option<(Weight, Vec<Node>)> {
         debug!("Routing {} -> {}", start_node, finish_node);
-        let final_position = self.hash.get(&finish_node)?.position;
+        let (score, path) = petgraph::algo::astar(
+            &self.graph,
+            start_node,
+            |finish| finish == finish_node,
+            |e| *e.weight(),
+            |_| 0 as Weight,
+        )?;
 
-        if let Some((path, score)) = astar(
-            &start_node,
-            |node| {
-                self.graph
-                    .edges_directed(*node, Direction::Outgoing)
-                    .map(|(a, _b, c)| (a, *c))
-            },
-            |node| {
-                self.hash
-                    .get(node)
-                    .map(|v| Euclidean::distance(v.position, final_position) as Weight)
-                    .unwrap_or(0 as Weight)
-            },
-            |node| *node == finish_node,
-        ) {
-            let route = path
-                .iter()
-                .filter_map(|v| self.hash.get(v))
-                .map(|e| *e.get())
-                .collect();
+        let route = path
+            .iter()
+            .filter_map(|v| self.hash.get(v))
+            .map(|e| *e.get())
+            .collect();
 
-            return Some((score, route));
-        }
-
-        None
-
-        // let (score, path) = petgraph::algo::astar(
-        //     &self.graph,
-        //     start_node,
-        //     |finish| finish == finish_node,
-        //     |e| *e.weight(),
-        //     |v| {
-        //         0 as Weight
-        //         // self.hash
-        //         //     .get(&v)
-        //         //     .map(|v| Euclidean::distance(v.position, final_position) as Weight)
-        //         //     .unwrap_or(0 as Weight)
-        //     },
-        // )?;
-
-        // // debug!("Route Obtained. Score={}, PathLength={}", score, path.len());
-
-        // let route = path
-        //     .iter()
-        //     .filter_map(|v| self.hash.get(v))
-        //     .map(|e| *e.get())
-        //     .collect();
-
-        // Some((score, route))
+        Some((score, route))
     }
 
     /// Finds the optimal route between a start and end point.
@@ -327,8 +285,6 @@ impl Graph {
     pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node>)> {
         let start_node = self.nearest_node(start)?;
         let finish_node = self.nearest_node(finish)?;
-
-        // TODO: Investigate lookup so we don't have to lookup finish twice
-        self.route_raw(start_node.id, finish_node.id)
+        self.route_nodes(start_node.id, finish_node.id)
     }
 }
