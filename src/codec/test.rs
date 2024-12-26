@@ -1,8 +1,6 @@
 #![cfg(test)]
 
 use log::error;
-#[cfg(not(feature = "mmap"))]
-use std::fs::File;
 use std::path::PathBuf;
 use std::time::Instant;
 

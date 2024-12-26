@@ -38,11 +38,16 @@ test-log = { version = "0.2.16", features = ["log"] }
 # gRPC Server Dependencies [Optional-"grpc_server"]
 tonic = { version = "0.12.3", features = ["tls", "tls-roots"], optional = true }
 tonic-reflection = { version = "0.12.3", optional = true }
-tonic-web = {  version = "0.12.3", optional = true }
+tonic-web = { version = "0.12.3", optional = true }
 
 bytes = { version = "1.8.0", features = ["default"] } # Required for io::Cursor
-prost = { version = "0.13.3"}
-tokio = { version = "1.41.0", features = ["rt", "rt-multi-thread", "macros"], optional = true }
+prost = { version = "0.13.3" }
+tokio = { version = "1.41.1", features = [
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "fs",
+], optional = true }
 
 # HTTP Server Dependencies [Optional-"http_server"]
 tower-http = { version = "0.6.1", features = ["cors"], optional = true }
@@ -52,10 +57,16 @@ serde_qs = { version = "0.13.0", optional = true }
 
 # Tracing [Optional-"tracing"]
 tracing = { version = "0.1.40", optional = true }
-tracing-subscriber = { version = "0.3.18", features = ["tracing-log", "fmt", "env-filter"], optional = true }
+tracing-subscriber = { version = "0.3.18", features = [
+    "tracing-log",
+    "fmt",
+    "env-filter",
+], optional = true }
 opentelemetry = { version = "0.26.0", optional = true }
-opentelemetry_sdk = { version = "0.26.0", features = ["rt-tokio"], optional = true }
-tracing-opentelemetry = {  version = "0.27.0", optional = true }
+opentelemetry_sdk = { version = "0.26.0", features = [
+    "rt-tokio",
+], optional = true }
+tracing-opentelemetry = { version = "0.27.0", optional = true }
 opentelemetry-otlp = { version = "0.26.0", features = ["tls"], optional = true }
 
 # Optimisations and Compression
@@ -63,21 +74,27 @@ rayon = "1.10.0"
 either = "1.13.0"
 chrono = "0.4.38"
 flate2 = { version = "1.0.34", features = ["zlib-ng"], optional = true }
-fast_hilbert = {  version = "2.0.0", optional = true }
+fast_hilbert = { version = "2.0.0", optional = true }
 scc = { version = "2.2.4", optional = true }
 geo = "0.29.1"
 wkt = "0.11.1"
 mimalloc = { version = "0.1.43", optional = true }
 geohash = "0.13.1"
 strum = { version = "0.26.3", features = ["phf", "derive"] }
+quick-protobuf = "0.8.1"
+env_logger = "0.11.5"
+pathfinding = "4.11.0"
+parking_lot = { version = "0.12.3", features = ["deadlock_detection"] }
 
 [build-dependencies]
 tonic-build = { version = "0.12.3", features = ["prost"] }
-prost-build = { version = "0.13.3"}
+prost-build = { version = "0.13.3" }
 
 [dev-dependencies]
 osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
-criterion = { version = "2.7.2", package = "codspeed-criterion-compat" }
+criterion = { version = "2.7.2", features = [
+    "async_tokio",
+], package = "codspeed-criterion-compat" }
 
 [[bench]]
 name = "codec_sweep"
@@ -87,10 +104,21 @@ harness = false
 name = "codec_target"
 harness = false
 
+[[bench]]
+name = "total_ingestion"
+harness = false
+
 [features]
 default = ["codec", "route", "mimalloc"]
 
-tracing = ["dep:tracing", "tracing-subscriber", "opentelemetry", "opentelemetry_sdk", "tracing-opentelemetry", "opentelemetry-otlp"]
+tracing = [
+    "dep:tracing",
+    "tracing-subscriber",
+    "opentelemetry",
+    "opentelemetry_sdk",
+    "tracing-opentelemetry",
+    "opentelemetry-otlp",
+]
 
 grpc_server = ["tonic", "tonic-reflection", "tonic-web", "tower-http", "tokio"]
 http_server = ["tower-http", "axum", "axum-macros", "serde_qs", "tokio"]
@@ -113,6 +141,6 @@ opt-level = 3
 lto = true
 
 [[example]]
-name = "Route Client"
+name = "RouteClient"
 path = "examples/route_client.rs"
 required-features = ["grpc_server"]

@@ -2,7 +2,7 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use geo::{point, Distance, Haversine, Point};
+use geo::{point, Destination, Distance, Euclidean, Geodesic, Point};
 use rstar::{Envelope, AABB};
 use std::ops::{Add, Mul};
 
@@ -20,21 +20,21 @@ impl rstar::PointDistance for Node {
         &self,
         point: &<Self::Envelope as Envelope>::Point,
     ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
-        Haversine::distance(self.position, *point)
+        Euclidean::distance(self.position, *point).powi(2)
     }
 
-    fn distance_2_if_less_or_equal(
-        &self,
-        point: &<Self::Envelope as Envelope>::Point,
-        max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar,
-    ) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
-        // This should utilize Envelope optimisation
-        let distance = Haversine::distance(self.position, *point);
-        match distance < max_distance_2 {
-            true => Some(distance),
-            false => None,
-        }
-    }
+    // fn distance_2_if_less_or_equal(
+    //     &self,
+    //     point: &<Self::Envelope as Envelope>::Point,
+    //     max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar,
+    // ) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
+    //     // This should utilize Envelope optimisation
+    //     let distance = self.distance_2(point);
+    //     match distance <= max_distance_2 {
+    //         true => Some(distance),
+    //         false => None,
+    //     }
+    // }
 }
 
 impl rstar::RTreeObject for Node {
@@ -87,6 +87,12 @@ impl Node {
     /// Returns the identifier for the node
     pub fn id(&self) -> i64 {
         self.id
+    }
+
+    pub fn bounding(&self, distance: f64) -> AABB<Point> {
+        let bottom_right = Geodesic::destination(self.position, 135.0, distance);
+        let top_left = Geodesic::destination(self.position, 315.0, distance);
+        AABB::from_corners(top_left, bottom_right)
     }
 
     /// Takes an `osm::DenseNodes` structure and extracts `Node`s as an
