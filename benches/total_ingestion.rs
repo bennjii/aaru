@@ -18,6 +18,7 @@ fn ingest_and_count() {
         |(ways, nodes), element| match element {
             ProcessedElement::Way(_) => (ways + 1, nodes),
             ProcessedElement::Node(_) => (ways, nodes + 1),
+            _ => (ways, nodes),
         },
         |(ways, nodes), (ways2, nodes2)| (ways + ways2, nodes + nodes2),
         || (0u64, 0u64),
