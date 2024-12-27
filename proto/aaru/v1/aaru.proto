@@ -74,19 +74,19 @@ message MapMatchRequest {
 // includes: `speed_limit`, `surface`, and `lane_count`.
 //
 message EdgeInfo {
-    uint32 id = 1;
-    uint32 source = 2;
-    uint32 target = 3;
+  uint32 id = 1;
+  uint32 source = 2;
+  uint32 target = 3;
 
-    repeated string names = 4;
+  repeated string names = 4;
 
-    uint32 join_percent = 5;
-    uint32 depart_percent = 6;
-    uint32 length = 7;
+  uint32 join_percent = 5;
+  uint32 depart_percent = 6;
+  uint32 length = 7;
 
-    uint32 lane_count = 8;
-    uint32 speed_limit = 9;
-    string surface = 10;
+  uint32 lane_count = 8;
+  uint32 speed_limit = 9;
+  string surface = 10;
 }
 
 message MatchedRoute {
