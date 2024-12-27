@@ -65,7 +65,13 @@ pub struct Transition<'a> {
     points: Vec<Point>,
 }
 
-pub struct MatchResult {
+#[derive(Debug)]
+pub enum MatchError {
+    CollapseFailure,
+}
+
+pub struct Match {
+    pub cost: f64,
     pub interpolated: LineString,
     pub matched: Vec<TransitionCandidate>,
 }
@@ -274,10 +280,10 @@ impl<'a> Transition<'a> {
 
     /// Collapses transition layers, `layers`, into a single vector of
     /// the finalised points
-    fn collapse(&self, start: NodeIndex, end: NodeIndex) -> Vec<NodeIndex> {
+    fn collapse(&self, start: NodeIndex, end: NodeIndex) -> Option<(f64, Vec<NodeIndex>)> {
         // There should be exclusive read-access by the time collapse is called.
         let graph = self.graph.read().unwrap();
-        if let Some((score, path)) = petgraph::algo::astar(
+        petgraph::algo::astar(
             &*graph,
             start,
             |node| node == end,
@@ -291,14 +297,7 @@ impl<'a> Transition<'a> {
                 transition_cost + emission_cost
             },
             |_| 0.0,
-        ) {
-            debug!("Minimal trip found with score of {score}.");
-            return path;
-        }
-
-        // Return no points by default
-        debug!("Insufficient layers or no optimal candidate, empty vec.");
-        vec![]
+        )
     }
 
     pub fn generate_probabilities(mut self, distance: f64) -> Self {
@@ -350,7 +349,7 @@ impl<'a> Transition<'a> {
     /// its prior most appropriate points
     ///
     /// Consumes the graph.
-    pub fn backtrack(self) -> MatchResult {
+    pub fn backtrack(self) -> Result<Match, MatchError> {
         let start = *self.points.first().unwrap();
         let end = *self.points.last().unwrap();
 
@@ -373,7 +372,9 @@ impl<'a> Transition<'a> {
         };
 
         // Now we refine the candidates
-        let collapsed = self.collapse(source, target);
+        let (cost, collapsed) = self
+            .collapse(source, target)
+            .ok_or_else(|| MatchError::CollapseFailure)?;
 
         let get_edge = |a: &NodeIndex, b: &NodeIndex| -> Option<(f64, Vec<NodeIx>)> {
             let reader = self.graph.read().ok()?;
@@ -406,9 +407,10 @@ impl<'a> Transition<'a> {
             .map(|can| *can)
             .collect::<Vec<_>>();
 
-        MatchResult {
+        Ok(Match {
             interpolated,
             matched,
-        }
+            cost,
+        })
     }
 }

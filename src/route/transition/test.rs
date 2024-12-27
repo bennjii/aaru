@@ -37,7 +37,7 @@ async fn test_transition() {
     );
 
     let now = Instant::now();
-    let mres = transition.generate_probabilities(50.0).backtrack();
+    let mres = transition.generate_probabilities(50.0).backtrack().unwrap();
 
     println!(
         "[TRANSITION] Backtracked. Elapsed: {}us (us = 0.001 ms)",

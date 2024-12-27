@@ -5,19 +5,21 @@
 use crate::codec::osm::PrimitiveBlock;
 use crate::codec::{osm, relation::MemberType};
 
-use super::common::{
-    OsmEntryId, Reference, ReferenceKey, References, Referentiable, Tagable, Tags,
-};
+use super::common::{OsmEntryId, ReferenceKey, References, Referentiable, Tagable, Tags};
 
 #[derive(Clone, Debug)]
 pub struct Way {
     // TODO: Use this in routing so attributes like roadnames, etc. can be used when recollecting and returning a response metric
-    id: i64,
+    id: OsmEntryId,
     refs: References,
     tags: Tags,
 }
 
 impl Way {
+    pub fn id(&self) -> OsmEntryId {
+        self.id
+    }
+
     #[inline]
     pub fn tags(&self) -> &Tags {
         &self.tags
@@ -30,22 +32,9 @@ impl Way {
 
     #[inline]
     pub fn from_raw(value: &osm::Way, block: &PrimitiveBlock) -> Self {
-        let refs: Vec<Reference> = value
-            .refs
-            .iter()
-            .fold(vec![], |mut prior, current| {
-                let index = current + prior.last().unwrap_or(&0i64);
-                prior.push(index);
-                prior
-            })
-            .into_iter()
-            // All nodes in a Way are `Node` types, therefore navigable.
-            .map(|index| Reference::without_role(OsmEntryId::as_node(index)))
-            .collect::<Vec<_>>();
-
         Way {
-            id: value.id,
-            refs: References::from(refs),
+            id: OsmEntryId::as_way(value.id),
+            refs: value.references(block),
             tags: value.tags(block),
         }
     }

@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 use std::path::Path;
 use tonic::{Request, Response, Status};
 
-use router_service::{RouteRequest, RouteResponse};
+use router_service::{MatchedRoute, RouteRequest, RouteResponse};
 
 use crate::route::Graph;
 use crate::server::route::router_service::{
@@ -91,17 +91,44 @@ impl RouterService for RouteService {
             .map(|coord| coord! { x: coord.longitude, y: coord.longitude })
             .collect::<LineString>();
 
-        let linestring = self.graph.map_match(coordinates, mapmatch.distance);
+        let result = self
+            .graph
+            .map_match(coordinates, mapmatch.search_distance)
+            .map_err(|err| Status::internal(format!("{:?}", err)))?;
+
+        let snapped_shape = result
+            .matched
+            .iter()
+            .map(|node| Coordinate {
+                latitude: node.position.y(),
+                longitude: node.position.x(),
+            })
+            .collect::<Vec<_>>();
+
+        let interpolated = result
+            .interpolated
+            .coords()
+            .into_iter()
+            .map(|node| Coordinate {
+                latitude: node.y,
+                longitude: node.x,
+            })
+            .collect::<Vec<_>>();
+
+        let matching = MatchedRoute {
+            snapped_shape,
+            interpolated,
+
+            edges: vec![],
+            label: "!".to_string(),
+            cost: 0,
+        };
 
         Ok(Response::new(MapMatchResponse {
-            matched: linestring
-                .coords()
-                .map(|node| Coordinate {
-                    latitude: node.y,
-                    longitude: node.x,
-                })
-                .collect::<Vec<_>>(),
-            linestring: linestring.wkt_string(),
+            // TODO: Vector to allow trip-splitting in the future.
+            matchings: vec![matching],
+            // TODO: Aggregate all the errored trips.
+            warnings: vec![],
         }))
     }
 

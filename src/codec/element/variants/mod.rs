@@ -64,6 +64,14 @@ pub mod common {
                 variant: MemberType::Node,
             }
         }
+
+        #[inline]
+        pub const fn as_way(identifier: i64) -> OsmEntryId {
+            OsmEntryId {
+                identifier,
+                variant: MemberType::Way,
+            }
+        }
     }
 
     impl Add<i64> for OsmEntryId {

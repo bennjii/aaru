@@ -1,6 +1,5 @@
 use geo::{
-    coord, line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, LineString,
-    Point,
+    line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, LineString, Point,
 };
 use log::{debug, error, info};
 use petgraph::prelude::DiGraphMap;
@@ -24,11 +23,15 @@ use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 use crate::route::transition::graph::Transition;
 
+use super::transition::graph::{Match, MatchError};
+
 pub type Weight = u32;
 pub type NodeIx = OsmEntryId;
+pub type EdgeIx = OsmEntryId;
+
 pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
-pub type GraphStructure = DiGraphMap<NodeIx, Weight>;
+pub type GraphStructure = DiGraphMap<NodeIx, (Weight, EdgeIx)>;
 
 const MAX_WEIGHT: Weight = 255 as Weight;
 
@@ -120,10 +123,13 @@ impl Graph {
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
                                 let mut lock = global_graph.lock().unwrap();
+                                let weight = (weight, way.id());
+
                                 lock.add_edge(a.id, b.id, weight);
                                 if !way.tags().one_way() && !way.tags().roundabout() {
                                     lock.add_edge(b.id, a.id, weight);
                                 }
+
                                 drop(lock);
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
@@ -210,6 +216,7 @@ impl Graph {
         self.square_scan(point, distance)
             .into_iter()
             .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
+            .map(|(a, b, c)| (a, b, &c.0))
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
@@ -238,7 +245,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, linestring: LineString, distance: f64) -> LineString {
+    pub fn map_match(&self, linestring: LineString, distance: f64) -> Result<Match, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         // Create our hidden markov model solver
@@ -246,16 +253,7 @@ impl Graph {
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        let match_result = transition.generate_probabilities(distance).backtrack();
-
-        match_result
-            .matched
-            .iter()
-            .map(|coord| {
-                let (lng, lat) = coord.position.x_y();
-                coord! { x: lng, y: lat }
-            })
-            .collect::<LineString>()
+        transition.generate_probabilities(distance).backtrack()
     }
 
     pub(crate) fn route_nodes(
@@ -269,7 +267,7 @@ impl Graph {
             &self.graph,
             start_node,
             |finish| finish == finish_node,
-            |e| *e.weight(),
+            |e| e.weight().0,
             |_| 0 as Weight,
         )?;
 
