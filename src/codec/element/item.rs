@@ -44,10 +44,11 @@ impl ProcessedElement {
                 .collect(),
             Element::Node(node) => vec![ProcessedElement::Node(Node::from(node))],
             Element::Way(way) => vec![ProcessedElement::Way(Way::from_raw(way, block))],
-            Element::Relation(relation) => {
-                vec![ProcessedElement::Relation(Relation::from_raw(
-                    relation, block,
-                ))]
+            Element::Relation(_relation) => {
+                vec![]
+                // ProcessedElement::Relation(Relation::from_raw(
+                //     relation, block,
+                // ))
             }
         }
     }
