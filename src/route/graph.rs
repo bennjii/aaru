@@ -122,15 +122,11 @@ impl Graph {
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
-                                let mut lock = global_graph.lock().unwrap();
                                 let weight = (weight, way.id());
-
-                                lock.add_edge(a.id, b.id, weight);
+                                global_graph.lock().unwrap().add_edge(a.id, b.id, weight);
                                 if !way.tags().one_way() && !way.tags().roundabout() {
-                                    lock.add_edge(b.id, a.id, weight);
+                                    global_graph.lock().unwrap().add_edge(b.id, a.id, weight);
                                 }
-
-                                drop(lock);
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
                             }
