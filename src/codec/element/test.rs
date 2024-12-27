@@ -50,8 +50,8 @@ fn processed_iter_count() {
 
     let nodes = iter.map_red(
         |item| match item {
-            ProcessedElement::Way(_) => 0,
             ProcessedElement::Node(_) => 1,
+            _ => 0,
         },
         |a, b| a + b,
         || 0,

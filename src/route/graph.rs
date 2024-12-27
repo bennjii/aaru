@@ -1,9 +1,7 @@
 use geo::{
-    coord, line_string, Destination, Distance, Euclidean, Geodesic, LineInterpolatePoint,
-    LineLocatePoint, LineString, Point,
+    line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, LineString, Point,
 };
 use log::{debug, error, info};
-use pathfinding::prelude::astar;
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
@@ -19,17 +17,21 @@ use tracing::Level;
 
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
+use crate::codec::element::variants::common::OsmEntryId;
 use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 use crate::route::transition::graph::Transition;
 
+use super::transition::graph::{Match, MatchError};
+
 pub type Weight = u32;
-pub type NodeIx = i64;
+pub type NodeIx = OsmEntryId;
+pub type EdgeIx = OsmEntryId;
+
 pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
-pub type GraphStructure = DiGraphMap<NodeIx, Weight>;
-// type GraphStructure = Csr<(), u32, Directed, usize>; - Doesn't implement IntoEdgesDirected yet.
+pub type GraphStructure = DiGraphMap<NodeIx, (Weight, EdgeIx)>;
 
 const MAX_WEIGHT: Weight = 255 as Weight;
 
@@ -57,7 +59,7 @@ impl Graph {
     }
 
     #[inline]
-    pub fn get_position(&self, node_index: &i64) -> Option<Point<f64>> {
+    pub fn get_position(&self, node_index: &NodeIx) -> Option<Point<f64>> {
         self.hash.get(node_index).map(|point| point.position)
     }
 
@@ -104,25 +106,26 @@ impl Graph {
             |mut tree: Vec<Node>, element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
-                        if !way.is_road() {
+                        // If way is not traversable (/ is not road)
+                        if way.tags().road_tag().is_none() {
                             return tree;
                         }
 
                         // Get the weight from the weight table
-                        let weight = match way.r#type() {
-                            Some(weight) => weights
-                                .get(weight.as_str())
-                                .map(|v| *v.get())
-                                .unwrap_or(MAX_WEIGHT),
+                        let weight = match way.tags().road_tag() {
+                            Some(weight) => {
+                                weights.get(weight).map(|v| *v.get()).unwrap_or(MAX_WEIGHT)
+                            }
                             None => MAX_WEIGHT,
                         };
 
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
-                                global_graph.lock().unwrap().add_edge(*a, *b, weight);
-                                if !way.is_one_way() && !way.is_roundabout() {
-                                    global_graph.lock().unwrap().add_edge(*b, *a, weight);
+                                let weight = (weight, way.id());
+                                global_graph.lock().unwrap().add_edge(a.id, b.id, weight);
+                                if !way.tags().one_way() && !way.tags().roundabout() {
+                                    global_graph.lock().unwrap().add_edge(b.id, a.id, weight);
                                 }
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
@@ -133,6 +136,7 @@ impl Graph {
                         // Add the node to the graph
                         tree.push(node);
                     }
+                    _ => {}
                 }
 
                 tree
@@ -157,7 +161,7 @@ impl Graph {
             .inspect(|e| {
                 if let Err((index, node)) = hash.insert(e.id, *e) {
                     error!(
-                        "Unable to insert node, index {} already taken. Node: {:?}",
+                        "Unable to insert node, index {:?} already taken. Node: {:?}",
                         index, node
                     );
                 }
@@ -208,6 +212,7 @@ impl Graph {
         self.square_scan(point, distance)
             .into_iter()
             .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
+            .map(|(a, b, c)| (a, b, &c.0))
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
@@ -236,7 +241,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, linestring: LineString, distance: f64) -> LineString {
+    pub fn map_match(&self, linestring: LineString, distance: f64) -> Result<Match, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         // Create our hidden markov model solver
@@ -244,16 +249,7 @@ impl Graph {
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        let match_result = transition.generate_probabilities(distance).backtrack();
-
-        match_result
-            .matched
-            .iter()
-            .map(|coord| {
-                let (lng, lat) = coord.position.x_y();
-                coord! { x: lng, y: lat }
-            })
-            .collect::<LineString>()
+        transition.generate_probabilities(distance).backtrack()
     }
 
     pub(crate) fn route_nodes(
@@ -261,12 +257,13 @@ impl Graph {
         start_node: NodeIx,
         finish_node: NodeIx,
     ) -> Option<(Weight, Vec<Node>)> {
-        debug!("Routing {} -> {}", start_node, finish_node);
+        debug!("Routing {:?} -> {:?}", start_node, finish_node);
+
         let (score, path) = petgraph::algo::astar(
             &self.graph,
             start_node,
             |finish| finish == finish_node,
-            |e| *e.weight(),
+            |e| e.weight().0,
             |_| 0 as Weight,
         )?;
 

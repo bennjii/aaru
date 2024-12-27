@@ -9,10 +9,12 @@ use std::ops::{Add, Mul};
 use crate::codec::osm;
 use crate::codec::osm::DenseNodes;
 
+use super::common::OsmEntryId;
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Node {
-    pub id: i64,
-    pub position: Point, // Coord<NanoDegree>
+    pub id: OsmEntryId,
+    pub position: Point,
 }
 
 impl rstar::PointDistance for Node {
@@ -22,19 +24,6 @@ impl rstar::PointDistance for Node {
     ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
         Euclidean::distance(self.position, *point).powi(2)
     }
-
-    // fn distance_2_if_less_or_equal(
-    //     &self,
-    //     point: &<Self::Envelope as Envelope>::Point,
-    //     max_distance_2: <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar,
-    // ) -> Option<<<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar> {
-    //     // This should utilize Envelope optimisation
-    //     let distance = self.distance_2(point);
-    //     match distance <= max_distance_2 {
-    //         true => Some(distance),
-    //         false => None,
-    //     }
-    // }
 }
 
 impl rstar::RTreeObject for Node {
@@ -45,47 +34,14 @@ impl rstar::RTreeObject for Node {
     }
 }
 
-// TODO: Evaluate the necessity of Node's contents
-// impl rstar::Point for Node {
-//     type Scalar = Degree;
-//     const DIMENSIONS: usize = 2;
-//
-//     #[inline]
-//     fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
-//         // Going to happen for EVERY item
-//         Node {
-//             id: 0,
-//             position: point! { x: generator(0), y: generator(1) },
-//         }
-//     }
-//
-//     #[inline]
-//     fn nth(&self, index: usize) -> Self::Scalar {
-//         match index {
-//             0 => self.position.x(),
-//             1 => self.position.y(),
-//             _ => unreachable!(),
-//         }
-//     }
-//
-//     #[inline]
-//     fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
-//         match index {
-//             0 => self.position.x_mut(),
-//             1 => self.position.y_mut(),
-//             _ => unreachable!(),
-//         }
-//     }
-// }
-
 impl Node {
     /// Constructs a `Node` from a given `LatLng` and `id`.
-    pub(crate) fn new(position: Point, id: i64) -> Self {
+    pub(crate) fn new(position: Point, id: OsmEntryId) -> Self {
         Node { position, id }
     }
 
     /// Returns the identifier for the node
-    pub fn id(&self) -> i64 {
+    pub fn id(&self) -> OsmEntryId {
         self.id
     }
 
@@ -127,9 +83,12 @@ impl Node {
                         prior_node
                             .position
                             .add(point! { x: lng, y: lat }.mul(scaling_factor)),
-                        *id + prior_node.id,
+                        prior_node.id + *id,
                     ),
-                    None => Node::new(point! { x: lng, y: lat }.mul(scaling_factor), *id),
+                    None => Node::new(
+                        point! { x: lng, y: lat }.mul(scaling_factor),
+                        OsmEntryId::from(*id),
+                    ),
                 };
 
                 curr.push(new_node);
@@ -142,7 +101,7 @@ impl Node {
 impl From<&osm::Node> for Node {
     fn from(value: &osm::Node) -> Self {
         Node {
-            id: value.id,
+            id: OsmEntryId::as_node(value.id),
             position: point! { x: value.lon as f64, y: value.lat as f64 },
         }
     }
