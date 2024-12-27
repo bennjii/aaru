@@ -17,6 +17,7 @@ use rayon::slice::ParallelSlice;
 use scc::HashMap;
 use wkt::ToWkt;
 
+use crate::codec::element::variants::common::OsmEntryId;
 use crate::route::graph::NodeIx;
 use crate::route::transition::node::TransitionCandidate;
 use crate::route::Graph as RouteGraph;
@@ -182,7 +183,7 @@ impl<'a> Transition<'a> {
         &self,
         left_ix: NodeIndex,
         right_ixs: &[NodeIndex],
-    ) -> Vec<(NodeIndex, TransitionProbability, Vec<i64>)> {
+    ) -> Vec<(NodeIndex, TransitionProbability, Vec<OsmEntryId>)> {
         let left_candidate = *self.candidates.get(&left_ix).unwrap();
 
         debug!(
@@ -232,7 +233,7 @@ impl<'a> Transition<'a> {
                     (
                         // Invalid position so the build_path function
                         // will terminate as the found call will return None
-                        k.parent.unwrap_or(-1),
+                        k.parent.unwrap_or(OsmEntryId::null()),
                         TransitionPair {
                             shortest_distance: j as f64,
                             path_length: k.total_cost as f64,
@@ -240,7 +241,7 @@ impl<'a> Transition<'a> {
                     ),
                 )
             })
-            .collect::<StandardHashMap<i64, (i64, TransitionPair<f64>)>>();
+            .collect::<StandardHashMap<OsmEntryId, (OsmEntryId, TransitionPair<f64>)>>();
 
         debug!(
             "Generated {} parent possibilities to pair with.",
@@ -260,7 +261,7 @@ impl<'a> Transition<'a> {
             .map(|(right, lengths, path)| {
                 (*right, Transition::transition_probability(*lengths), path)
             })
-            .collect::<Vec<(NodeIndex, TransitionProbability, Vec<i64>)>>();
+            .collect::<Vec<(NodeIndex, TransitionProbability, Vec<OsmEntryId>)>>();
 
         debug!(
             "TIMING: Full={} ({} -> *)",

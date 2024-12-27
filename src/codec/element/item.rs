@@ -6,9 +6,8 @@ use std::vec;
 #[cfg(feature = "tracing")]
 use tracing::debug;
 
-use crate::codec::element::variants::{Node, Way};
+use crate::codec::element::variants::{Node, Relation, Way};
 use crate::codec::osm;
-use crate::codec::osm::{PrimitiveBlock, PrimitiveGroup};
 
 #[derive(Clone)]
 pub enum Element<'a> {
@@ -22,11 +21,12 @@ pub enum Element<'a> {
 pub enum ProcessedElement {
     Node(Node),
     Way(Way),
+    Relation(Relation),
 }
 
 impl ProcessedElement {
     #[inline]
-    pub(crate) fn from_raw(element: Element, block: &PrimitiveBlock) -> Vec<ProcessedElement> {
+    pub(crate) fn from_raw(element: Element, block: &osm::PrimitiveBlock) -> Vec<ProcessedElement> {
         #[cfg(feature = "tracing")]
         if block.lat_offset.is_some() || block.lon_offset.is_some() || block.granularity.is_some() {
             debug!(
@@ -39,20 +39,23 @@ impl ProcessedElement {
         let granularity = block.granularity.unwrap_or(100);
 
         match element {
-            // TODO: Try making just an iterator return
             Element::DenseNodes(dense_nodes) => Node::from_dense(dense_nodes, granularity)
                 .map(ProcessedElement::Node)
                 .collect(),
             Element::Node(node) => vec![ProcessedElement::Node(Node::from(node))],
             Element::Way(way) => vec![ProcessedElement::Way(Way::from_raw(way, block))],
-            _ => vec![],
+            Element::Relation(relation) => {
+                vec![ProcessedElement::Relation(Relation::from_raw(
+                    relation, block,
+                ))]
+            }
         }
     }
 }
 
 impl<'a> Element<'a> {
     #[inline]
-    pub(crate) fn from_group(group: &'a PrimitiveGroup) -> Vec<Element<'a>> {
+    pub(crate) fn from_group(group: &'a osm::PrimitiveGroup) -> Vec<Element<'a>> {
         let mut elements: Vec<Element<'a>> = Vec::new();
 
         elements.extend(group.ways.iter().map(Element::Way));
