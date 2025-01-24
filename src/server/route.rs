@@ -96,6 +96,14 @@ impl RouterService for RouteService {
             .map_match(coordinates, mapmatch.search_distance)
             .map_err(|err| Status::internal(format!("{:?}", err)))?;
 
+        // result.interpolated
+        //     .iter()
+        //     .map(|node| {
+        //         node.node_idx.iter.map(|n| {
+        //             let outgoing = self.graph.graph.edges_directed(n, petgraph::Direction::Outgoing);
+        //         })
+        //     })
+
         let snapped_shape = result
             .matched
             .iter()

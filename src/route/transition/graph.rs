@@ -70,10 +70,19 @@ pub enum MatchError {
     CollapseFailure,
 }
 
+struct InterpolatedNodes {
+    pub node_idx: Vec<NodeIx>,
+}
+
 pub struct Match {
     pub cost: f64,
-    pub interpolated: LineString,
+
+    /// Direct matches for each individual point in the initial trajectory.
+    /// These are the new points, with associated routing information to
+    /// aid in information recovery.
     pub matched: Vec<TransitionCandidate>,
+
+    pub interpolated: LineString, // Vec<InterpolatedNodes>
 }
 
 impl<'a> Transition<'a> {
