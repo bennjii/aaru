@@ -36,7 +36,7 @@ impl rstar::RTreeObject for Node {
 
 impl Node {
     /// Constructs a `Node` from a given `LatLng` and `id`.
-    pub(crate) fn new(position: Point, id: OsmEntryId) -> Self {
+    pub const fn new(position: Point, id: OsmEntryId) -> Self {
         Node { position, id }
     }
 

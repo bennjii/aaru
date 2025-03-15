@@ -22,6 +22,11 @@ name = "tile"
 required-features = ["tile"]
 path = "examples/tile.rs"
 
+[[example]]
+name = "route_client"
+path = "examples/route_client.rs"
+required-features = ["grpc_server"]
+
 [dependencies]
 # Algorithm
 rstar = { version = "0.12.2", features = ["serde"] }
@@ -85,6 +90,7 @@ geohash = "0.13.1"
 strum = { version = "0.26.3", features = ["phf", "derive"] }
 env_logger = "0.11.5"
 pathfinding = "4.11.0"
+approx = "0.5.1"
 
 [build-dependencies]
 tonic-build = { version = "0.12.3", features = ["prost"] }
@@ -139,8 +145,3 @@ lto = true
 [profile.bench]
 opt-level = 3
 lto = true
-
-[[example]]
-name = "RouteClient"
-path = "examples/route_client.rs"
-required-features = ["grpc_server"]

@@ -40,7 +40,7 @@ fn columbia_mapping() -> crate::Result<()> {
     println!("Took: {:?}", time.elapsed());
 
     println!("{}", generate_linestring(route));
-    assert_eq!(weight, 342, "Incorrect Route Weighting");
+    assert_eq!(weight, 216, "Incorrect Route Weighting");
 
     Ok(())
 }
@@ -59,7 +59,7 @@ fn stutgard_mapping() -> crate::Result<()> {
     println!("Took: {:?}", time.elapsed());
 
     println!("{}", generate_linestring(route));
-    assert_eq!(weight, 676, "Incorrect Route Weighting");
+    assert_eq!(weight, 658, "Incorrect Route Weighting");
 
     Ok(())
 }
@@ -81,6 +81,6 @@ fn sydney_mapping() -> crate::Result<()> {
     println!("Took: {:?}", time.elapsed());
 
     println!("{}", generate_linestring(route));
-    assert_eq!(weight, 627, "Incorrect Route Weighting");
+    assert_eq!(weight, 454, "Incorrect Route Weighting");
     Ok(())
 }

@@ -30,10 +30,10 @@ message MapMatchRequest {
 
   // The distance (in m) used to search for the closest edges, using a square scan.
   // The default value is 20 meters.
-  double search_distance = 3;
+  optional double search_distance = 3;
 
   // The maximum distance (in m) between coordinates before a new route is started.
-  double breakage_distance = 4;
+  optional double breakage_distance = 4;
 
   // The vehicle costing method to use for map matching.
   Costing costing_method = 5;

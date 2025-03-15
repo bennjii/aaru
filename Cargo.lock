@@ -6,6 +6,7 @@ version = 4
 name = "aaru"
 version = "0.1.9"
 dependencies = [
+ "approx",
  "axum",
  "axum-macros",
  "bytes",

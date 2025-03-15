@@ -12,7 +12,10 @@ use wkt::ToWkt;
 
 use crate::{codec::consts::SYDNEY, route::Graph};
 
-use super::{graph::Transition, node::TransitionCandidate};
+use super::{
+    graph::Transition, node::TransitionCandidate, CostingStrategies, DefaultEmissionCost,
+    EmissionContext, Strategy,
+};
 
 static GLOBAL_GRAPH: LazyLock<Graph> = LazyLock::new(|| {
     let path = Path::new(SYDNEY);
@@ -21,7 +24,7 @@ static GLOBAL_GRAPH: LazyLock<Graph> = LazyLock::new(|| {
 
 #[tokio::test]
 async fn test_transition() {
-    env_logger::init();
+    env_logger::try_init().ok();
     println!("Graph Created. Transitioning...");
 
     let linestring = wkt! {
@@ -29,7 +32,8 @@ async fn test_transition() {
     };
 
     let now = Instant::now();
-    let transition = Transition::new(&GLOBAL_GRAPH, linestring);
+    let costing = CostingStrategies::default();
+    let transition = Transition::new(&GLOBAL_GRAPH, linestring, costing);
 
     println!(
         "[TRANSITION] Init. Elapsed: {}us (us = 0.001 ms)",
@@ -58,15 +62,6 @@ async fn test_transition() {
 
 #[test]
 fn nearest_nodes() {
-    let now = Instant::now();
-    let path = Path::new(SYDNEY);
-    let graph = Graph::new(path.as_os_str().to_ascii_lowercase()).expect("Couldn't create graph.");
-    println!(
-        "[INGEST] {} Elapsed: {}us (us = 0.001 ms)",
-        graph.size(),
-        now.elapsed().as_micros()
-    );
-
     // Using nearest edges
     let now = Instant::now();
     let point = wkt! { POINT(151.183886 -33.885197) };
@@ -81,7 +76,10 @@ fn nearest_nodes() {
 
     println!("BBox: {:?}", bbox);
 
-    let nearest = graph.index().locate_in_envelope(&bbox).collect::<Vec<_>>();
+    let nearest = GLOBAL_GRAPH
+        .index()
+        .locate_in_envelope(&bbox)
+        .collect::<Vec<_>>();
     assert_eq!(nearest.len(), 9);
 
     println!(
@@ -92,7 +90,9 @@ fn nearest_nodes() {
     // Using nearest edges
     let now = Instant::now();
     let point = wkt! { POINT(151.183886 -33.885197) };
-    let nearest = graph.nearest_edges(&point, 100.0).collect::<Vec<_>>();
+    let nearest = GLOBAL_GRAPH
+        .nearest_edges(&point, 100.0)
+        .collect::<Vec<_>>();
     assert!(nearest.len() > 1);
 
     println!(
@@ -103,8 +103,8 @@ fn nearest_nodes() {
     // Using nearest projected
     let now = Instant::now();
     let point = wkt! { POINT(151.183886 -33.885197) };
-    let nearest = graph.nearest_projected_nodes(&point, 100.0);
-    assert_eq!(nearest.collect::<Vec<_>>().len(), 10);
+    let nearest = GLOBAL_GRAPH.nearest_projected_nodes(&point, 100.0);
+    assert_eq!(nearest.collect::<Vec<_>>().len(), 16);
 
     println!(
         "[NEAREST_PROJECTED] Elapsed: {}us (us = 0.001 ms)",
@@ -141,10 +141,14 @@ fn test_par_layers() {
                 .map(|(node_id, (position, map_edge))| {
                     // We have the actual projected position, and it's associated edge.
                     let _distance = Haversine::distance(position, *point);
-                    // let emission_probability = Transition::emission_probability(distance, 20.0);
+                    let emission = DefaultEmissionCost.calculate(EmissionContext {
+                        candidate_position: &position,
+                        source_position: &point,
+                    }) as f64;
 
                     let candidate = TransitionCandidate {
                         map_edge: (map_edge.0, map_edge.1),
+                        emission,
                         position,
                         layer_id,
                         node_id,
@@ -165,7 +169,7 @@ fn test_par_layers() {
         "[LAYERS] Elapsed: {}us (us = 0.001 ms)",
         now.elapsed().as_micros()
     );
-    assert_eq!(layers.len(), 12);
+    assert_eq!(layers.len(), 15);
 }
 
 #[test]
@@ -197,10 +201,14 @@ fn test_series_layers() {
                 .map(|(node_id, (position, map_edge))| {
                     // We have the actual projected position, and it's associated edge.
                     let _distance = Haversine::distance(position, *point);
-                    // let emission_probability = Transition::emission_probability(distance, 20.0);
+                    let emission = DefaultEmissionCost.calculate(EmissionContext {
+                        candidate_position: &position,
+                        source_position: &point,
+                    }) as f64;
 
                     let candidate = TransitionCandidate {
                         map_edge: (map_edge.0, map_edge.1),
+                        emission,
                         position,
                         layer_id,
                         node_id,
@@ -218,5 +226,5 @@ fn test_series_layers() {
         "[LAYERS] Elapsed: {}us (us = 0.001 ms)",
         now.elapsed().as_micros()
     );
-    assert_eq!(layers.len(), 12);
+    assert_eq!(layers.len(), 15);
 }

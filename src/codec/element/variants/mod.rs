@@ -39,14 +39,14 @@ pub mod common {
     }
 
     impl OsmEntryId {
-        pub fn new(id: i64, variant: MemberType) -> OsmEntryId {
+        pub const fn new(id: i64, variant: MemberType) -> OsmEntryId {
             OsmEntryId {
                 identifier: id,
                 variant,
             }
         }
 
-        pub fn null() -> OsmEntryId {
+        pub const fn null() -> OsmEntryId {
             OsmEntryId {
                 identifier: -1,
                 variant: MemberType::Node,
@@ -297,3 +297,5 @@ pub mod common {
         }
     }
 }
+
+pub use common::*;

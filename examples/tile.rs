@@ -9,9 +9,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 
-use aaru::tile::datasource::bigquery::init_bq;
 use aaru::tile::repositories::RepositorySet;
 use axum::http::StatusCode;
+use futures::join_all;
 use tracing::{event, Level};
 
 async fn health_check(State(state): State<Arc<RepositorySet>>) -> Response {
@@ -24,7 +24,7 @@ async fn health_check(State(state): State<Arc<RepositorySet>>) -> Response {
         })
         .collect();
 
-    let results = futures::join_all(futures).await;
+    let results = join_all(futures).await;
 
     for result in results {
         if let Err(response) = result.map_err(|e| aaru::Error::Tile(e)) {
