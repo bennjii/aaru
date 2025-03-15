@@ -125,12 +125,22 @@ pub mod costing {
         transition: T,
     }
 
+    impl<E, T> CostingStrategies<E, T>
+    where
+        E: EmissionStrategy,
+        T: TransitionStrategy,
+    {
+        pub fn new(emission: E, transition: T) -> Self {
+            Self {
+                emission,
+                transition,
+            }
+        }
+    }
+
     impl Default for CostingStrategies<DefaultEmissionCost, DefaultTransitionCost> {
         fn default() -> Self {
-            CostingStrategies {
-                emission: DefaultEmissionCost,
-                transition: DefaultTransitionCost,
-            }
+            CostingStrategies::new(DefaultEmissionCost, DefaultTransitionCost)
         }
     }
 
