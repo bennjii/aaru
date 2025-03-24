@@ -3,12 +3,12 @@
 //! matching raw data to an underlying
 //! network.
 
+pub mod candidate;
 pub mod costing;
 pub mod graph;
-pub mod node;
-pub mod segment;
 pub mod trip;
 
+mod layer;
 #[cfg(test)]
 mod test;
 
@@ -17,7 +17,5 @@ mod test;
 pub use costing::*;
 #[doc(hidden)]
 pub use default::*;
-#[doc(hidden)]
-pub use node::*;
 #[doc(hidden)]
 pub use trip::*;

@@ -84,8 +84,8 @@ impl RouterService for RouteService {
         &self,
         request: Request<MapMatchRequest>,
     ) -> Result<Response<MapMatchResponse>, Status> {
-        let mapmatch = request.into_inner();
-        let coordinates = mapmatch
+        let map_match = request.into_inner();
+        let coordinates = map_match
             .data
             .iter()
             .map(|coord| coord! { x: coord.longitude, y: coord.latitude })
@@ -93,19 +93,11 @@ impl RouterService for RouteService {
 
         let result = self
             .graph
-            .map_match(coordinates, mapmatch.search_distance.unwrap_or(100.0))
+            .map_match(coordinates, map_match.search_distance.unwrap_or(100.0))
             .map_err(|err| Status::internal(format!("{:?}", err)))?;
 
-        // result.interpolated
-        //     .iter()
-        //     .map(|node| {
-        //         node.node_idx.iter.map(|n| {
-        //             let outgoing = self.graph.graph.edges_directed(n, petgraph::Direction::Outgoing);
-        //         })
-        //     })
-
         let snapped_shape = result
-            .matched
+            .matched()
             .iter()
             .map(|node| Coordinate {
                 latitude: node.position.y(),
@@ -114,7 +106,7 @@ impl RouterService for RouteService {
             .collect::<Vec<_>>();
 
         let interpolated = result
-            .interpolated
+            .interpolated(&self.graph)
             .coords()
             .into_iter()
             .map(|node| Coordinate {
@@ -123,6 +115,7 @@ impl RouterService for RouteService {
             })
             .collect::<Vec<_>>();
 
+        // TODO: Correctly updraw this
         let matching = MatchedRoute {
             snapped_shape,
             interpolated,

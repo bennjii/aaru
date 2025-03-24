@@ -1,5 +1,4 @@
 pub mod emission {
-    use crate::route::transition::costing::emission::EmissionContext;
     use crate::route::transition::*;
     use geo::{Distance, Haversine};
 
@@ -26,7 +25,6 @@ pub mod emission {
 }
 
 pub mod transition {
-    use crate::route::transition::costing::transition::TransitionContext;
     use crate::route::transition::*;
     use geo::{Distance, Haversine};
 
@@ -95,8 +93,8 @@ pub mod transition {
             // Value in range [0, inf)
             let deviance = {
                 let shortest_distance = Haversine::distance(
-                    context.source_candidate.position,
-                    context.target_candidate.position,
+                    context.source_candidate().position,
+                    context.target_candidate().position,
                 );
 
                 let path_length = context.optimal_path.length();
@@ -112,9 +110,7 @@ pub mod transition {
 
 pub mod costing {
     use super::{DefaultEmissionCost, DefaultTransitionCost};
-    use crate::route::transition::costing::emission::{EmissionContext, EmissionStrategy};
-    use crate::route::transition::costing::transition::{TransitionContext, TransitionStrategy};
-    use crate::route::transition::{Costing, Strategy};
+    use crate::route::transition::*;
 
     pub struct CostingStrategies<E, T>
     where

@@ -80,6 +80,8 @@ pub mod default;
 #[doc(hidden)]
 pub mod emission;
 #[doc(hidden)]
+pub mod routing;
+#[doc(hidden)]
 pub mod transition;
 #[doc(hidden)]
 pub mod util;
@@ -88,6 +90,8 @@ pub mod util;
 pub use default::*;
 #[doc(inline)]
 pub use emission::*;
+#[doc(inline)]
+pub use routing::*;
 #[doc(inline)]
 pub use transition::*;
 #[doc(inline)]

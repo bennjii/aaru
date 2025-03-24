@@ -5,12 +5,14 @@ use crate::codec::element::variants::common::OsmEntryId;
 use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
+use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
 use crate::route::transition::CostingStrategies;
 use geo::{
     line_string, Closest, ClosestPoint, Destination, Geodesic, LineInterpolatePoint,
     LineLocatePoint, LineString, Point,
 };
+use geohash::Direction::S;
 use log::{debug, error, info};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
@@ -44,6 +46,16 @@ pub struct Graph {
     pub(crate) hash: RwLock<HashMap<NodeIx, Node>>,
 }
 
+impl Default for Graph {
+    fn default() -> Self {
+        Self {
+            graph: GraphStructure::default(),
+            index: RTree::default(),
+            hash: RwLock::new(HashMap::new()),
+        }
+    }
+}
+
 impl Debug for Graph {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Graph with Nodes: {}", self.hash.read().unwrap().len())
@@ -66,6 +78,13 @@ impl Graph {
             .unwrap()
             .get(node_index)
             .map(|point| point.position)
+    }
+
+    pub fn resolve_line(&self, node_index: &[NodeIx]) -> Vec<Point<f64>> {
+        node_index
+            .iter()
+            .filter_map(|node| self.get_position(node))
+            .collect::<Vec<_>>()
     }
 
     /// The weighting mapping of node keys to weight.
@@ -246,7 +265,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, linestring: LineString, distance: f64) -> Result<Match, MatchError> {
+    pub fn map_match(&self, linestring: LineString, distance: f64) -> Result<Collapse, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         let costing = CostingStrategies::default();
@@ -256,7 +275,10 @@ impl Graph {
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        transition.generate_probabilities(distance).backtrack()
+
+        // TODO: Restore functionality
+        // transition.generate_probabilities(distance).collapse()
+        Err(MatchError::CollapseFailure)
     }
 
     pub(crate) fn route_nodes(
