@@ -28,10 +28,16 @@ pub struct Candidate {
 #[derive(Default, Clone)]
 pub struct CandidateEdge {
     pub weight: f64,
+
+    // TODO: Document this, meaning forgotten.
     pub nodes: Vec<NodeIx>,
 }
 
 impl CandidateEdge {
+    pub fn new(weight: f64, nodes: Vec<NodeIx>) -> Self {
+        Self { weight, nodes }
+    }
+
     pub fn zero() -> Self {
         Self::default()
     }

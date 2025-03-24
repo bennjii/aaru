@@ -1,5 +1,4 @@
 use petgraph::graph::NodeIndex;
-use std::marker::PhantomData;
 
 /// The identifier for candidates within the source
 /// candidate graph, [`Candidates`].

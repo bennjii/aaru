@@ -34,7 +34,10 @@ impl Debug for Candidates {
 
 impl Candidates {
     /// Collapses transition layers, `layers`, into a single vector of
-    /// the finalised points
+    /// the finalised points. This is useful for solvers which will
+    /// mutate the candidates, and require an external method to solve
+    /// based on the calculated edge weights. Iterative solvers which
+    /// do not produce a candidate solution do not require this function.
     ///
     /// Takes an owned value to indicate the structure is [terminal].
     ///

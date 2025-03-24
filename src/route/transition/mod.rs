@@ -6,6 +6,7 @@
 pub mod candidate;
 pub mod costing;
 pub mod graph;
+pub mod solver;
 pub mod trip;
 
 mod layer;
@@ -14,8 +15,12 @@ mod test;
 
 // Re-Exports
 #[doc(hidden)]
+pub use candidate::*;
+#[doc(hidden)]
 pub use costing::*;
 #[doc(hidden)]
 pub use default::*;
+#[doc(hidden)]
+pub use solver::*;
 #[doc(hidden)]
 pub use trip::*;

@@ -7,7 +7,7 @@ use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
-use crate::route::transition::CostingStrategies;
+use crate::route::transition::{CostingStrategies, DijkstraSolver};
 use geo::{
     line_string, Closest, ClosestPoint, Destination, Geodesic, LineInterpolatePoint,
     LineLocatePoint, LineString, Point,
@@ -75,7 +75,7 @@ impl Graph {
     pub fn get_position(&self, node_index: &NodeIx) -> Option<Point<f64>> {
         self.hash
             .read()
-            .unwrap()
+            .ok()?
             .get(node_index)
             .map(|point| point.position)
     }
@@ -275,10 +275,7 @@ impl Graph {
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-
-        // TODO: Restore functionality
-        // transition.generate_probabilities(distance).collapse()
-        Err(MatchError::CollapseFailure)
+        transition.solve(DijkstraSolver::default())
     }
 
     pub(crate) fn route_nodes(

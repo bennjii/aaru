@@ -1,4 +1,5 @@
-use crate::codec::element::variants::Node;
+use crate::codec::element::variants::{Node, OsmEntryId};
+use crate::route::Graph;
 use geo::{Bearing, Distance, Haversine};
 use rstar::PointDistance;
 
@@ -6,16 +7,31 @@ use rstar::PointDistance;
 ///
 /// Utilities to calculate metadata from trips (Collection of [`Node`]s).
 /// Can be created from a slice of nodes.
-#[derive(Clone, Copy, Debug)]
-pub struct Trip<'a>(&'a [&'a Node]);
+#[derive(Clone, Debug)]
+pub struct Trip(Vec<Node>);
 
-impl<'a> From<&'a [&'a Node]> for Trip<'a> {
-    fn from(nodes: &'a [&'a Node]) -> Self {
+impl From<Vec<Node>> for Trip {
+    fn from(nodes: Vec<Node>) -> Self {
         Trip(nodes)
     }
 }
 
-impl Trip<'_> {
+impl Trip {
+    pub fn new(nodes: impl IntoIterator<Item = Node>) -> Self {
+        Self(nodes.into_iter().collect::<Vec<_>>())
+    }
+
+    pub fn new_with_map(map: &Graph, nodes: &[OsmEntryId]) -> Self {
+        let resolved = map.resolve_line(nodes);
+
+        let nodes = resolved
+            .into_iter()
+            .zip(nodes)
+            .map(|(point, id)| Node::new(point, *id));
+
+        Trip::new(nodes)
+    }
+
     /// Computes the angle between each pair of nodes in the trip.
     /// Allows you to understand the change in heading, aggregatable
     /// using [`Trip::total_angle`] to determine the total variation
@@ -35,11 +51,11 @@ impl Trip<'_> {
     ///  use geo::Point;
     ///
     ///  // Create some nodes
-    ///  let nodes: &[&Node] = &[
-    ///     &Node::new(Point::new(0.0, 0.0), OsmEntryId::null()),
-    ///     &Node::new(Point::new(0.0, 1.0), OsmEntryId::null()),
-    ///     &Node::new(Point::new(1.0, 1.0), OsmEntryId::null()),
-    ///     &Node::new(Point::new(1.0, 0.0), OsmEntryId::null()),
+    ///  let nodes: Vec<Node> = vec![
+    ///     Node::new(Point::new(0.0, 0.0), OsmEntryId::null()),
+    ///     Node::new(Point::new(0.0, 1.0), OsmEntryId::null()),
+    ///     Node::new(Point::new(1.0, 1.0), OsmEntryId::null()),
+    ///     Node::new(Point::new(1.0, 0.0), OsmEntryId::null()),
     ///  ];
     ///
     ///  // Form a trip from these nodes
@@ -73,11 +89,11 @@ impl Trip<'_> {
     ///  use geo::Point;
     ///
     ///  // Create some nodes
-    ///  let nodes: &[&Node] = &[
-    ///     &Node::new(Point::new(0.0, 0.0), OsmEntryId::null()),
-    ///     &Node::new(Point::new(0.0, 1.0), OsmEntryId::null()),
-    ///     &Node::new(Point::new(1.0, 1.0), OsmEntryId::null()),
-    ///     &Node::new(Point::new(1.0, 0.0), OsmEntryId::null()),
+    ///  let nodes: Vec<Node> = vec![
+    ///     Node::new(Point::new(0.0, 0.0), OsmEntryId::null()),
+    ///     Node::new(Point::new(0.0, 1.0), OsmEntryId::null()),
+    ///     Node::new(Point::new(1.0, 1.0), OsmEntryId::null()),
+    ///     Node::new(Point::new(1.0, 0.0), OsmEntryId::null()),
     ///  ];
     ///
     ///  // Form a trip from these nodes
