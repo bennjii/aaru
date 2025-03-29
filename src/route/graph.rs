@@ -1,4 +1,4 @@
-use super::transition::graph::{Match, MatchError};
+use super::transition::graph::MatchError;
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::common::OsmEntryId;
@@ -7,13 +7,11 @@ use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
-use crate::route::transition::{CostingStrategies, DijkstraSolver};
+use crate::route::transition::{CostingStrategies, SelectiveForwardSolver};
 use geo::{
-    line_string, Closest, ClosestPoint, Destination, Geodesic, LineInterpolatePoint,
-    LineLocatePoint, LineString, Point,
+    line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, LineString, Point,
 };
-use geohash::Direction::S;
-use log::{debug, error, info};
+use log::{debug, info};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
@@ -22,7 +20,7 @@ use rstar::{RTree, AABB};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Mutex, RwLock};
 use std::time::Instant;
 #[cfg(feature = "tracing")]
 use tracing::Level;
@@ -265,7 +263,7 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, linestring: LineString, distance: f64) -> Result<Collapse, MatchError> {
+    pub fn map_match(&self, linestring: LineString) -> Result<Collapse, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         let costing = CostingStrategies::default();
@@ -275,7 +273,7 @@ impl Graph {
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        transition.solve(DijkstraSolver::default())
+        transition.solve(SelectiveForwardSolver::default())
     }
 
     pub(crate) fn route_nodes(

@@ -1,5 +1,4 @@
 use crate::route::graph::NodeIx;
-use crate::route::transition::candidate::CandidateId;
 use geo::Point;
 
 #[derive(Clone, Copy, Debug)]

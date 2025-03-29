@@ -1,6 +1,6 @@
 use geo::Point;
 
-use crate::route::transition::candidate::{Candidate, CandidateId};
+use crate::route::transition::candidate::CandidateId;
 
 pub struct Layer {
     pub nodes: Vec<CandidateId>,

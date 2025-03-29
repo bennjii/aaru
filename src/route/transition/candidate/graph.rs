@@ -2,7 +2,6 @@ use crate::route::transition::candidate::collapse::Collapse;
 use crate::route::transition::candidate::{Candidate, CandidateEdge, CandidateId, CandidateRef};
 use crate::route::transition::layer::Layers;
 use petgraph::prelude::EdgeRef;
-use petgraph::visit::Walker;
 use petgraph::{Directed, Graph};
 use scc::HashMap;
 use std::fmt::Debug;
@@ -20,6 +19,8 @@ pub struct Candidates {
 
     /// Candidate flyweight
     pub(crate) lookup: HashMap<CandidateId, Candidate>,
+
+    ends: Option<(CandidateId, CandidateId)>,
 }
 
 impl Debug for Candidates {
@@ -33,6 +34,49 @@ impl Debug for Candidates {
 }
 
 impl Candidates {
+    pub fn attach_ends(&mut self, layers: &Layers) -> Option<(CandidateId, CandidateId)> {
+        if self.ends.is_some() {
+            return None;
+        }
+
+        let mut graph = self.graph.write().unwrap();
+        let source = graph.add_node(CandidateRef::butt());
+        let target = graph.add_node(CandidateRef::butt());
+
+        // We need to bind the first and last layers to a singular
+        // source and target value so we can route toward this given
+        // target, from our own source.
+        //
+        //                   Layer     Layer
+        //                     0         N
+        //
+        //               __/---+   ...   +---\__
+        //              /                       \
+        //   SOURCE    +-------+   ...   +-------+  TARGET
+        //              \                       /
+        //               ‾‾\---+   ...   +---/‾‾
+        //
+        // So, we need to attach each entry within the first/initial layer
+        // to this source, and every entry within the last/final layer to
+        // the target.
+
+        // Attach the initial layer
+        layers.first()?.nodes.iter().for_each(|node| {
+            graph.add_edge(source, *node, CandidateEdge::zero());
+        });
+
+        // Attach to the final layer
+        layers.last()?.nodes.iter().for_each(|node| {
+            graph.add_edge(*node, target, CandidateEdge::zero());
+        });
+
+        drop(graph);
+        let ends = Some((source, target));
+        self.ends = ends;
+
+        ends
+    }
+
     /// Collapses transition layers, `layers`, into a single vector of
     /// the finalised points. This is useful for solvers which will
     /// mutate the candidates, and require an external method to solve
@@ -42,42 +86,8 @@ impl Candidates {
     /// Takes an owned value to indicate the structure is [terminal].
     ///
     /// [terminal]: Cannot be used again
-    pub fn collapse(self, layers: &Layers) -> Option<Collapse> {
-        let (source, target) = {
-            let mut graph = self.graph.write().unwrap();
-            let source = graph.add_node(CandidateRef::butt());
-            let target = graph.add_node(CandidateRef::butt());
-
-            // We need to bind the first and last layers to a singular
-            // source and target value so we can route toward this given
-            // target, from our own source.
-            //
-            //                   Layer     Layer
-            //                     0         N
-            //
-            //               __/---+   ...   +---\__
-            //              /                       \
-            //   SOURCE    +-------+   ...   +-------+  TARGET
-            //              \                       /
-            //               ‾‾\---+   ...   +---/‾‾
-            //
-            // So, we need to attach each entry within the first/initial layer
-            // to this source, and every entry within the last/final layer to
-            // the target.
-
-            // Attach the initial layer
-            layers.first()?.nodes.iter().for_each(|node| {
-                graph.add_edge(source, *node, CandidateEdge::zero());
-            });
-
-            // Attach to the final layer
-            layers.last()?.nodes.iter().for_each(|node| {
-                graph.add_edge(*node, target, CandidateEdge::zero());
-            });
-
-            drop(graph);
-            Some((source, target))
-        }?;
+    pub fn collapse(self) -> Option<Collapse> {
+        let (source, target) = self.ends?;
 
         // There should be exclusive read-access by the time collapse is called.
         // This will block access to any other client using this candidate structure,
@@ -129,6 +139,10 @@ impl Default for Candidates {
         let graph = Arc::new(RwLock::new(Graph::new()));
         let lookup = HashMap::new();
 
-        Candidates { graph, lookup }
+        Candidates {
+            graph,
+            lookup,
+            ends: None,
+        }
     }
 }

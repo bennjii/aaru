@@ -1,6 +1,5 @@
-use geo::{coord, point, EuclideanDistance, GeometryCollection, HaversineDistance, Point};
+use geo::{coord, point, Distance, Haversine, Point};
 use log::{debug, info};
-use rstar::PointDistance;
 use std::cmp::Ordering;
 use std::path::Path;
 use tonic::{Request, Response, Status};
@@ -93,7 +92,7 @@ impl RouterService for RouteService {
 
         let result = self
             .graph
-            .map_match(coordinates, map_match.search_distance.unwrap_or(100.0))
+            .map_match(coordinates)
             .map_err(|err| Status::internal(format!("{:?}", err)))?;
 
         let snapped_shape = result
@@ -205,8 +204,8 @@ impl RouterService for RouteService {
 
         // Get the closest of the discovered points
         nearest_points.sort_by(|(a, _), (b, _)| {
-            let dist_to_a = point.haversine_distance(&a);
-            let dist_to_b = point.haversine_distance(&b);
+            let dist_to_a = Haversine::distance(point, *a);
+            let dist_to_b = Haversine::distance(point, *b);
             dist_to_a.partial_cmp(&dist_to_b).unwrap_or(Ordering::Equal)
         });
 

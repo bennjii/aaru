@@ -1,13 +1,12 @@
 use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
-use crate::route::transition::graph::Transition;
 use crate::route::transition::layer::Layer;
 use crate::route::transition::{
     Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
 };
 use crate::route::Graph;
-use geo::{LineString, Point};
+use geo::Point;
 use log::info;
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
 use wkt::ToWkt;
 

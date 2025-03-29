@@ -19,8 +19,6 @@ pub use candidate::*;
 #[doc(hidden)]
 pub use costing::*;
 #[doc(hidden)]
-pub use default::*;
-#[doc(hidden)]
 pub use solver::*;
 #[doc(hidden)]
 pub use trip::*;

@@ -1,34 +1,14 @@
 use std::fmt::Debug;
-use std::hash::Hash;
-use std::hint::unreachable_unchecked;
-use std::ops::{Div, Sub};
-use std::sync::{Arc, RwLock};
 
-use geo::{Distance, Haversine, LineString, Point};
-use log::{debug, info, warn};
+use geo::LineString;
+use log::debug;
 
-use pathfinding::prelude::dijkstra_reach;
-
-use petgraph::graph::NodeIndex;
-use petgraph::visit::EdgeRef;
-use petgraph::{Directed, Direction};
-
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
-use rayon::slice::ParallelSlice;
-
-use scc::HashMap;
-use wkt::ToWkt;
-
-use crate::codec::element::variants::common::OsmEntryId;
 use crate::route::graph::NodeIx;
 use crate::route::transition::candidate::{Candidate, Candidates, Collapse};
 use crate::route::transition::costing::emission::EmissionStrategy;
 use crate::route::transition::costing::transition::TransitionStrategy;
 use crate::route::transition::layer::{LayerGenerator, Layers};
-use crate::route::transition::trip::Trip;
-use crate::route::transition::{
-    Costing, CostingStrategies, EmissionContext, RoutingContext, Solver, TransitionContext,
-};
+use crate::route::transition::{CostingStrategies, Solver};
 use crate::route::Graph;
 
 const DEFAULT_ERROR: f64 = 10f64;
@@ -110,7 +90,7 @@ where
         // Use the candidates to collapse the graph into a single route.
         let collapse = self
             .candidates
-            .collapse(&self.layers)
+            .collapse()
             .ok_or_else(|| MatchError::CollapseFailure)?;
 
         debug!("Collapsed with final cost: {}", collapse.cost);

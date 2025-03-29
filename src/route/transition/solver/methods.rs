@@ -27,11 +27,6 @@ pub trait Solver {
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>>;
 
-    fn prework<E, T>(&self, transition: &Transition<E, T>)
-    where
-        E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy + Send + Sync;
-
     /// Refines a single node within an initial layer to all nodes in the
     /// following layer with their respective emission and transition
     /// probabilities in the hidden markov model.
@@ -40,9 +35,5 @@ pub trait Solver {
     fn solve<E, T>(&self, transition: Transition<E, T>) -> Result<Collapse, MatchError>
     where
         E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy + Send + Sync,
-    {
-        self.prework(&transition);
-        transition.collapse()
-    }
+        T: TransitionStrategy + Send + Sync;
 }

@@ -1,31 +1,34 @@
 use crate::codec::element::variants::OsmEntryId;
 use crate::route::graph::NodeIx;
-use crate::route::transition::candidate::{CandidateEdge, CandidateId};
-use crate::route::transition::graph::Transition;
-use crate::route::transition::solver::util::{Reachable, Solver};
+use crate::route::transition::candidate::CandidateId;
+use crate::route::transition::graph::{MatchError, Transition};
+use crate::route::transition::solver::methods::{Reachable, Solver};
 use crate::route::transition::{
-    Costing, EmissionStrategy, RoutingContext, TransitionContext, TransitionStrategy, Trip,
+    Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext, TransitionStrategy,
+    Trip,
 };
 
 use geo::{Distance, Haversine};
-use pathfinding::prelude::{dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::{astar, dijkstra_reach, DijkstraReachableItem};
+use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
-use rayon::iter::IntoParallelIterator;
-use rayon::{iter::IndexedParallelIterator, iter::ParallelIterator, slice::ParallelSlice};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::sync::Arc;
 
 const DEFAULT_THRESHOLD: f64 = 2_000f64;
+
+type ProcessedReachable = (CandidateId, Reachable);
 
 /// A Upper-Bounded Dijkstra (UBD) algorithm.
 ///
 /// TODO: Docs
-pub struct DijkstraSolver {
+pub struct SelectiveForwardSolver {
     /// The threshold by which the solver is bounded, in meters.
     threshold_distance: f64,
 }
 
-impl Default for DijkstraSolver {
+impl Default for SelectiveForwardSolver {
     fn default() -> Self {
         Self {
             threshold_distance: DEFAULT_THRESHOLD,
@@ -33,7 +36,7 @@ impl Default for DijkstraSolver {
     }
 }
 
-impl DijkstraSolver {
+impl SelectiveForwardSolver {
     // Returns all the nodes reachable by the solver in an iterator, measured in distance
     fn reachable_iterator<'a>(
         ctx: RoutingContext<'a>,
@@ -98,71 +101,7 @@ impl DijkstraSolver {
     }
 }
 
-impl Solver for DijkstraSolver {
-    fn prework<E, T>(&self, transition: &Transition<E, T>)
-    where
-        E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy + Send + Sync,
-    {
-        let context = RoutingContext {
-            candidates: &transition.candidates,
-            map: transition.map,
-        };
-
-        // Declaring all the pairs of indices that need to be refined.
-        let transition_probabilities = transition
-            .layers
-            .layers
-            .par_windows(2)
-            .enumerate()
-            .flat_map(|(index, vectors)| {
-                // Taking all forward pairs of (left, [...right])
-                let output = vectors[0]
-                    .nodes
-                    .iter()
-                    .map(|&a| (a, vectors[1].nodes.as_slice()))
-                    .collect::<Vec<_>>();
-
-                output
-            })
-            .map(|(left, right)| (left, self.reachable(context, &left, right)))
-            .flat_map(|(source, reachable)| {
-                reachable
-                    .unwrap_or(vec![])
-                    .into_par_iter()
-                    .map(move |reachable| (source, reachable))
-            })
-            .map(
-                |(
-                    source,
-                    Reachable {
-                        candidate: target,
-                        path,
-                    },
-                )| {
-                    let cost = transition.heuristics.transition(TransitionContext {
-                        optimal_path: Trip::new_with_map(transition.map, path.as_slice()),
-                        source_candidate: &source,
-                        target_candidate: &target,
-                        routing_context: context,
-                    });
-
-                    let edge = CandidateEdge::new(cost, path);
-                    (source, target, edge)
-                },
-            )
-            .collect::<Vec<_>>();
-
-        // Scoped exclusive access to the graph.
-        {
-            // TODO: Can we bulk-add these / provide utility?
-            let mut write_access = transition.candidates.graph.write().unwrap();
-            for (source, target, edge) in transition_probabilities {
-                write_access.add_edge(source, target, edge);
-            }
-        }
-    }
-
+impl Solver for SelectiveForwardSolver {
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
@@ -206,5 +145,59 @@ impl Solver for DijkstraSolver {
             .collect::<Vec<_>>();
 
         Some(reachable)
+    }
+
+    fn solve<E, T>(&self, mut transition: Transition<E, T>) -> Result<Collapse, MatchError>
+    where
+        E: EmissionStrategy + Send + Sync,
+        T: TransitionStrategy + Send + Sync,
+    {
+        let (start, end) = transition
+            .candidates
+            .attach_ends(&transition.layers)
+            .ok_or(MatchError::CollapseFailure)?;
+
+        let context = RoutingContext {
+            candidates: &transition.candidates,
+            map: transition.map,
+        };
+
+        let graph_ref = Arc::clone(&transition.candidates.graph);
+        let Some((path, cost)) = astar(
+            &start,
+            |source| {
+                let successors = graph_ref
+                    .read()
+                    .unwrap()
+                    .edges_directed(*source, Direction::Outgoing)
+                    .map(|edge| edge.target())
+                    .collect::<Vec<CandidateId>>();
+
+                let source_owned = *source;
+                self.reachable(context, source, successors.as_slice())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|reachable| {
+                        let cost = transition.heuristics.transition(TransitionContext {
+                            optimal_path: Trip::new_with_map(
+                                transition.map,
+                                reachable.path.as_slice(),
+                            ),
+                            source_candidate: &source_owned,
+                            target_candidate: &reachable.candidate,
+                            routing_context: context,
+                        });
+
+                        (reachable.candidate, cost as u32)
+                    })
+                    .collect::<Vec<_>>()
+            },
+            |_| 0u32,
+            |node| *node == end,
+        ) else {
+            return Err(MatchError::CollapseFailure);
+        };
+
+        Ok(Collapse::new(cost as f64, path, transition.candidates))
     }
 }

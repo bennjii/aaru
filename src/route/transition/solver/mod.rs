@@ -1,9 +1,13 @@
 #[doc(hidden)]
-pub mod dijkstra;
+pub mod all_forward;
 #[doc(hidden)]
-pub mod util;
+pub mod methods;
+#[doc(hidden)]
+pub mod selective_forward;
 
 #[doc(inline)]
-pub use dijkstra::*;
+pub use all_forward::*;
 #[doc(inline)]
-pub use util::*;
+pub use methods::*;
+#[doc(inline)]
+pub use selective_forward::*;
