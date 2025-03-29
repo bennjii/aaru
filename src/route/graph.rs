@@ -223,7 +223,7 @@ impl Graph {
         self.index().locate_in_envelope(&bbox).collect::<Vec<_>>()
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
     #[inline]
     pub fn nearest_edges(
         &self,

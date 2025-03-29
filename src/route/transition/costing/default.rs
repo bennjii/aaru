@@ -1,6 +1,10 @@
 pub mod emission {
     use crate::route::transition::*;
     use geo::{Distance, Haversine};
+    use pathfinding::num_traits::{clamp, Inv};
+
+    // 20 meters
+    const DEFAULT_EMISSION_ERROR: f64 = 20.0;
 
     /// Calculates the emission cost of a candidate relative
     /// to its source node.
@@ -19,7 +23,12 @@ pub mod emission {
         const BETA: f64 = -100.0;
 
         fn calculate(&self, context: EmissionContext<'a>) -> Self::Cost {
-            Haversine::distance(*context.source_position, *context.candidate_position).powi(2)
+            let distance =
+                Haversine::distance(*context.source_position, *context.candidate_position);
+
+            let relative_to_error = DEFAULT_EMISSION_ERROR / distance;
+
+            relative_to_error.clamp(0.0, 1.0).inv()
         }
     }
 }
@@ -27,6 +36,7 @@ pub mod emission {
 pub mod transition {
     use crate::route::transition::*;
     use geo::{Distance, Haversine};
+    use pathfinding::num_traits::Inv;
 
     /// Calculates the transition cost between two candidates.
     ///
@@ -87,23 +97,36 @@ pub mod transition {
         const BETA: f64 = -50.0;
 
         fn calculate(&self, context: TransitionContext<'a>) -> Self::Cost {
-            // Value in range [0, 180].
-            let turn_cost = { context.optimal_path.immediate_angle().abs() };
+            let shortest_distance = Haversine::distance(
+                context.source_candidate().position,
+                context.target_candidate().position,
+            );
 
-            // Value in range [0, inf)
+            // Value in range [0, 1]
             let deviance = {
-                let shortest_distance = Haversine::distance(
-                    context.source_candidate().position,
-                    context.target_candidate().position,
-                );
-
                 let path_length = context.optimal_path.length();
-                let deviance = path_length / shortest_distance;
+                let deviance = shortest_distance / path_length;
 
                 deviance.clamp(0.0, 1.0)
             };
 
-            turn_cost + deviance
+            // Value in range [0, 1]
+            let turn_cost = {
+                // Value in range [0, 180].
+                let imm_angle = context
+                    .optimal_path
+                    .angular_complexity(shortest_distance)
+                    .abs();
+
+                (imm_angle / 180.0).abs().clamp(0.0, 1.0)
+            };
+
+            // Value in range [0, 1]
+            let avg_cost = (turn_cost + deviance) / 2.0;
+            let normalised_cost = 1.0 - avg_cost;
+
+            // Take the inverse to "span" values
+            normalised_cost.inv()
         }
     }
 }
@@ -145,11 +168,11 @@ pub mod costing {
         T: TransitionStrategy,
         E: EmissionStrategy,
     {
-        fn emission(&self, context: EmissionContext) -> f64 {
+        fn emission(&self, context: EmissionContext) -> u32 {
             self.emission.cost(context)
         }
 
-        fn transition(&self, context: TransitionContext) -> f64 {
+        fn transition(&self, context: TransitionContext) -> u32 {
             self.transition.cost(context)
         }
     }

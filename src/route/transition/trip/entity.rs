@@ -134,6 +134,18 @@ impl Trip {
         self.total_angle() / (self.0.len() as f64)
     }
 
+    /// Describes the angle experienced as a representation of the immediate angle
+    /// over the distance travelled. Therefore, meaning it can be used to compare
+    /// the angles of two trips on a given distance to understand which one had
+    /// more turning.
+    pub fn angular_complexity(&self, distance: f64) -> f64 {
+        let sum = self.total_angle();
+        // Complete Zig-Zag
+        let theoretical_max = (self.0.len() as f64 - 2f64) * 180f64;
+
+        1.0 - (sum / theoretical_max).clamp(0.0, 1.0)
+    }
+
     /// Returns the length of the trip in meters, calculated
     /// by the distance between each entry in the trip.
     pub fn length(&self) -> f64 {

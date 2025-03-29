@@ -4,17 +4,20 @@ use crate::route::transition::candidate::CandidateId;
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::solver::methods::{Reachable, Solver};
 use crate::route::transition::{
-    Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext, TransitionStrategy,
-    Trip,
+    CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext,
+    TransitionStrategy, Trip,
 };
 
 use geo::{Distance, Haversine};
+use log::{debug, info};
 use pathfinding::prelude::{astar, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
+#[cfg(feature = "tracing")]
+use tracing::Level;
 
 const DEFAULT_THRESHOLD: f64 = 2_000f64;
 
@@ -69,6 +72,7 @@ impl SelectiveForwardSolver {
     ///
     /// Supplies an offset, which represents the initial distance
     /// taken in travelling initial edges, in meters.
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::DEBUG, skip(self)))]
     fn bounded_iterator<'a, 'b>(
         &'b self,
         ctx: RoutingContext<'a>,
@@ -102,19 +106,27 @@ impl SelectiveForwardSolver {
 }
 
 impl Solver for SelectiveForwardSolver {
+    // #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::DEBUG, skip(self, ctx)))]
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
         source: &CandidateId,
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>> {
+        // debug!("Searching for {} reachable nodes from candidate {:?}", targets.len(), source);
         let left = ctx.candidate(source)?;
+        // debug!("Left candidate: {:?}", left);
 
         // The distance remaining in the edge to travel
         // TODO: Explain why this is necessary.
         let end_node = left.map_edge.1;
+
+        // debug!("End node (map node index): {:?}", end_node);
         let end_position = ctx.map.get_position(&end_node)?;
+        // debug!("End position (from map): {:?}", end_position);
+
         let edge_offset = Haversine::distance(left.position, end_position);
+        // debug!("Looking for {end_node:?} (from {:?}) at {end_position:?}, at offset {edge_offset:?}", left.map_edge.0);
 
         // Upper-Bounded reachable map containing a Child:Parent relation
         // Note: Parent is OsmEntryId::NULL, which will not be within the map, indicating the root element.
@@ -131,19 +143,25 @@ impl Solver for SelectiveForwardSolver {
             })
             .collect::<HashMap<OsmEntryId, (OsmEntryId, u32)>>();
 
+        // debug!("Generated a predicate map of size {}", predicate_map.len());
+
         let reachable = targets
             .iter()
             .filter_map(|target| {
+                // debug!("({source:?}) Target={:?}", target);
+
                 // Get the candidate information of the target found
                 let candidate = ctx.candidate(target)?;
+                // debug!("({source:?}) Reachable Candidate={:?}", candidate);
+
                 // Generate the path to this target using the predicate map
                 // TODO: Validate why the source of the edge in docs.
                 let path_to_target = Self::path_builder(&candidate.map_edge.0, &predicate_map);
-
                 Some(Reachable::new(*target, path_to_target))
             })
             .collect::<Vec<_>>();
 
+        // debug!("Found {} reachable targets of {} targets.", reachable.len(), targets.len());
         Some(reachable)
     }
 
@@ -152,10 +170,21 @@ impl Solver for SelectiveForwardSolver {
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy + Send + Sync,
     {
+        info!("Solving...");
+
         let (start, end) = transition
             .candidates
             .attach_ends(&transition.layers)
             .ok_or(MatchError::CollapseFailure)?;
+
+        debug!(
+            "Start={start:?}. End={end:?}. Candidates: {:?}",
+            transition.candidates
+        );
+
+        transition.candidates.weave(&transition.layers);
+
+        debug!("Linked / Weaved all layers!");
 
         let context = RoutingContext {
             candidates: &transition.candidates,
@@ -173,8 +202,23 @@ impl Solver for SelectiveForwardSolver {
                     .map(|edge| edge.target())
                     .collect::<Vec<CandidateId>>();
 
+                // #[cold]
+                if *source == start {
+                    // No cost to reach a first node.
+                    return successors
+                        .into_iter()
+                        .map(|candidate| (candidate, CandidateEdge::zero()))
+                        .collect::<Vec<_>>();
+                }
+
+                if successors.contains(&end) {
+                    // Fast-track to the finish line
+                    return vec![(end, CandidateEdge::zero())];
+                }
+
                 let source_owned = *source;
-                self.reachable(context, source, successors.as_slice())
+                let reached = self
+                    .reachable(context, source, successors.as_slice())
                     .unwrap_or_default()
                     .into_iter()
                     .map(|reachable| {
@@ -188,16 +232,28 @@ impl Solver for SelectiveForwardSolver {
                             routing_context: context,
                         });
 
-                        (reachable.candidate, cost as u32)
+                        (
+                            reachable.candidate,
+                            CandidateEdge::new(cost, &reachable.path),
+                        )
                     })
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>();
+
+                // debug!("Reachable from {source:?}: {reached:?}");
+
+                reached
             },
-            |_| 0u32,
+            |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
             return Err(MatchError::CollapseFailure);
         };
 
-        Ok(Collapse::new(cost as f64, path, transition.candidates))
+        Ok(Collapse::new(
+            cost.weight,
+            cost.nodes().to_vec(),
+            path,
+            transition.candidates,
+        ))
     }
 }

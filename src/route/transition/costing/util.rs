@@ -28,8 +28,8 @@ pub trait Strategy<Ctx> {
     /// decay(value) = |(1 / ζ) * e^(-1 * value / β)|
     /// ```
     #[inline(always)]
-    fn cost(&self, ctx: Ctx) -> f64 {
-        ((1.0 / Self::ZETA) * (-1.0 * (self.calculate(ctx).into() / Self::BETA)).exp()).abs()
+    fn cost(&self, ctx: Ctx) -> u32 {
+        ((1.0 / Self::ZETA) * (-1.0 * (self.calculate(ctx).into() / Self::BETA)).exp()).abs() as u32
     }
 }
 
@@ -38,6 +38,6 @@ where
     Transition: TransitionStrategy,
     Emission: EmissionStrategy,
 {
-    fn emission(&self, context: EmissionContext) -> f64;
-    fn transition(&self, context: TransitionContext) -> f64;
+    fn emission(&self, context: EmissionContext) -> u32;
+    fn transition(&self, context: TransitionContext) -> u32;
 }

@@ -1,6 +1,7 @@
 use crate::route::transition::candidate::collapse::Collapse;
 use crate::route::transition::candidate::{Candidate, CandidateEdge, CandidateId, CandidateRef};
-use crate::route::transition::layer::Layers;
+use crate::route::transition::layer::{Layer, Layers};
+use pathfinding::num_traits::ConstZero;
 use petgraph::prelude::EdgeRef;
 use petgraph::{Directed, Graph};
 use scc::HashMap;
@@ -105,17 +106,18 @@ impl Candidates {
                 // Loosely-Decaying Emission Cost
                 let emission_cost = graph
                     .node_weight(e.target())
-                    .map_or(f64::INFINITY, |v| v.weight());
+                    .map_or(u32::MAX, |v| v.weight());
 
                 transition_cost + emission_cost
             },
-            |_| 0.0,
+            |_| u32::ZERO,
         ) else {
             return None;
         };
 
         drop(graph);
-        Some(Collapse::new(cost, route, self))
+        // TODO: Deprecate and move to all_forward strat.
+        Some(Collapse::new(cost, vec![], route, self))
     }
 
     /// TODO: Provide docs
@@ -126,6 +128,23 @@ impl Candidates {
 
         // TODO: Can we make this operation cheaper? We're cloning vectors internally.
         reader.edge_weight(edge_index).cloned()
+    }
+
+    // TODO: Docs
+    pub fn attach(&mut self, candidate: CandidateId, layer: &Layer) {
+        let mut write_access = self.graph.write().unwrap();
+        for node in &layer.nodes {
+            write_access.add_edge(candidate, *node, CandidateEdge::zero());
+        }
+    }
+
+    // TODO: Docs
+    pub fn weave(&mut self, layers: &Layers) {
+        layers.layers.windows(2).for_each(|layers| {
+            if let [a, b] = layers {
+                a.nodes.iter().for_each(|node| self.attach(*node, b))
+            }
+        });
     }
 
     /// TODO: Provide docs

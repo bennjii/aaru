@@ -130,13 +130,10 @@ impl AllForwardSolver {
     {
         Self::flatten(transition)
             .into_par_iter()
-            // .map(move |(left, right)| (left, ))
+            .map(move |(left, right)| (left, self.reachable(context, &left, right.as_slice())))
             .flat_map(move |(left, right)| {
-                let reachable = self
-                    .reachable(context, &left, right.as_slice())
-                    .unwrap_or_default();
-
-                reachable
+                right
+                    .unwrap_or_default()
                     .into_par_iter()
                     .map(move |reachable| (left, reachable))
             })
@@ -211,7 +208,7 @@ impl Solver for AllForwardSolver {
                     routing_context: context,
                 });
 
-                let edge = CandidateEdge::new(cost, reachable.path);
+                let edge = CandidateEdge::new(cost, &reachable.path);
                 (source, reachable.candidate, edge)
             })
             .collect::<Vec<_>>();

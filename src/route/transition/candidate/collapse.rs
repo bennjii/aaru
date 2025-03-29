@@ -1,18 +1,26 @@
+use crate::route::graph::NodeIx;
 use crate::route::transition::candidate::*;
 use crate::route::Graph;
 use geo::LineString;
 
 pub struct Collapse {
-    pub cost: f64,
+    pub cost: u32,
     pub route: Vec<CandidateId>,
+    pub interpolated: Vec<NodeIx>,
 
     candidates: Candidates,
 }
 
 impl Collapse {
-    pub(crate) fn new(cost: f64, route: Vec<CandidateId>, candidates: Candidates) -> Self {
+    pub(crate) fn new(
+        cost: u32,
+        interpolated: Vec<NodeIx>,
+        route: Vec<CandidateId>,
+        candidates: Candidates,
+    ) -> Self {
         Self {
             cost,
+            interpolated,
             route,
             candidates,
         }
@@ -36,25 +44,30 @@ impl Collapse {
 
     /// Returns the interpolated route from the collapse as a linestring
     pub fn interpolated(&self, graph: &Graph) -> LineString {
-        self.route
-            .windows(2)
-            .filter_map(|candidate| {
-                let [a, b] = candidate else {
-                    return None;
-                };
-
-                let edge = self.edge_omni(a, b)?;
-                let hashmap = graph.hash.read().ok()?;
-
-                Some(
-                    edge.nodes
-                        .iter()
-                        .filter_map(|index| hashmap.get(index))
-                        .map(|node| node.position)
-                        .collect::<Vec<_>>(),
-                )
-            })
-            .flatten()
+        self.interpolated
+            .iter()
+            .filter_map(|node| graph.get_position(node))
             .collect::<LineString>()
+
+        // self.route
+        //     .windows(2)
+        //     .filter_map(|candidate| {
+        //         let [a, b] = candidate else {
+        //             return None;
+        //         };
+        //
+        //         let edge = self.edge_omni(a, b)?;
+        //         let hashmap = graph.hash.read().ok()?;
+        //
+        //         Some(
+        //             edge.nodes
+        //                 .iter()
+        //                 .filter_map(|index| hashmap.get(index))
+        //                 .map(|node| node.position)
+        //                 .collect::<Vec<_>>(),
+        //         )
+        //     })
+        //     .flatten()
+        //     .collect::<LineString>()
     }
 }

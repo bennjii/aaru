@@ -11,7 +11,7 @@ use crate::route::transition::layer::{LayerGenerator, Layers};
 use crate::route::transition::{CostingStrategies, Solver};
 use crate::route::Graph;
 
-const DEFAULT_ERROR: f64 = 10f64;
+const DEFAULT_SEARCH_RADIUS: f64 = 100f64;
 const TRANSITION_LOGARITHM_BASE: f64 = 10.0;
 
 type LayerId = usize;
@@ -60,7 +60,7 @@ where
         heuristics: CostingStrategies<E, T>,
     ) -> Transition<'a, E, T> {
         let points = linestring.into_points();
-        let generator = LayerGenerator::new(map, &heuristics, DEFAULT_ERROR);
+        let generator = LayerGenerator::new(map, &heuristics, DEFAULT_SEARCH_RADIUS);
 
         // Generate the layers and candidates.
         let (layers, candidates) = generator.with_points(points);
