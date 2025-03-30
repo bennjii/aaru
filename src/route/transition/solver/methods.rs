@@ -2,14 +2,24 @@ use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::*;
 
+#[derive(Clone)]
 pub struct Reachable {
-    pub candidate: CandidateId,
+    pub source: CandidateId,
+    pub target: CandidateId,
     pub path: Vec<OsmEntryId>,
 }
 
 impl Reachable {
-    pub fn new(candidate: CandidateId, path: Vec<OsmEntryId>) -> Self {
-        Self { candidate, path }
+    pub fn new(source: CandidateId, target: CandidateId, path: Vec<OsmEntryId>) -> Self {
+        Self {
+            source,
+            target,
+            path,
+        }
+    }
+
+    pub fn hash(&self) -> (usize, usize) {
+        (self.source.index(), self.target.index())
     }
 }
 

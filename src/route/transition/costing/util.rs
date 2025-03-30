@@ -1,4 +1,9 @@
 use crate::route::transition::*;
+use pathfinding::num_traits::FloatConst;
+use std::f64::consts::E;
+
+const PRECISION: f64 = 1000.0f64;
+const OFFSET: f64 = E;
 
 pub trait Strategy<Ctx> {
     /// A calculable cost which can be any required
@@ -25,11 +30,25 @@ pub trait Strategy<Ctx> {
     /// value divided by `β`. The absolute value of the resultant is taken.
     ///
     /// ```math
-    /// decay(value) = |(1 / ζ) * e^(-1 * value / β)|
+    /// decay(value) = |(1 / ζ) * e^(-1 * value / β)| - offset
     /// ```
     #[inline(always)]
     fn cost(&self, ctx: Ctx) -> u32 {
-        ((1.0 / Self::ZETA) * (-1.0 * (self.calculate(ctx).into() / Self::BETA)).exp()).abs() as u32
+        // The base multiplier (1 / ζ)
+        let multiplier = 1.0 / Self::ZETA;
+
+        // The exponential cost heuristic (-1 * value / β)
+        let cost = -1.0 * self.calculate(ctx).into() / Self::BETA;
+
+        // Shift so low-costs have low output costs (normalised)
+        let shifted = (multiplier * cost.exp()) - OFFSET;
+
+        // Since output must be `u32`, we shift by `PRECISION` to
+        // increase the cost precision.
+        //
+        // Note: This must be replicated for all cost heuristics since
+        //       this will determine the overall magnitude of costs.
+        (PRECISION * shifted) as u32
     }
 }
 

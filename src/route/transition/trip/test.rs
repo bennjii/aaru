@@ -77,5 +77,5 @@ fn validate_turning_path() {
     assert_relative_eq!(imm_angle, 24.41, epsilon = 0.1);
 
     let exp_angle = trip.angular_complexity(SHARED_DISTANCE);
-    assert_relative_eq!(exp_angle, 0.82, epsilon = 0.1);
+    assert_relative_eq!(exp_angle, 0.64, epsilon = 0.1);
 }

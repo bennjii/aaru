@@ -1,7 +1,7 @@
 use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
 use crate::route::transition::layer::Layer;
 use crate::route::transition::{
-    Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
+    Costing, CostingStrategies, EmissionContext, EmissionStrategy, MapEdge, TransitionStrategy,
 };
 use crate::route::Graph;
 use geo::Point;
@@ -105,7 +105,7 @@ where
                             .emission(EmissionContext::new(&position, &origin));
 
                         let candidate = Candidate {
-                            map_edge: (map_edge.0, map_edge.1),
+                            map_edge: MapEdge::new(map_edge.0, map_edge.1),
                             position,
                             layer_id,
                             node_id,

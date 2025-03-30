@@ -151,7 +151,7 @@ impl Solver for AllForwardSolver {
 
         // The distance remaining in the edge to travel
         // TODO: Explain why this is necessary.
-        let end_node = left.map_edge.1;
+        let end_node = left.map_edge.end;
         let end_position = ctx.map.get_position(&end_node)?;
         let edge_offset = Haversine::distance(left.position, end_position);
 
@@ -177,9 +177,9 @@ impl Solver for AllForwardSolver {
                 let candidate = ctx.candidate(target)?;
                 // Generate the path to this target using the predicate map
                 // TODO: Validate why the source of the edge in docs.
-                let path_to_target = Self::path_builder(&candidate.map_edge.0, &predicate_map);
+                let path_to_target = Self::path_builder(&candidate.map_edge.start, &predicate_map);
 
-                Some(Reachable::new(*target, path_to_target))
+                Some(Reachable::new(*source, *target, path_to_target))
             })
             .collect::<Vec<_>>();
 
@@ -204,12 +204,12 @@ impl Solver for AllForwardSolver {
                 let cost = transition.heuristics.transition(TransitionContext {
                     optimal_path: Trip::new_with_map(transition.map, reachable.path.as_slice()),
                     source_candidate: &source,
-                    target_candidate: &reachable.candidate,
+                    target_candidate: &reachable.target,
                     routing_context: context,
                 });
 
-                let edge = CandidateEdge::new(cost, &reachable.path);
-                (source, reachable.candidate, edge)
+                let edge = CandidateEdge::new(cost, reachable.hash());
+                (source, reachable.target, edge)
             })
             .collect::<Vec<_>>();
 

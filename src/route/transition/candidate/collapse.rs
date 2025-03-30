@@ -1,12 +1,13 @@
 use crate::route::graph::NodeIx;
 use crate::route::transition::candidate::*;
+use crate::route::transition::Reachable;
 use crate::route::Graph;
 use geo::LineString;
 
 pub struct Collapse {
     pub cost: u32,
     pub route: Vec<CandidateId>,
-    pub interpolated: Vec<NodeIx>,
+    pub interpolated: Vec<Reachable>,
 
     candidates: Candidates,
 }
@@ -14,7 +15,7 @@ pub struct Collapse {
 impl Collapse {
     pub(crate) fn new(
         cost: u32,
-        interpolated: Vec<NodeIx>,
+        interpolated: Vec<Reachable>,
         route: Vec<CandidateId>,
         candidates: Candidates,
     ) -> Self {
@@ -46,28 +47,8 @@ impl Collapse {
     pub fn interpolated(&self, graph: &Graph) -> LineString {
         self.interpolated
             .iter()
-            .filter_map(|node| graph.get_position(node))
+            .flat_map(|reachable| reachable.path.clone())
+            .filter_map(|node| graph.get_position(&node))
             .collect::<LineString>()
-
-        // self.route
-        //     .windows(2)
-        //     .filter_map(|candidate| {
-        //         let [a, b] = candidate else {
-        //             return None;
-        //         };
-        //
-        //         let edge = self.edge_omni(a, b)?;
-        //         let hashmap = graph.hash.read().ok()?;
-        //
-        //         Some(
-        //             edge.nodes
-        //                 .iter()
-        //                 .filter_map(|index| hashmap.get(index))
-        //                 .map(|node| node.position)
-        //                 .collect::<Vec<_>>(),
-        //         )
-        //     })
-        //     .flatten()
-        //     .collect::<LineString>()
     }
 }

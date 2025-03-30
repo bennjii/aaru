@@ -1,9 +1,31 @@
 use crate::route::graph::NodeIx;
-use geo::Point;
+use crate::route::Graph;
+use geo::{Distance, Haversine, Point};
 use pathfinding::num_traits::Zero;
 use std::cmp::Ordering;
+use std::fmt::{Debug, Formatter};
 use std::ops::Add;
-use std::sync::Arc;
+
+#[derive(Clone, Copy, Debug)]
+pub struct MapEdge {
+    pub start: NodeIx,
+    pub end: NodeIx,
+}
+
+impl MapEdge {
+    pub fn new(start: NodeIx, end: NodeIx) -> Self {
+        Self { start, end }
+    }
+
+    pub fn length(self, graph: &Graph) -> Option<f64> {
+        let MapEdge { start, end } = self;
+
+        let start_position = graph.get_position(&start)?;
+        let end_position = graph.get_position(&end)?;
+
+        Some(Haversine::distance(start_position, end_position))
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 /// Represents the candidate selected within a layer.
@@ -16,7 +38,7 @@ use std::sync::Arc;
 /// TODO: Complete
 pub struct Candidate {
     /// Refers to the points within the map graph (Underlying routing structure)
-    pub map_edge: (NodeIx, NodeIx),
+    pub map_edge: MapEdge,
     pub position: Point,
     pub emission: u32,
 
@@ -33,17 +55,18 @@ pub struct CandidateEdge {
     pub weight: u32,
 
     // TODO: Document this, meaning forgotten.
-    pub nodes: *const [NodeIx],
+    pub flyweight: (usize, usize),
 }
 
-impl CandidateEdge {
-    pub fn nodes(&self) -> &[NodeIx] {
-        unsafe { &*self.nodes }
+impl Debug for CandidateEdge {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "CandidateEdge {{ weight: {}, nodes: [...] }}",
+            self.weight
+        )
     }
 }
-
-unsafe impl Send for CandidateEdge {}
-unsafe impl Sync for CandidateEdge {}
 
 impl Eq for CandidateEdge {}
 
@@ -79,35 +102,22 @@ impl Add<Self> for CandidateEdge {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let vec = self
-            .nodes()
-            .to_vec()
-            .into_iter()
-            .chain(rhs.nodes().to_vec())
-            .collect::<Vec<_>>();
-
-        let data = Arc::from(vec);
-
         CandidateEdge {
-            nodes: &*data as *const [NodeIx],
+            flyweight: rhs.flyweight,
             weight: self.weight + rhs.weight,
         }
     }
 }
 
 impl CandidateEdge {
-    pub fn new(weight: u32, nodes: &[NodeIx]) -> Self {
-        let data: Arc<[NodeIx]> = Arc::from(nodes);
-        Self {
-            weight,
-            nodes: &*data as *const [NodeIx],
-        }
+    pub fn new(weight: u32, flyweight: (usize, usize)) -> Self {
+        Self { weight, flyweight }
     }
 
     pub fn zero() -> Self {
         CandidateEdge {
             weight: 0,
-            nodes: &[],
+            flyweight: (0, 0),
         }
     }
 }

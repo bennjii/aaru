@@ -12,6 +12,7 @@ use geo::{Distance, Haversine};
 use log::{debug, info};
 use pathfinding::prelude::{astar, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
+use petgraph::visit::Walker;
 use petgraph::Direction;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -40,12 +41,12 @@ impl Default for SelectiveForwardSolver {
 }
 
 impl SelectiveForwardSolver {
-    // Returns all the nodes reachable by the solver in an iterator, measured in distance
+    /// Returns all the nodes reachable by the solver in an iterator, measured in distance
     fn reachable_iterator<'a>(
         ctx: RoutingContext<'a>,
-        end: &'a NodeIx,
+        start: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a> {
-        dijkstra_reach(end, |node, _| {
+        dijkstra_reach(start, |node, _| {
             ctx.map
                 .graph
                 .edges_directed(*node, Direction::Outgoing)
@@ -77,9 +78,9 @@ impl SelectiveForwardSolver {
         &'b self,
         ctx: RoutingContext<'a>,
         offset: f64,
-        end: &'a NodeIx,
+        start: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
-        Self::reachable_iterator(ctx, end).take_while(move |p| {
+        Self::reachable_iterator(ctx, start).take_while(move |p| {
             let distance_in_meters = p.total_cost as f64 / 1_000f64;
             let total_cost = distance_in_meters + offset;
 
@@ -118,28 +119,22 @@ impl Solver for SelectiveForwardSolver {
         // debug!("Left candidate: {:?}", left);
 
         // The distance remaining in the edge to travel
-        // TODO: Explain why this is necessary.
-        let end_node = left.map_edge.1;
+        // let end_node = left.map_edge.end;
 
-        // debug!("End node (map node index): {:?}", end_node);
-        let end_position = ctx.map.get_position(&end_node)?;
-        // debug!("End position (from map): {:?}", end_position);
+        // Represents the offset to the end of the node start
+        // let edge_length = left.map_edge.length(ctx.map)?;
 
-        let edge_offset = Haversine::distance(left.position, end_position);
         // debug!("Looking for {end_node:?} (from {:?}) at {end_position:?}, at offset {edge_offset:?}", left.map_edge.0);
 
         // Upper-Bounded reachable map containing a Child:Parent relation
-        // Note: Parent is OsmEntryId::NULL, which will not be within the map, indicating the root element.
+        //
+        // Note: Parent is OsmEntryId::NULL, which will not be within the map,
+        //       indicating the root element.
         let predicate_map = self
-            .bounded_iterator(ctx, edge_offset, &end_node)
+            .bounded_iterator(ctx, 0.0, &left.map_edge.start)
             .map(|predicate| {
-                (
-                    predicate.node,
-                    (
-                        predicate.parent.unwrap_or(OsmEntryId::null()),
-                        predicate.total_cost,
-                    ),
-                )
+                let parent = predicate.parent.unwrap_or(OsmEntryId::null());
+                (predicate.node, (parent, predicate.total_cost))
             })
             .collect::<HashMap<OsmEntryId, (OsmEntryId, u32)>>();
 
@@ -148,16 +143,14 @@ impl Solver for SelectiveForwardSolver {
         let reachable = targets
             .iter()
             .filter_map(|target| {
-                // debug!("({source:?}) Target={:?}", target);
-
                 // Get the candidate information of the target found
                 let candidate = ctx.candidate(target)?;
                 // debug!("({source:?}) Reachable Candidate={:?}", candidate);
 
                 // Generate the path to this target using the predicate map
                 // TODO: Validate why the source of the edge in docs.
-                let path_to_target = Self::path_builder(&candidate.map_edge.0, &predicate_map);
-                Some(Reachable::new(*target, path_to_target))
+                let path_to_target = Self::path_builder(&candidate.map_edge.start, &predicate_map);
+                Some(Reachable::new(*source, *target, path_to_target))
             })
             .collect::<Vec<_>>();
 
@@ -191,6 +184,8 @@ impl Solver for SelectiveForwardSolver {
             map: transition.map,
         };
 
+        let mut reachable_hash: HashMap<(usize, usize), Reachable> = HashMap::new();
+
         let graph_ref = Arc::clone(&transition.candidates.graph);
         let Some((path, cost)) = astar(
             &start,
@@ -222,24 +217,38 @@ impl Solver for SelectiveForwardSolver {
                     .unwrap_or_default()
                     .into_iter()
                     .map(|reachable| {
-                        let cost = transition.heuristics.transition(TransitionContext {
+                        let transition_cost = transition.heuristics.transition(TransitionContext {
                             optimal_path: Trip::new_with_map(
                                 transition.map,
                                 reachable.path.as_slice(),
                             ),
                             source_candidate: &source_owned,
-                            target_candidate: &reachable.candidate,
+                            target_candidate: &reachable.target,
                             routing_context: context,
                         });
 
-                        (
-                            reachable.candidate,
-                            CandidateEdge::new(cost, &reachable.path),
-                        )
+                        let emission_cost = transition
+                            .candidates
+                            .candidate(&reachable.target)
+                            .unwrap()
+                            .emission;
+
+                        debug!("Solving: T={transition_cost}, E={emission_cost}");
+
+                        let cost = emission_cost.saturating_add(transition_cost);
+                        let edge = CandidateEdge::new(cost, reachable.hash());
+
+                        let return_value = (reachable.target, edge);
+                        reachable_hash.insert(reachable.hash(), reachable);
+                        return_value
                     })
                     .collect::<Vec<_>>();
 
                 // debug!("Reachable from {source:?}: {reached:?}");
+
+                if transition.candidates.candidate(source).unwrap().layer_id == 1 {
+                    debug!("Layer1 transition: {:?}", reached);
+                }
 
                 reached
             },
@@ -249,9 +258,22 @@ impl Solver for SelectiveForwardSolver {
             return Err(MatchError::CollapseFailure);
         };
 
+        debug!("Total cost of solve: {}", cost.weight);
+
+        let reached = path
+            .windows(2)
+            .filter_map(|nodes| {
+                if let [a, b] = nodes {
+                    reachable_hash.get(&(a.index(), b.index())).cloned()
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
         Ok(Collapse::new(
             cost.weight,
-            cost.nodes().to_vec(),
+            reached,
             path,
             transition.candidates,
         ))

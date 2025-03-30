@@ -1,10 +1,10 @@
 pub mod emission {
     use crate::route::transition::*;
     use geo::{Distance, Haversine};
-    use pathfinding::num_traits::{clamp, Inv};
+    use pathfinding::num_traits::Inv;
 
-    // 20 meters
-    const DEFAULT_EMISSION_ERROR: f64 = 20.0;
+    // 10 meters (85th% GPS error)
+    const DEFAULT_EMISSION_ERROR: f64 = 10.0;
 
     /// Calculates the emission cost of a candidate relative
     /// to its source node.
@@ -20,7 +20,7 @@ pub mod emission {
         type Cost = f64;
 
         const ZETA: f64 = 1.0;
-        const BETA: f64 = -100.0;
+        const BETA: f64 = -1.0;
 
         fn calculate(&self, context: EmissionContext<'a>) -> Self::Cost {
             let distance =
@@ -28,7 +28,7 @@ pub mod emission {
 
             let relative_to_error = DEFAULT_EMISSION_ERROR / distance;
 
-            relative_to_error.clamp(0.0, 1.0).inv()
+            relative_to_error.clamp(0.0, 1.0).inv().powi(2)
         }
     }
 }
@@ -36,6 +36,7 @@ pub mod emission {
 pub mod transition {
     use crate::route::transition::*;
     use geo::{Distance, Haversine};
+    use log::debug;
     use pathfinding::num_traits::Inv;
 
     /// Calculates the transition cost between two candidates.
@@ -94,7 +95,7 @@ pub mod transition {
         type Cost = f64;
 
         const ZETA: f64 = 1.0;
-        const BETA: f64 = -50.0;
+        const BETA: f64 = -1.0;
 
         fn calculate(&self, context: TransitionContext<'a>) -> Self::Cost {
             let shortest_distance = Haversine::distance(
@@ -102,7 +103,7 @@ pub mod transition {
                 context.target_candidate().position,
             );
 
-            // Value in range [0, 1]
+            // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let deviance = {
                 let path_length = context.optimal_path.length();
                 let deviance = shortest_distance / path_length;
@@ -110,23 +111,28 @@ pub mod transition {
                 deviance.clamp(0.0, 1.0)
             };
 
-            // Value in range [0, 1]
+            // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let turn_cost = {
                 // Value in range [0, 180].
                 let imm_angle = context
                     .optimal_path
                     .angular_complexity(shortest_distance)
-                    .abs();
+                    .powi(2);
 
-                (imm_angle / 180.0).abs().clamp(0.0, 1.0)
+                imm_angle.clamp(0.0, 1.0)
             };
 
-            // Value in range [0, 1]
+            // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let avg_cost = (turn_cost + deviance) / 2.0;
-            let normalised_cost = 1.0 - avg_cost;
 
             // Take the inverse to "span" values
-            normalised_cost.inv()
+            let spanned = avg_cost.inv().powi(2);
+
+            debug!(
+                "Cost: {}, AvgCost={}, TurnCost={}, DistanceCost={}",
+                spanned, avg_cost, turn_cost, deviance
+            );
+            spanned
         }
     }
 }

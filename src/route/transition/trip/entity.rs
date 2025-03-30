@@ -141,7 +141,7 @@ impl Trip {
     pub fn angular_complexity(&self, distance: f64) -> f64 {
         let sum = self.total_angle();
         // Complete Zig-Zag
-        let theoretical_max = (self.0.len() as f64 - 2f64) * 180f64;
+        let theoretical_max = (self.0.len() as f64 - 2f64) * 90f64;
 
         1.0 - (sum / theoretical_max).clamp(0.0, 1.0)
     }
