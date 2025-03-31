@@ -230,8 +230,7 @@ impl Solver for SelectiveForwardSolver {
                         let emission_cost = transition
                             .candidates
                             .candidate(&reachable.target)
-                            .unwrap()
-                            .emission;
+                            .map_or(0, |v| v.emission);
 
                         debug!("Solving: T={transition_cost}, E={emission_cost}");
 
@@ -245,10 +244,6 @@ impl Solver for SelectiveForwardSolver {
                     .collect::<Vec<_>>();
 
                 // debug!("Reachable from {source:?}: {reached:?}");
-
-                if transition.candidates.candidate(source).unwrap().layer_id == 1 {
-                    debug!("Layer1 transition: {:?}", reached);
-                }
 
                 reached
             },
