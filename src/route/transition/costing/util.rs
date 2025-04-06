@@ -1,5 +1,4 @@
 use crate::route::transition::*;
-use pathfinding::num_traits::FloatConst;
 use std::f64::consts::E;
 
 const PRECISION: f64 = 1000.0f64;

@@ -26,7 +26,7 @@ pub struct TransitionContext<'a> {
     pub routing_context: RoutingContext<'a>,
 }
 
-impl<'a> TransitionContext<'a> {
+impl TransitionContext<'_> {
     /// TODO: Docs
     pub fn source_candidate(&self) -> Candidate {
         self.routing_context

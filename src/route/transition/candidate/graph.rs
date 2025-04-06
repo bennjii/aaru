@@ -1,7 +1,7 @@
 use crate::route::transition::candidate::collapse::Collapse;
 use crate::route::transition::candidate::{Candidate, CandidateEdge, CandidateId, CandidateRef};
 use crate::route::transition::layer::{Layer, Layers};
-use pathfinding::num_traits::ConstZero;
+use pathfinding::num_traits::{ConstZero, Zero};
 use petgraph::prelude::EdgeRef;
 use petgraph::{Directed, Graph};
 use scc::HashMap;
@@ -94,8 +94,7 @@ impl Candidates {
         // This will block access to any other client using this candidate structure,
         // however this function
         let graph = self.graph.read().unwrap();
-
-        let Some((cost, route)) = petgraph::algo::astar(
+        let (cost, route) = petgraph::algo::astar(
             &*graph,
             source,
             |node| node == target,
@@ -111,9 +110,7 @@ impl Candidates {
                 transition_cost + emission_cost
             },
             |_| u32::ZERO,
-        ) else {
-            return None;
-        };
+        )?;
 
         drop(graph);
         // TODO: Deprecate and move to all_forward strat.

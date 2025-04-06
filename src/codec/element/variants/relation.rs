@@ -1,6 +1,6 @@
 use crate::codec::osm;
 
-use super::common::{ReferenceKey, References, Referentiable, Tagable, Tags};
+use super::common::{ReferenceKey, References, Referential, Tagable, Tags};
 
 #[derive(Clone, Debug)]
 pub struct Relation {
@@ -20,13 +20,13 @@ impl Relation {
 }
 
 impl Tagable for osm::Relation {
-    fn indicies<'a>(&'a self) -> impl Iterator<Item = (&'a u32, &'a u32)> {
+    fn indices(&self) -> impl Iterator<Item = (&u32, &u32)> {
         self.keys.iter().zip(self.vals.iter())
     }
 }
 
-impl Referentiable for osm::Relation {
-    fn indicies<'a>(&'a self) -> impl Iterator<Item = ReferenceKey<'a>> {
+impl Referential for osm::Relation {
+    fn indices(&self) -> impl Iterator<Item = ReferenceKey> {
         self.roles_sid
             .iter()
             .zip(self.memids.iter())

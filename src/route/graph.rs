@@ -8,15 +8,14 @@ use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
 use crate::route::transition::{CostingStrategies, SelectiveForwardSolver};
-use geo::{
-    line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, LineString, Point,
-};
+use crate::route::Scan;
+
+use geo::{LineString, Point};
 use log::{debug, info};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
-use petgraph::Direction;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rstar::{RTree, AABB};
+use rstar::RTree;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
@@ -24,7 +23,6 @@ use std::sync::{Mutex, RwLock};
 use std::time::Instant;
 #[cfg(feature = "tracing")]
 use tracing::Level;
-use wkt::ToWkt;
 
 pub type Weight = u32;
 pub type NodeIx = OsmEntryId;
@@ -135,7 +133,7 @@ impl Graph {
 
                         // Get the weight from the weight table
                         let weight = match way.tags().road_tag() {
-                            Some(weight) => weights.get(weight).map(|v| *v).unwrap_or(MAX_WEIGHT),
+                            Some(weight) => weights.get(weight).copied().unwrap_or(MAX_WEIGHT),
                             None => MAX_WEIGHT,
                         };
 
@@ -206,62 +204,6 @@ impl Graph {
         })
     }
 
-    /// Finds the nearest node to a lat/lng position
-    pub fn nearest_node(&self, point: Point) -> Option<&Node> {
-        self.index.nearest_neighbor(&point)
-    }
-
-    #[inline]
-    pub fn square_scan(&self, point: &Point, distance: f64) -> Vec<&Node> {
-        let bottom_right = Geodesic::destination(*point, 135.0, distance);
-        let top_left = Geodesic::destination(*point, 315.0, distance);
-        let bbox = AABB::from_corners(top_left, bottom_right);
-
-        let line = line_string![bottom_right.0, top_left.0];
-        debug!("Bounding Box: {:?}", line.wkt_string());
-
-        self.index().locate_in_envelope(&bbox).collect::<Vec<_>>()
-    }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
-    #[inline]
-    pub fn nearest_edges(
-        &self,
-        point: &Point,
-        distance: f64,
-    ) -> impl Iterator<Item = (NodeIx, NodeIx, &Weight)> {
-        self.square_scan(point, distance)
-            .into_iter()
-            .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
-            .map(|(a, b, c)| (a, b, &c.0))
-    }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO))]
-    #[inline]
-    pub fn nearest_projected_nodes<'a>(
-        &'a self,
-        point: &'a Point,
-        distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge<'a>)> + 'a {
-        self.nearest_edges(point, distance)
-            .filter_map(|edge| {
-                let hashmap = self.hash.read().unwrap();
-                let src = hashmap.get(&edge.source())?;
-                let trg = hashmap.get(&edge.target())?;
-
-                Some((line_string![src.position.0, trg.position.0], edge))
-            })
-            .filter_map(move |(linestring, edge)| {
-                // We locate the point upon the linestring,
-                // and then project that fractional (%)
-                // upon the linestring to obtain a point
-                linestring
-                    .line_locate_point(point)
-                    .and_then(|frac| linestring.line_interpolate_point(frac))
-                    .map(|point| (point, edge))
-            })
-    }
-
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
     pub fn map_match(&self, linestring: LineString) -> Result<Collapse, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
@@ -294,8 +236,7 @@ impl Graph {
         let hashmap = self.hash.read().ok()?;
         let route = path
             .iter()
-            .filter_map(|v| hashmap.get(v))
-            .map(|e| *e)
+            .filter_map(|v| hashmap.get(v).copied())
             .collect();
 
         Some((score, route))

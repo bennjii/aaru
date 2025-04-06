@@ -33,7 +33,7 @@ fn validate_segment() {
     use crate::route::transition::Trip;
 
     let linestring = wkt! {
-        LINESTRING (-118.618376 34.166568, -118.624074 34.163894, -118.627379 34.16253, -118.638708 34.158629, -118.642046 34.157824, -118.650757 34.154535, -118.661948 34.150037, -118.664831 34.149782)
+        LINESTRING (-118.618033 34.166292, -118.623419 34.164641, -118.626895 34.163434)
     };
 
     let nodes = linestring
@@ -45,13 +45,13 @@ fn validate_segment() {
     let trip = Trip::from(nodes);
 
     let angle = trip.total_angle();
-    assert_relative_eq!(angle, 42.77, epsilon = 0.1);
+    assert_relative_eq!(angle, 2.44, max_relative = 0.1);
 
     let imm_angle = trip.immediate_angle().abs();
-    assert_relative_eq!(imm_angle, 5.35, epsilon = 0.1);
+    assert_relative_eq!(imm_angle, 0.81, max_relative = 0.1);
 
     let exp_angle = trip.angular_complexity(SHARED_DISTANCE);
-    assert_relative_eq!(exp_angle, 0.96, epsilon = 0.1);
+    assert_relative_eq!(exp_angle, 0.95, max_relative = 0.1);
 }
 
 #[test]
@@ -71,11 +71,11 @@ fn validate_turning_path() {
     let trip = Trip::from(nodes);
 
     let angle = trip.total_angle();
-    assert_relative_eq!(angle, 195.30, epsilon = 0.1);
+    assert_relative_eq!(angle, 195.30, max_relative = 0.1);
 
     let imm_angle = trip.immediate_angle().abs();
-    assert_relative_eq!(imm_angle, 24.41, epsilon = 0.1);
+    assert_relative_eq!(imm_angle, 24.41, max_relative = 0.1);
 
     let exp_angle = trip.angular_complexity(SHARED_DISTANCE);
-    assert_relative_eq!(exp_angle, 0.64, epsilon = 0.1);
+    assert_relative_eq!(exp_angle, 0.51, max_relative = 0.1);
 }

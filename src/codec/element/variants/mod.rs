@@ -155,11 +155,11 @@ pub mod common {
     /// A reference key is a tuple of the form (Role, MemberID, Type)
     pub type ReferenceKey<'a> = (&'a i32, &'a i64, &'a i32);
 
-    pub trait Referentiable {
-        fn indicies<'a>(&'a self) -> impl Iterator<Item = ReferenceKey<'a>>;
+    pub trait Referential {
+        fn indices(&self) -> impl Iterator<Item = ReferenceKey>;
 
         fn references(&self, block: &PrimitiveBlock) -> References {
-            self.indicies()
+            self.indices()
                 .fold(vec![], |mut prior, (role, id, variant)| {
                     let index = id + prior.last().map_or(&0i64, |(_, v, _)| v);
                     let role = if *role == -1 {
@@ -168,8 +168,7 @@ pub mod common {
                         Some(Role(TagString::recover(*role as usize, block)))
                     };
 
-                    let member_type =
-                        MemberType::try_from(*variant).unwrap_or_else(|_| MemberType::Node);
+                    let member_type = MemberType::try_from(*variant).unwrap_or(MemberType::Node);
 
                     prior.push((role, index, member_type));
                     prior
@@ -233,9 +232,9 @@ pub mod common {
     pub struct Tags(HashMap<TagString, TagString>);
 
     pub trait Tagable {
-        fn indicies<'a>(&'a self) -> impl Iterator<Item = (&'a u32, &'a u32)>;
+        fn indices(&self) -> impl Iterator<Item = (&u32, &u32)>;
         fn tags(&self, block: &PrimitiveBlock) -> Tags {
-            Tags::from_block(self.indicies(), block)
+            Tags::from_block(self.indices(), block)
         }
     }
 
@@ -279,13 +278,13 @@ pub mod common {
         #[inline]
         pub fn one_way(&self) -> bool {
             self.get(TagString::ONE_WAY)
-                .map_or(false, |v| v.as_str() == "yes")
+                .is_some_and(|v| v.as_str() == "yes")
         }
 
         #[inline]
         pub fn roundabout(&self) -> bool {
             self.get(TagString::JUNCTION)
-                .map_or(false, |v| v.as_str() == "roundabout")
+                .is_some_and(|v| v.as_str() == "roundabout")
         }
     }
 

@@ -10,7 +10,7 @@ pub struct RoutingContext<'a> {
     pub map: &'a Graph,
 }
 
-impl<'a> RoutingContext<'a> {
+impl RoutingContext<'_> {
     /// TODO: Docs
     pub fn candidate(&self, candidate: &CandidateId) -> Option<Candidate> {
         self.candidates.candidate(candidate)

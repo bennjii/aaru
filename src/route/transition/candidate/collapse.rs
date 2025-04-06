@@ -1,4 +1,3 @@
-use crate::route::graph::NodeIx;
 use crate::route::transition::candidate::*;
 use crate::route::transition::Reachable;
 use crate::route::Graph;
@@ -39,7 +38,6 @@ impl Collapse {
             .iter()
             .filter_map(|node| self.candidates.lookup.get(node))
             .map(|can| *can)
-            .map(|can| can)
             .collect::<Vec<_>>()
     }
 

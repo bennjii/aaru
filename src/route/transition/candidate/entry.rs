@@ -1,30 +1,44 @@
-use crate::route::graph::NodeIx;
+use crate::route::graph::{EdgeIx, NodeIx, Weight};
 use crate::route::Graph;
 use geo::{Distance, Haversine, Point};
 use pathfinding::num_traits::Zero;
 use std::cmp::Ordering;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::ops::Add;
 
 #[derive(Clone, Copy, Debug)]
-pub struct MapEdge {
-    pub start: NodeIx,
-    pub end: NodeIx,
+pub struct Edge {
+    pub source: NodeIx,
+    pub target: NodeIx,
+
+    pub weight: Weight,
+    pub id: EdgeIx,
 }
 
-impl MapEdge {
-    pub fn new(start: NodeIx, end: NodeIx) -> Self {
-        Self { start, end }
+impl Edge {
+    pub fn new(source: NodeIx, target: NodeIx, weight: Weight, id: EdgeIx) -> Self {
+        Self {
+            source,
+            target,
+            weight,
+            id,
+        }
     }
 
     pub fn length(self, graph: &Graph) -> Option<f64> {
-        let MapEdge { start, end } = self;
+        let Edge { source, target, .. } = self;
 
-        let start_position = graph.get_position(&start)?;
-        let end_position = graph.get_position(&end)?;
+        let source_position = graph.get_position(&source)?;
+        let target_position = graph.get_position(&target)?;
 
-        Some(Haversine::distance(start_position, end_position))
+        Some(Haversine::distance(source_position, target_position))
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct CandidateLocation {
+    pub layer_id: usize,
+    pub node_id: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -38,34 +52,39 @@ impl MapEdge {
 /// TODO: Complete
 pub struct Candidate {
     /// Refers to the points within the map graph (Underlying routing structure)
-    pub map_edge: MapEdge,
+    pub edge: Edge,
     pub position: Point,
     pub emission: u32,
 
-    pub layer_id: usize,
-    pub node_id: usize,
+    #[cfg(debug_assertions)]
+    pub location: CandidateLocation,
+}
+
+impl Candidate {
+    pub fn new(
+        edge: Edge,
+        position: Point,
+        emission: u32,
+        #[cfg(debug_assertions)] location: CandidateLocation,
+    ) -> Self {
+        Self {
+            edge,
+            position,
+            emission,
+            #[cfg(debug_assertions)]
+            location,
+        }
+    }
 }
 
 /// Represents the edge of this candidate within
 /// the [`Candidate`] graph.
 ///
 /// TODO: Complete
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(transparent)]
 pub struct CandidateEdge {
     pub weight: u32,
-
-    // TODO: Document this, meaning forgotten.
-    pub flyweight: (usize, usize),
-}
-
-impl Debug for CandidateEdge {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "CandidateEdge {{ weight: {}, nodes: [...] }}",
-            self.weight
-        )
-    }
 }
 
 impl Eq for CandidateEdge {}
@@ -78,7 +97,7 @@ impl PartialEq<Self> for CandidateEdge {
 
 impl PartialOrd<Self> for CandidateEdge {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.weight.partial_cmp(&other.weight)
+        Some(self.cmp(other))
     }
 }
 
@@ -90,7 +109,7 @@ impl Ord for CandidateEdge {
 
 impl Zero for CandidateEdge {
     fn zero() -> Self {
-        CandidateEdge::zero()
+        CandidateEdge::default()
     }
 
     fn is_zero(&self) -> bool {
@@ -101,23 +120,17 @@ impl Zero for CandidateEdge {
 impl Add<Self> for CandidateEdge {
     type Output = Self;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         CandidateEdge {
-            flyweight: rhs.flyweight,
-            weight: self.weight + rhs.weight,
+            weight: self.weight.saturating_add(rhs.weight),
         }
     }
 }
 
 impl CandidateEdge {
-    pub fn new(weight: u32, flyweight: (usize, usize)) -> Self {
-        Self { weight, flyweight }
-    }
-
-    pub fn zero() -> Self {
-        CandidateEdge {
-            weight: 0,
-            flyweight: (0, 0),
-        }
+    #[inline]
+    pub fn new(weight: u32) -> Self {
+        Self { weight }
     }
 }

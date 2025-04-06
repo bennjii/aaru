@@ -1,9 +1,9 @@
 #![cfg(test)]
 
-use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, SYDNEY};
+use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, LOS_ANGELES, SYDNEY};
 use crate::codec::element::variants::Node;
 use crate::route::Graph;
-use geo::{coord, LineString, Point};
+use geo::{coord, wkt, LineString, Point};
 use std::{path::Path, time::Instant};
 use wkt::ToWkt;
 
@@ -83,4 +83,27 @@ fn sydney_mapping() -> crate::Result<()> {
     println!("{}", generate_linestring(route));
     assert_eq!(weight, 454, "Incorrect Route Weighting");
     Ok(())
+}
+
+#[test]
+fn projected_distance_check() {
+    let graph = init_graph(LOS_ANGELES).expect("Could not produce graph");
+
+    let points = wkt! {
+        LINESTRING (-118.618736 34.1661, -118.624771 34.164165, -118.627724 34.163116, -118.639236 34.158897, -118.642059 34.15786, -118.650391 34.154312, -118.662483 34.150333, -118.664833 34.149796)
+    };
+
+    for distance in [200.0, 100.0] {
+        for point in &points {
+            let point = Point(*point);
+            let nodes = graph
+                .nearest_projected_nodes(&point, distance)
+                .collect::<Vec<_>>();
+
+            assert!(
+                !nodes.is_empty(),
+                "Expected nodes to be non-empty at {distance}m. Could not find candidate for {point:?}"
+            );
+        }
+    }
 }

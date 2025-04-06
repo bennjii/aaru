@@ -25,19 +25,18 @@ pub mod emission {
         fn calculate(&self, context: EmissionContext<'a>) -> Self::Cost {
             let distance =
                 Haversine::distance(*context.source_position, *context.candidate_position);
-
             let relative_to_error = DEFAULT_EMISSION_ERROR / distance;
 
-            relative_to_error.clamp(0.0, 1.0).inv()
+            relative_to_error.clamp(0.0, 1.0).inv().powi(2)
         }
     }
 }
 
 pub mod transition {
-    use crate::route::transition::*;
     use geo::{Distance, Haversine};
-    use log::debug;
     use pathfinding::num_traits::Inv;
+
+    use crate::route::transition::*;
 
     /// Calculates the transition cost between two candidates.
     ///
@@ -128,10 +127,10 @@ pub mod transition {
             // Take the inverse to "span" values
             let spanned = avg_cost.inv().powi(2);
 
-            debug!(
-                "Cost: {}, AvgCost={}, TurnCost={}, DistanceCost={}",
-                spanned, avg_cost, turn_cost, deviance
-            );
+            // debug!(
+            //     "Cost: {}, AvgCost={}, TurnCost={}, DistanceCost={}",
+            //     spanned, avg_cost, turn_cost, deviance
+            // );
             spanned
         }
     }

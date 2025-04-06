@@ -10,15 +10,16 @@ use crate::route::transition::{
 
 use geo::{Distance, Haversine};
 use log::{debug, info};
+use pathfinding::num_traits::Zero;
 use pathfinding::prelude::{astar, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
-use petgraph::visit::Walker;
 use petgraph::Direction;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
 #[cfg(feature = "tracing")]
 use tracing::Level;
+use wkt::ToWkt;
 
 const DEFAULT_THRESHOLD: f64 = 2_000f64;
 
@@ -46,7 +47,10 @@ impl SelectiveForwardSolver {
         ctx: RoutingContext<'a>,
         start: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a> {
-        dijkstra_reach(start, |node, _| {
+        dijkstra_reach(start, |node| {
+            // Calc. once
+            let source = ctx.map.get_position(node).unwrap();
+
             ctx.map
                 .graph
                 .edges_directed(*node, Direction::Outgoing)
@@ -54,7 +58,6 @@ impl SelectiveForwardSolver {
                     (
                         next,
                         if *node != next {
-                            let source = ctx.map.get_position(node).unwrap();
                             let target = ctx.map.get_position(&next).unwrap();
 
                             // In centimeters
@@ -131,7 +134,7 @@ impl Solver for SelectiveForwardSolver {
         // Note: Parent is OsmEntryId::NULL, which will not be within the map,
         //       indicating the root element.
         let predicate_map = self
-            .bounded_iterator(ctx, 0.0, &left.map_edge.start)
+            .bounded_iterator(ctx, 0.0, &left.edge.source)
             .map(|predicate| {
                 let parent = predicate.parent.unwrap_or(OsmEntryId::null());
                 (predicate.node, (parent, predicate.total_cost))
@@ -148,8 +151,10 @@ impl Solver for SelectiveForwardSolver {
                 // debug!("({source:?}) Reachable Candidate={:?}", candidate);
 
                 // Generate the path to this target using the predicate map
-                // TODO: Validate why the source of the edge in docs.
-                let path_to_target = Self::path_builder(&candidate.map_edge.start, &predicate_map);
+                // TODO: Validate why the start/end of the edge in docs.
+                let mut path_to_target = Self::path_builder(&candidate.edge.target, &predicate_map);
+                path_to_target.push(candidate.edge.source);
+
                 Some(Reachable::new(*source, *target, path_to_target))
             })
             .collect::<Vec<_>>();
@@ -207,21 +212,23 @@ impl Solver for SelectiveForwardSolver {
                 }
 
                 if successors.contains(&end) {
+                    debug!("End-Successors: {:?}", successors);
                     // Fast-track to the finish line
                     return vec![(end, CandidateEdge::zero())];
                 }
 
                 let source_owned = *source;
                 let reached = self
+                    // TODO: Supply context to the reachability function in order to reuse routes already made.
                     .reachable(context, source, successors.as_slice())
                     .unwrap_or_default()
                     .into_iter()
                     .map(|reachable| {
+                        let trip = Trip::new_with_map(transition.map, reachable.path.as_slice());
+
                         let transition_cost = transition.heuristics.transition(TransitionContext {
-                            optimal_path: Trip::new_with_map(
-                                transition.map,
-                                reachable.path.as_slice(),
-                            ),
+                            // TODO: Remove clone after debugging.
+                            optimal_path: trip.clone(),
                             source_candidate: &source_owned,
                             target_candidate: &reachable.target,
                             routing_context: context,
@@ -232,13 +239,25 @@ impl Solver for SelectiveForwardSolver {
                             .candidate(&reachable.target)
                             .map_or(0, |v| v.emission);
 
-                        debug!("Solving: T={transition_cost}, E={emission_cost}");
-
                         let cost = emission_cost.saturating_add(transition_cost);
-                        let edge = CandidateEdge::new(cost, reachable.hash());
+                        // debug!("Solving: T={transition_cost}, E={emission_cost}: {cost}");
 
-                        let return_value = (reachable.target, edge);
+                        // if transition_cost < 1 {
+                        //     info!("LOW TRANSITION COST (D.f.={:?}): {}",  reachable.path, trip.linestring().wkt_string())
+                        // }
+
+                        if emission_cost == 0 {
+                            let candidate = transition.candidates.candidate(&reachable.target);
+
+                            info!(
+                                "LOW EMISSION COST (Pt. {})",
+                                candidate.unwrap().position.wkt_string()
+                            )
+                        }
+
+                        let return_value = (reachable.target, CandidateEdge::new(cost));
                         reachable_hash.insert(reachable.hash(), reachable);
+
                         return_value
                     })
                     .collect::<Vec<_>>();

@@ -1,15 +1,17 @@
 use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
 use crate::route::transition::layer::Layer;
 use crate::route::transition::{
-    Costing, CostingStrategies, EmissionContext, EmissionStrategy, MapEdge, TransitionStrategy,
+    CandidateLocation, Costing, CostingStrategies, EmissionContext, EmissionStrategy,
+    TransitionStrategy,
 };
-use crate::route::Graph;
-use geo::Point;
+use crate::route::{Graph, Scan};
+use geo::{Distance, Haversine, MultiPoint, Point};
 use log::info;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
 use wkt::ToWkt;
 
+#[derive(Default)]
 pub struct Layers {
     pub layers: Vec<Layer>,
 }
@@ -24,12 +26,6 @@ impl Layers {
     }
 }
 
-impl Default for Layers {
-    fn default() -> Self {
-        Layers { layers: vec![] }
-    }
-}
-
 impl FromParallelIterator<Layer> for Layers {
     fn from_par_iter<I>(layers: I) -> Self
     where
@@ -39,6 +35,9 @@ impl FromParallelIterator<Layer> for Layers {
         Self { layers }
     }
 }
+
+const DEFAULT_SEARCH_DISTANCE: f64 = 1000.0;
+const DEFAULT_FILTER_DISTANCE: f64 = 50.0;
 
 /// Generates the layers within the transition graph.
 ///
@@ -52,7 +51,19 @@ where
     E: EmissionStrategy,
     T: TransitionStrategy,
 {
-    distance: f64,
+    /// The maximum distance by which the generator will search for nodes,
+    /// allowing it to find edges which may be comprised of distant nodes.
+    search_distance: f64,
+
+    /// The maximum distance by which matched candidates will be found,
+    /// this directly minimises the cost to compute since it impacts the
+    /// quantity of candidates found.
+    ///
+    /// A high search distance may take longer to compute but will give
+    /// more accurate candidates as it can find edges who's comprising nodes
+    /// are far apart.
+    filter_distance: f64,
+
     heuristics: &'a CostingStrategies<E, T>,
 
     map: &'a Graph,
@@ -63,11 +74,13 @@ where
     E: EmissionStrategy + Send + Sync,
     T: TransitionStrategy + Send + Sync,
 {
-    pub fn new(map: &'a Graph, heuristics: &'a CostingStrategies<E, T>, distance: f64) -> Self {
+    pub fn new(map: &'a Graph, heuristics: &'a CostingStrategies<E, T>) -> Self {
         LayerGenerator {
             map,
-            distance,
             heuristics,
+
+            search_distance: DEFAULT_SEARCH_DISTANCE,
+            filter_distance: DEFAULT_FILTER_DISTANCE,
         }
     }
 
@@ -94,23 +107,31 @@ where
                 let nodes = self
                     .map
                     // We'll do a best-effort search (square) radius
-                    .nearest_projected_nodes(&origin, self.distance)
+                    .nearest_projected_nodes(&origin, self.search_distance)
+                    // Then filter by the distance between
+                    .filter(|(point, _)| {
+                        Haversine::distance(*point, origin) <= self.filter_distance
+                    })
                     .enumerate()
-                    .map(|(node_id, (position, map_edge))| {
+                    .map(|(node_id, (position, edge))| {
                         // We have the actual projected position, and it's associated edge.
                         // Therefore, we can use the Emission costing function to calculate
                         // the associated emission cost of this candidate.
                         let emission = self
                             .heuristics
+                            // TODO: This will calculate the distance between TWICE since we do it above.
+                            //    => Investigate if we can save this value and supply it to the ctx.
                             .emission(EmissionContext::new(&position, &origin));
 
-                        let candidate = Candidate {
-                            map_edge: MapEdge::new(map_edge.0, map_edge.1),
+                        #[cfg(debug_assertions)]
+                        let location = CandidateLocation { layer_id, node_id };
+                        let candidate = Candidate::new(
+                            edge,
                             position,
-                            layer_id,
-                            node_id,
                             emission,
-                        };
+                            #[cfg(debug_assertions)]
+                            location,
+                        );
 
                         let candidate_reference = CandidateRef::new(emission);
                         (candidate, candidate_reference)
@@ -134,6 +155,14 @@ where
                 Layer { nodes, origin }
             })
             .collect::<Layers>();
+
+        let mut points = vec![];
+        candidates.lookup.scan(|_, candidate| {
+            points.push(candidate.position);
+        });
+
+        let mp = points.into_iter().collect::<MultiPoint>();
+        info!("All Candidates ({}): {}", mp.len(), mp.wkt_string());
 
         (layers, candidates)
     }

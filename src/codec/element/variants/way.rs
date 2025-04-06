@@ -5,7 +5,7 @@
 use crate::codec::osm::PrimitiveBlock;
 use crate::codec::{osm, relation::MemberType};
 
-use super::common::{OsmEntryId, ReferenceKey, References, Referentiable, Tagable, Tags};
+use super::common::{OsmEntryId, ReferenceKey, References, Referential, Tagable, Tags};
 
 #[derive(Clone, Debug)]
 pub struct Way {
@@ -41,13 +41,13 @@ impl Way {
 }
 
 impl Tagable for osm::Way {
-    fn indicies<'a>(&'a self) -> impl Iterator<Item = (&'a u32, &'a u32)> {
+    fn indices(&self) -> impl Iterator<Item = (&u32, &u32)> {
         self.keys.iter().zip(self.vals.iter())
     }
 }
 
-impl Referentiable for osm::Way {
-    fn indicies<'a>(&'a self) -> impl Iterator<Item = ReferenceKey<'a>> {
+impl Referential for osm::Way {
+    fn indices(&self) -> impl Iterator<Item = ReferenceKey> {
         self.refs
             .iter()
             .map(|id| (&-1i32, id, &(MemberType::Node as i32)))

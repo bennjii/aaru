@@ -42,7 +42,7 @@ impl AllForwardSolver {
         ctx: RoutingContext<'a>,
         end: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a> {
-        dijkstra_reach(end, |node, _| {
+        dijkstra_reach(end, |node| {
             ctx.map
                 .graph
                 .edges_directed(*node, Direction::Outgoing)
@@ -151,7 +151,7 @@ impl Solver for AllForwardSolver {
 
         // The distance remaining in the edge to travel
         // TODO: Explain why this is necessary.
-        let end_node = left.map_edge.end;
+        let end_node = left.edge.target;
         let end_position = ctx.map.get_position(&end_node)?;
         let edge_offset = Haversine::distance(left.position, end_position);
 
@@ -177,7 +177,7 @@ impl Solver for AllForwardSolver {
                 let candidate = ctx.candidate(target)?;
                 // Generate the path to this target using the predicate map
                 // TODO: Validate why the source of the edge in docs.
-                let path_to_target = Self::path_builder(&candidate.map_edge.start, &predicate_map);
+                let path_to_target = Self::path_builder(&candidate.edge.source, &predicate_map);
 
                 Some(Reachable::new(*source, *target, path_to_target))
             })
@@ -208,7 +208,7 @@ impl Solver for AllForwardSolver {
                     routing_context: context,
                 });
 
-                let edge = CandidateEdge::new(cost, reachable.hash());
+                let edge = CandidateEdge::new(cost);
                 (source, reachable.target, edge)
             })
             .collect::<Vec<_>>();

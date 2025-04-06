@@ -6,7 +6,7 @@ use tonic::{Request, Response, Status};
 
 use router_service::{MatchedRoute, RouteRequest, RouteResponse};
 
-use crate::route::Graph;
+use crate::route::{Graph, Scan};
 use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,
     ClosestSnappedPointResponse, Coordinate, MapMatchRequest, MapMatchResponse,
@@ -107,7 +107,6 @@ impl RouterService for RouteService {
         let interpolated = result
             .interpolated(&self.graph)
             .coords()
-            .into_iter()
             .map(|node| Coordinate {
                 latitude: node.y,
                 longitude: node.x,

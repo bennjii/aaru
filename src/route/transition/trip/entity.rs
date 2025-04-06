@@ -1,6 +1,6 @@
 use crate::codec::element::variants::{Node, OsmEntryId};
 use crate::route::Graph;
-use geo::{Bearing, Distance, Haversine};
+use geo::{Bearing, Distance, Haversine, LineString};
 
 /// `Trip`
 ///
@@ -20,6 +20,11 @@ impl Trip {
         Self(nodes.into_iter().collect::<Vec<_>>())
     }
 
+    pub(crate) fn linestring(&self) -> LineString {
+        self.0.iter().map(|v| v.position).collect::<LineString>()
+    }
+
+    /// TODO: This should be done lazily, since we may not need the points but possibly OK as is.
     pub fn new_with_map(map: &Graph, nodes: &[OsmEntryId]) -> Self {
         let resolved = map.resolve_line(nodes);
 
@@ -138,12 +143,19 @@ impl Trip {
     /// over the distance travelled. Therefore, meaning it can be used to compare
     /// the angles of two trips on a given distance to understand which one had
     /// more turning.
+    ///
+    /// TODO: Consult use of distance in heuristic
     pub fn angular_complexity(&self, distance: f64) -> f64 {
-        let sum = self.total_angle();
-        // Complete Zig-Zag
-        let theoretical_max = (self.0.len() as f64 - 2f64) * 90f64;
+        const SEGMENT_SIZE: f64 = 100.0f64; // 100m segments
 
-        1.0 - (sum / theoretical_max).clamp(0.0, 1.0)
+        let sum = self.total_angle();
+
+        // Complete Zig-Zag
+        let theoretical_max = (distance / SEGMENT_SIZE) * 90f64;
+        // let theoretical_max = (self.0.len() as f64 - 2f64) * 90f64;
+
+        // Sqrt used to create "stretch" to optimality.
+        1.0 - (sum / theoretical_max).clamp(0.0, 1.0).sqrt()
     }
 
     /// Returns the length of the trip in meters, calculated
