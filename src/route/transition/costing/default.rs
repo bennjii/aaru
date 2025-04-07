@@ -26,7 +26,7 @@ pub mod emission {
                 Haversine::distance(*context.source_position, *context.candidate_position);
 
             let relative_to_error = DEFAULT_EMISSION_ERROR / distance;
-            Some(relative_to_error.clamp(0.0, 1.0).recip().powi(2))
+            Some(relative_to_error.clamp(0.0, 1.0).recip().sqrt())
         }
     }
 }

@@ -187,7 +187,7 @@ impl SelectiveForwardSolver {
                 let emission_cost = transition
                     .candidates
                     .candidate(&reachable.target)
-                    .map_or(0, |v| v.emission);
+                    .map_or(u32::MAX, |v| v.emission);
 
                 let cost = emission_cost.saturating_add(transition_cost);
                 // debug!("Solving: T={transition_cost}, E={emission_cost}: {cost}");
