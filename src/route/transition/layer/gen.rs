@@ -1,10 +1,13 @@
 use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
 use crate::route::transition::layer::Layer;
 use crate::route::transition::{
-    CandidateLocation, Costing, CostingStrategies, EmissionContext, EmissionStrategy,
-    TransitionStrategy,
+    Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
 };
 use crate::route::{Graph, Scan};
+
+#[cfg(debug_assertions)]
+use crate::route::transition::CandidateLocation;
+
 use geo::{Distance, Haversine, MultiPoint, Point};
 use log::info;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
@@ -36,7 +39,7 @@ impl FromParallelIterator<Layer> for Layers {
     }
 }
 
-const DEFAULT_SEARCH_DISTANCE: f64 = 1000.0;
+const DEFAULT_SEARCH_DISTANCE: f64 = 3000.0;
 const DEFAULT_FILTER_DISTANCE: f64 = 50.0;
 
 /// Generates the layers within the transition graph.
@@ -122,6 +125,12 @@ where
                             // TODO: This will calculate the distance between TWICE since we do it above.
                             //    => Investigate if we can save this value and supply it to the ctx.
                             .emission(EmissionContext::new(&position, &origin));
+
+                        info!(
+                            "EMISSION COST (Pt. {}) = {}",
+                            position.wkt_string(),
+                            emission
+                        );
 
                         #[cfg(debug_assertions)]
                         let location = CandidateLocation { layer_id, node_id };

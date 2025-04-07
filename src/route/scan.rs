@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use wkt::ToWkt;
 
 #[cfg(feature = "tracing")]
-use log::Level;
+use tracing::Level;
 
 use crate::codec::element::variants::Node;
 use crate::route::graph::EdgeIx;
@@ -52,7 +52,7 @@ impl Scan for Graph {
         self.square_scan(point, distance)
             .into_iter()
             .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
-            .map(|(source, target, edge)| Edge::new(source, target, edge.0, edge.1))
+            .map(Edge::from)
             .filter(move |Edge { id, .. }| !edges_covered.insert(*id))
     }
 

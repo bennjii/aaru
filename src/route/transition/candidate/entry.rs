@@ -1,4 +1,5 @@
 use crate::route::graph::{EdgeIx, NodeIx, Weight};
+use crate::route::transition::RoutingContext;
 use crate::route::Graph;
 use geo::{Distance, Haversine, Point};
 use pathfinding::num_traits::Zero;
@@ -13,6 +14,12 @@ pub struct Edge {
 
     pub weight: Weight,
     pub id: EdgeIx,
+}
+
+impl<'a> From<(NodeIx, NodeIx, &'a (Weight, EdgeIx))> for Edge {
+    fn from((source, target, edge): (NodeIx, NodeIx, &'a (Weight, EdgeIx))) -> Self {
+        Edge::new(source, target, edge.0, edge.1)
+    }
 }
 
 impl Edge {
@@ -60,7 +67,35 @@ pub struct Candidate {
     pub location: CandidateLocation,
 }
 
+/// Calculates offset distances for the virtualized candidate position.
+///
+///                 Candidate
+///            Inner    |    Outer
+///        +------------|------------+
+///      Source                    Target
+pub enum OffsetVariant {
+    /// The distance from the edge's source to the virtual candidate position.
+    Inner,
+
+    /// The distance from the virtual candidate position to the edge target.
+    Outer,
+}
+
 impl Candidate {
+    /// Calculates the offset, in meters, of the candidate to it's edge by the [`OffsetVariant`].
+    pub fn offset(&self, ctx: &RoutingContext, variant: OffsetVariant) -> Option<f64> {
+        match variant {
+            OffsetVariant::Inner => {
+                let source = ctx.map.get_position(&self.edge.source)?;
+                Some(Haversine::distance(source, self.position))
+            }
+            OffsetVariant::Outer => {
+                let target = ctx.map.get_position(&self.edge.target)?;
+                Some(Haversine::distance(self.position, target))
+            }
+        }
+    }
+
     pub fn new(
         edge: Edge,
         position: Point,

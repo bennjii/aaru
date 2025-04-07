@@ -1,7 +1,6 @@
 pub mod emission {
     use crate::route::transition::*;
     use geo::{Distance, Haversine};
-    use pathfinding::num_traits::Inv;
 
     // 10 meters (85th% GPS error)
     const DEFAULT_EMISSION_ERROR: f64 = 10.0;
@@ -25,17 +24,14 @@ pub mod emission {
         fn calculate(&self, context: EmissionContext<'a>) -> Self::Cost {
             let distance =
                 Haversine::distance(*context.source_position, *context.candidate_position);
-            let relative_to_error = DEFAULT_EMISSION_ERROR / distance;
 
-            relative_to_error.clamp(0.0, 1.0).inv().powi(2)
+            let relative_to_error = DEFAULT_EMISSION_ERROR / distance;
+            relative_to_error.clamp(0.0, 1.0).recip().powi(2)
         }
     }
 }
 
 pub mod transition {
-    use geo::{Distance, Haversine};
-    use pathfinding::num_traits::Inv;
-
     use crate::route::transition::*;
 
     /// Calculates the transition cost between two candidates.
@@ -97,10 +93,7 @@ pub mod transition {
         const BETA: f64 = -1.0;
 
         fn calculate(&self, context: TransitionContext<'a>) -> Self::Cost {
-            let shortest_distance = Haversine::distance(
-                context.source_candidate().position,
-                context.target_candidate().position,
-            );
+            let shortest_distance = context.total_distance().unwrap_or(f64::INFINITY);
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let deviance = {
@@ -125,7 +118,7 @@ pub mod transition {
             let avg_cost = (turn_cost + deviance) / 2.0;
 
             // Take the inverse to "span" values
-            let spanned = avg_cost.inv().powi(2);
+            let spanned = avg_cost.recip().powi(2);
 
             // debug!(
             //     "Cost: {}, AvgCost={}, TurnCost={}, DistanceCost={}",

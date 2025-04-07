@@ -11,7 +11,7 @@ use crate::route::transition::{
 use geo::{Distance, Haversine};
 use log::{debug, info};
 use pathfinding::num_traits::Zero;
-use pathfinding::prelude::{astar, dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::{astar, dijkstra, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
 use std::collections::HashMap;
@@ -80,32 +80,46 @@ impl SelectiveForwardSolver {
     fn bounded_iterator<'a, 'b>(
         &'b self,
         ctx: RoutingContext<'a>,
-        offset: f64,
         start: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
         Self::reachable_iterator(ctx, start).take_while(move |p| {
             let distance_in_meters = p.total_cost as f64 / 1_000f64;
-            let total_cost = distance_in_meters + offset;
 
             // Bounded by the threshold distance (meters)
-            total_cost < self.threshold_distance
+            distance_in_meters < self.threshold_distance
         })
     }
 
-    /// May return None if a cycle is detected.
+    /// Creates a path from the source up the parent map until no more parents
+    /// are found. This assumes there is only one relation between parent and children.
+    ///
+    /// Returns in the order `[target, ..., source]`.
+    ///
+    /// If the target is not found by the builder, `None` is returned.
     #[inline]
-    pub(crate) fn path_builder<N, C>(target: &N, parents: &HashMap<N, (N, C)>) -> Vec<N>
+    pub(crate) fn path_builder<N, C>(
+        source: &N,
+        target: &N,
+        parents: &HashMap<N, (N, C)>,
+    ) -> Option<Vec<N>>
     where
         N: Eq + Hash + Copy,
     {
-        let mut rev = vec![*target];
-        let mut next = target;
+        let mut rev = vec![*source];
+        let mut next = source;
+
         while let Some((parent, _)) = parents.get(next) {
             rev.push(*parent);
             next = parent;
+
+            // Located the target
+            if *next == *target {
+                rev.reverse();
+                return Some(rev);
+            }
         }
-        rev.reverse();
-        rev
+
+        None
     }
 }
 
@@ -118,7 +132,7 @@ impl Solver for SelectiveForwardSolver {
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>> {
         // debug!("Searching for {} reachable nodes from candidate {:?}", targets.len(), source);
-        let left = ctx.candidate(source)?;
+        let source_candidate = ctx.candidate(source)?;
         // debug!("Left candidate: {:?}", left);
 
         // The distance remaining in the edge to travel
@@ -134,7 +148,7 @@ impl Solver for SelectiveForwardSolver {
         // Note: Parent is OsmEntryId::NULL, which will not be within the map,
         //       indicating the root element.
         let predicate_map = self
-            .bounded_iterator(ctx, 0.0, &left.edge.source)
+            .bounded_iterator(ctx, &source_candidate.edge.target)
             .map(|predicate| {
                 let parent = predicate.parent.unwrap_or(OsmEntryId::null());
                 (predicate.node, (parent, predicate.total_cost))
@@ -148,12 +162,13 @@ impl Solver for SelectiveForwardSolver {
             .filter_map(|target| {
                 // Get the candidate information of the target found
                 let candidate = ctx.candidate(target)?;
-                // debug!("({source:?}) Reachable Candidate={:?}", candidate);
 
                 // Generate the path to this target using the predicate map
-                // TODO: Validate why the start/end of the edge in docs.
-                let mut path_to_target = Self::path_builder(&candidate.edge.target, &predicate_map);
-                path_to_target.push(candidate.edge.source);
+                let path_to_target = Self::path_builder(
+                    &candidate.edge.source,
+                    &source_candidate.edge.target,
+                    &predicate_map,
+                )?;
 
                 Some(Reachable::new(*source, *target, path_to_target))
             })
@@ -242,16 +257,11 @@ impl Solver for SelectiveForwardSolver {
                         let cost = emission_cost.saturating_add(transition_cost);
                         // debug!("Solving: T={transition_cost}, E={emission_cost}: {cost}");
 
-                        // if transition_cost < 1 {
-                        //     info!("LOW TRANSITION COST (D.f.={:?}): {}",  reachable.path, trip.linestring().wkt_string())
-                        // }
-
-                        if emission_cost == 0 {
-                            let candidate = transition.candidates.candidate(&reachable.target);
-
+                        if transition_cost < 1 {
                             info!(
-                                "LOW EMISSION COST (Pt. {})",
-                                candidate.unwrap().position.wkt_string()
+                                "LOW TRANSITION COST (D.f.={:?}): {}",
+                                reachable.path,
+                                trip.linestring().wkt_string()
                             )
                         }
 
