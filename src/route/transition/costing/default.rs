@@ -99,18 +99,14 @@ pub mod transition {
             let deviance = lengths.deviance();
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
-            let turn_cost = {
-                // Value in range [0, 180].
-                let imm_angle = context
-                    .optimal_path
-                    .angular_complexity(lengths.straightline_distance)
-                    .powi(2);
-
-                imm_angle.clamp(0.0, 1.0)
-            };
+            let turn_cost = context
+                .optimal_path
+                .angular_complexity(context.layer_width)
+                .clamp(0.0, 1.0);
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
-            let avg_cost = (turn_cost + deviance) / 2.0;
+            // Weighted: 30% Turn Cost, 70% Deviance (Weights must sum to 100%)
+            let avg_cost = (0.3 * turn_cost) + (0.7 * deviance);
 
             // Take the inverse to "span" values
             let spanned = avg_cost.recip().powi(2);

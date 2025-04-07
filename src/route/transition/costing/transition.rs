@@ -25,6 +25,8 @@ pub struct TransitionContext<'a> {
     /// Further context to provide access to determine routing information,
     /// such as node positions upon the map, and referencing other candidates.
     pub routing_context: RoutingContext<'a>,
+
+    pub layer_width: f64,
 }
 
 pub struct TransitionLengths {

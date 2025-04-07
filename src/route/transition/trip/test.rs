@@ -79,3 +79,29 @@ fn validate_turning_path() {
     let exp_angle = trip.angular_complexity(SHARED_DISTANCE);
     assert_relative_eq!(exp_angle, 0.51, max_relative = 0.1);
 }
+
+#[test]
+fn validate_uturn_expensive() {
+    use crate::route::transition::Trip;
+
+    let linestring = wkt! {
+        LINESTRING (-118.509833 34.170873, -118.505648 34.170891, -118.51406 34.170908, -118.509849 34.170926, -118.509865 34.172293)
+    };
+
+    let nodes = linestring
+        .into_points()
+        .into_iter()
+        .map(|p| Node::new(p, OsmEntryId::null()))
+        .collect::<Vec<_>>();
+
+    let trip = Trip::from(nodes);
+
+    let length = trip.length();
+    assert_relative_eq!(length, 1698.0, max_relative = 0.1);
+
+    let angle = trip.total_angle();
+    assert_relative_eq!(angle, 449.40, max_relative = 0.1);
+
+    let imm_angle = trip.angular_complexity(length);
+    assert_relative_eq!(imm_angle, 0.25, max_relative = 0.1);
+}

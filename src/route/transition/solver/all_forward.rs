@@ -206,6 +206,8 @@ impl Solver for AllForwardSolver {
                     source_candidate: &source,
                     target_candidate: &reachable.target,
                     routing_context: context,
+
+                    layer_width: 0.0,
                 });
 
                 let edge = CandidateEdge::new(cost);

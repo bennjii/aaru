@@ -1,12 +1,10 @@
 use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
 use crate::route::transition::layer::Layer;
+use crate::route::transition::CandidateLocation;
 use crate::route::transition::{
     Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
 };
 use crate::route::{Graph, Scan};
-
-#[cfg(debug_assertions)]
-use crate::route::transition::CandidateLocation;
 
 use geo::{Distance, Haversine, MultiPoint, Point};
 use log::info;
@@ -39,7 +37,7 @@ impl FromParallelIterator<Layer> for Layers {
     }
 }
 
-const DEFAULT_SEARCH_DISTANCE: f64 = 3000.0;
+const DEFAULT_SEARCH_DISTANCE: f64 = 5_000.0; // 5km
 const DEFAULT_FILTER_DISTANCE: f64 = 50.0;
 
 /// Generates the layers within the transition graph.
@@ -120,8 +118,7 @@ where
 
                 let nodes = projected
                     .into_iter()
-                    .take(10)
-                    .take_while(|(p, _)| Haversine::distance(*p, origin) < self.filter_distance)
+                    .take(100)
                     .enumerate()
                     .map(|(node_id, (position, edge))| {
                         // We have the actual projected position, and it's associated edge.
@@ -133,15 +130,8 @@ where
                             //    => Investigate if we can save this value and supply it to the ctx.
                             .emission(EmissionContext::new(&position, &origin));
 
-                        #[cfg(debug_assertions)]
                         let location = CandidateLocation { layer_id, node_id };
-                        let candidate = Candidate::new(
-                            edge,
-                            position,
-                            emission,
-                            #[cfg(debug_assertions)]
-                            location,
-                        );
+                        let candidate = Candidate::new(edge, position, emission, location);
 
                         let candidate_reference = CandidateRef::new(emission);
                         (candidate, candidate_reference)
@@ -166,13 +156,13 @@ where
             })
             .collect::<Layers>();
 
-        // let mut points = vec![];
-        // candidates.lookup.scan(|_, candidate| {
-        //     points.push(candidate.position);
-        // });
-        //
-        // let mp = points.into_iter().collect::<MultiPoint>();
-        // info!("All Candidates ({}): {}", mp.len(), mp.wkt_string());
+        let mut points = vec![];
+        candidates.lookup.scan(|_, candidate| {
+            points.push(candidate.position);
+        });
+
+        let mp = points.into_iter().collect::<MultiPoint>();
+        info!("All Candidates ({}): {}", mp.len(), mp.wkt_string());
 
         (layers, candidates)
     }

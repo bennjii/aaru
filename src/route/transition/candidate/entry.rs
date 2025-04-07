@@ -1,6 +1,7 @@
 use crate::route::graph::{EdgeIx, NodeIx, Weight};
 use crate::route::transition::RoutingContext;
 use crate::route::Graph;
+
 use geo::{Distance, Haversine, Point};
 use pathfinding::num_traits::Zero;
 use std::cmp::Ordering;
@@ -63,7 +64,6 @@ pub struct Candidate {
     pub position: Point,
     pub emission: u32,
 
-    #[cfg(debug_assertions)]
     pub location: CandidateLocation,
 }
 
@@ -96,17 +96,11 @@ impl Candidate {
         }
     }
 
-    pub fn new(
-        edge: Edge,
-        position: Point,
-        emission: u32,
-        #[cfg(debug_assertions)] location: CandidateLocation,
-    ) -> Self {
+    pub fn new(edge: Edge, position: Point, emission: u32, location: CandidateLocation) -> Self {
         Self {
             edge,
             position,
             emission,
-            #[cfg(debug_assertions)]
             location,
         }
     }

@@ -155,7 +155,7 @@ impl Trip {
         // let theoretical_max = (self.0.len() as f64 - 2f64) * 90f64;
 
         // Sqrt used to create "stretch" to optimality.
-        1.0 - (sum / theoretical_max).clamp(0.0, 1.0).sqrt()
+        1.0 - (sum / theoretical_max).sqrt().clamp(0.0, 1.0)
     }
 
     /// Returns the length of the trip in meters, calculated

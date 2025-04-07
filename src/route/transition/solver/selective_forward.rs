@@ -4,14 +4,14 @@ use crate::route::transition::candidate::CandidateId;
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::solver::methods::{Reachable, Solver};
 use crate::route::transition::{
-    CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext,
-    TransitionStrategy, Trip,
+    Candidate, CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext,
+    TransitionContext, TransitionStrategy, Trip,
 };
 
 use geo::{Distance, Haversine};
 use log::{debug, info};
 use pathfinding::num_traits::Zero;
-use pathfinding::prelude::{astar, dijkstra, dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::{astar, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
 use std::collections::HashMap;
@@ -19,7 +19,6 @@ use std::hash::Hash;
 use std::sync::Arc;
 #[cfg(feature = "tracing")]
 use tracing::Level;
-use wkt::ToWkt;
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
@@ -119,30 +118,104 @@ impl SelectiveForwardSolver {
 
         None
     }
+
+    fn reach<'a, E, T>(
+        &self,
+        transition: &Transition<E, T>,
+        context: RoutingContext<'a>,
+        (start, end): (CandidateId, CandidateId),
+        reachable_hash: &mut HashMap<(usize, usize), Reachable>,
+        source: &CandidateId,
+    ) -> Vec<(CandidateId, CandidateEdge)>
+    where
+        E: EmissionStrategy + Send + Sync,
+        T: TransitionStrategy + Send + Sync,
+    {
+        let graph_ref = Arc::clone(&transition.candidates.graph);
+        let successors = graph_ref
+            .read()
+            .unwrap()
+            .edges_directed(*source, Direction::Outgoing)
+            .map(|edge| edge.target())
+            .collect::<Vec<CandidateId>>();
+
+        // #[cold]
+        if *source == start {
+            // No cost to reach a first node.
+            return successors
+                .into_iter()
+                .map(|candidate| (candidate, CandidateEdge::zero()))
+                .collect::<Vec<_>>();
+        }
+
+        // Fast-track to the finish line
+        if successors.contains(&end) {
+            debug!("End-Successors: {:?}", successors);
+            return vec![(end, CandidateEdge::zero())];
+        }
+
+        let reached = self
+            // TODO: Supply context to the reachability function in order to reuse routes
+            //       already made. Plus, consider working as contraction hierarchies
+            .reachable(context, source, successors.as_slice())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|reachable| {
+                let trip = Trip::new_with_map(transition.map, reachable.path.as_slice());
+
+                let source = context.candidate(&reachable.source);
+                let target = context.candidate(&reachable.target);
+
+                let source_layer = source.unwrap().location.layer_id;
+                let target_layer = target.unwrap().location.layer_id;
+
+                let sl = transition.layers.layers.get(source_layer).unwrap();
+                let tl = transition.layers.layers.get(target_layer).unwrap();
+
+                let layer_width = Haversine::distance(sl.origin, tl.origin);
+
+                let transition_cost = transition.heuristics.transition(TransitionContext {
+                    // TODO: Remove clone after debugging.
+                    optimal_path: trip.clone(),
+                    source_candidate: &reachable.source,
+                    target_candidate: &reachable.target,
+                    routing_context: context,
+
+                    layer_width,
+                });
+
+                let emission_cost = transition
+                    .candidates
+                    .candidate(&reachable.target)
+                    .map_or(0, |v| v.emission);
+
+                let cost = emission_cost.saturating_add(transition_cost);
+                // debug!("Solving: T={transition_cost}, E={emission_cost}: {cost}");
+
+                let return_value = (reachable.target, CandidateEdge::new(cost));
+                reachable_hash.insert(reachable.hash(), reachable);
+
+                return_value
+            })
+            .collect::<Vec<_>>();
+
+        // debug!("Reachable from {source:?}: {reached:?}");
+
+        reached
+    }
 }
 
 impl Solver for SelectiveForwardSolver {
-    // #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::DEBUG, skip(self, ctx)))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::DEBUG, skip(self, ctx)))]
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
         source: &CandidateId,
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>> {
-        // debug!("Searching for {} reachable nodes from candidate {:?}", targets.len(), source);
         let source_candidate = ctx.candidate(source)?;
-        // debug!("Left candidate: {:?}", left);
-
-        // The distance remaining in the edge to travel
-        // let end_node = left.map_edge.end;
-
-        // Represents the offset to the end of the node start
-        // let edge_length = left.map_edge.length(ctx.map)?;
-
-        // debug!("Looking for {end_node:?} (from {:?}) at {end_position:?}, at offset {edge_offset:?}", left.map_edge.0);
 
         // Upper-Bounded reachable map containing a Child:Parent relation
-        //
         // Note: Parent is OsmEntryId::NULL, which will not be within the map,
         //       indicating the root element.
         let predicate_map = self
@@ -152,8 +225,6 @@ impl Solver for SelectiveForwardSolver {
                 (predicate.node, (parent, predicate.total_cost))
             })
             .collect::<HashMap<OsmEntryId, (OsmEntryId, u32)>>();
-
-        // debug!("Generated a predicate map of size {}", predicate_map.len());
 
         let reachable = targets
             .iter()
@@ -172,7 +243,6 @@ impl Solver for SelectiveForwardSolver {
             })
             .collect::<Vec<_>>();
 
-        // debug!("Found {} reachable targets of {} targets.", reachable.len(), targets.len());
         Some(reachable)
     }
 
@@ -203,69 +273,18 @@ impl Solver for SelectiveForwardSolver {
         };
 
         let mut reachable_hash: HashMap<(usize, usize), Reachable> = HashMap::new();
-
-        let graph_ref = Arc::clone(&transition.candidates.graph);
-        let Some((path, cost)) = dijkstra(
+        let Some((path, cost)) = astar(
             &start,
             |source| {
-                let successors = graph_ref
-                    .read()
-                    .unwrap()
-                    .edges_directed(*source, Direction::Outgoing)
-                    .map(|edge| edge.target())
-                    .collect::<Vec<CandidateId>>();
-
-                // #[cold]
-                if *source == start {
-                    // No cost to reach a first node.
-                    return successors
-                        .into_iter()
-                        .map(|candidate| (candidate, CandidateEdge::zero()))
-                        .collect::<Vec<_>>();
-                }
-
-                if successors.contains(&end) {
-                    debug!("End-Successors: {:?}", successors);
-                    // Fast-track to the finish line
-                    return vec![(end, CandidateEdge::zero())];
-                }
-
-                let reached = self
-                    // TODO: Supply context to the reachability function in order to reuse routes already made.
-                    .reachable(context, source, successors.as_slice())
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|reachable| {
-                        let trip = Trip::new_with_map(transition.map, reachable.path.as_slice());
-
-                        let transition_cost = transition.heuristics.transition(TransitionContext {
-                            // TODO: Remove clone after debugging.
-                            optimal_path: trip.clone(),
-                            source_candidate: &reachable.source,
-                            target_candidate: &reachable.target,
-                            routing_context: context,
-                        });
-
-                        let emission_cost = transition
-                            .candidates
-                            .candidate(&reachable.target)
-                            .map_or(0, |v| v.emission);
-
-                        let cost = emission_cost.saturating_add(transition_cost);
-                        // debug!("Solving: T={transition_cost}, E={emission_cost}: {cost}");
-
-                        let return_value = (reachable.target, CandidateEdge::new(cost));
-                        reachable_hash.insert(reachable.hash(), reachable);
-
-                        return_value
-                    })
-                    .collect::<Vec<_>>();
-
-                // debug!("Reachable from {source:?}: {reached:?}");
-
-                reached
+                self.reach(
+                    &transition,
+                    context,
+                    (start, end),
+                    &mut reachable_hash,
+                    source,
+                )
             },
-            // |_| CandidateEdge::zero(),
+            |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
             return Err(MatchError::CollapseFailure);
