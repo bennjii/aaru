@@ -16,7 +16,7 @@ use rayon::{iter::ParallelIterator, slice::ParallelSlice};
 use std::collections::HashMap;
 use std::hash::Hash;
 
-const DEFAULT_THRESHOLD: f64 = 2_000f64;
+const DEFAULT_THRESHOLD: f64 = 5_000f64;
 
 type ProcessedReachable = (CandidateId, Reachable);
 

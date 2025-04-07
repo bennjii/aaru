@@ -16,7 +16,7 @@ pub trait Strategy<Ctx> {
     const BETA: f64;
 
     /// The calculation cost you must implement
-    fn calculate(&self, context: Ctx) -> Self::Cost;
+    fn calculate(&self, context: Ctx) -> Option<Self::Cost>;
 
     /// An optimal decay-based costing heuristic which accepts
     /// the input value and transforms it using the associated
@@ -37,7 +37,7 @@ pub trait Strategy<Ctx> {
         let multiplier = 1.0 / Self::ZETA;
 
         // The exponential cost heuristic (-1 * value / β)
-        let cost = -1.0 * self.calculate(ctx).into() / Self::BETA;
+        let cost = -1.0 * self.calculate(ctx).map_or(f64::INFINITY, |v| v.into()) / Self::BETA;
 
         // Shift so low-costs have low output costs (normalised)
         let shifted = (multiplier * cost.exp()) - OFFSET;

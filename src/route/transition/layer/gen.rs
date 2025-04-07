@@ -107,14 +107,21 @@ where
                     origin.wkt_string()
                 );
 
-                let nodes = self
+                let mut projected = self
                     .map
                     // We'll do a best-effort search (square) radius
                     .nearest_projected_nodes(&origin, self.search_distance)
-                    // Then filter by the distance between
-                    .filter(|(point, _)| {
-                        Haversine::distance(*point, origin) <= self.filter_distance
-                    })
+                    .collect::<Vec<_>>();
+
+                // TODO: Formalize take over filter
+                projected.sort_by(|(a, _), (b, _)| {
+                    Haversine::distance(*a, origin).total_cmp(&Haversine::distance(*b, origin))
+                });
+
+                let nodes = projected
+                    .into_iter()
+                    .take(10)
+                    .take_while(|(p, _)| Haversine::distance(*p, origin) < self.filter_distance)
                     .enumerate()
                     .map(|(node_id, (position, edge))| {
                         // We have the actual projected position, and it's associated edge.
@@ -125,12 +132,6 @@ where
                             // TODO: This will calculate the distance between TWICE since we do it above.
                             //    => Investigate if we can save this value and supply it to the ctx.
                             .emission(EmissionContext::new(&position, &origin));
-
-                        info!(
-                            "EMISSION COST (Pt. {}) = {}",
-                            position.wkt_string(),
-                            emission
-                        );
 
                         #[cfg(debug_assertions)]
                         let location = CandidateLocation { layer_id, node_id };
@@ -165,13 +166,13 @@ where
             })
             .collect::<Layers>();
 
-        let mut points = vec![];
-        candidates.lookup.scan(|_, candidate| {
-            points.push(candidate.position);
-        });
-
-        let mp = points.into_iter().collect::<MultiPoint>();
-        info!("All Candidates ({}): {}", mp.len(), mp.wkt_string());
+        // let mut points = vec![];
+        // candidates.lookup.scan(|_, candidate| {
+        //     points.push(candidate.position);
+        // });
+        //
+        // let mp = points.into_iter().collect::<MultiPoint>();
+        // info!("All Candidates ({}): {}", mp.len(), mp.wkt_string());
 
         (layers, candidates)
     }

@@ -27,6 +27,43 @@ pub struct TransitionContext<'a> {
     pub routing_context: RoutingContext<'a>,
 }
 
+pub struct TransitionLengths {
+    /// The great circle distance between source and target
+    pub straightline_distance: f64,
+
+    /// The path of the optimal route between candidates
+    pub route_length: f64,
+}
+
+impl TransitionLengths {
+    /// Calculates the deviance in straightline distance to the length
+    /// of the entire route. Returns values between 0 and 1. Where values
+    /// closer to 1 represent more optimal distances, whilst those closer
+    /// to 0 represent less optimal distances.
+    ///
+    /// The route length is defined as the cumulative distance between
+    /// nodes in the optimal transition path, plus the offsets into the
+    /// edges by which the candidates live.
+    ///
+    /// The straightline distance is defined as the haversine (great circle)
+    /// distance between the two candidates.
+    ///
+    /// Therefore, our deviance is defined as the ratio of straightline
+    /// distance to the route length, which measures how much farther
+    /// the actual route was than a virtual path directly between the candidates.
+    ///
+    /// For example:
+    /// -   If two candidates were `100m` apart, but had a most optimal route
+    ///     between them of `130m`, the deviance would be `~0.77`.
+    /// -   If two alternate candidates were `100m` apart but instead had an
+    ///     optimal route between them of `250m`, the deviance is `0.4`.
+    ///
+    /// Note that a lower deviance score means the values are less aligned.
+    pub fn deviance(&self) -> f64 {
+        (self.straightline_distance / self.route_length).clamp(0.0, 1.0)
+    }
+}
+
 impl TransitionContext<'_> {
     /// TODO: Docs
     pub fn source_candidate(&self) -> Candidate {
@@ -55,12 +92,16 @@ impl TransitionContext<'_> {
         Some(inner_offset + outer_offset)
     }
 
-    pub fn total_distance(&self) -> Option<f64> {
+    pub fn lengths(&self) -> Option<TransitionLengths> {
         let (source, target) = self.candidates();
-
         let offset = self.total_offset(&source, &target)?;
-        let distance = Haversine::distance(source.position, target.position);
 
-        Some(distance + offset)
+        let route_length = self.optimal_path.length() + offset;
+        let straightline_distance = Haversine::distance(source.position, target.position);
+
+        Some(TransitionLengths {
+            straightline_distance,
+            route_length,
+        })
     }
 }

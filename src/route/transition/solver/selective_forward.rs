@@ -21,7 +21,7 @@ use std::sync::Arc;
 use tracing::Level;
 use wkt::ToWkt;
 
-const DEFAULT_THRESHOLD: f64 = 2_000f64;
+const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
 type ProcessedReachable = (CandidateId, Reachable);
 
@@ -29,7 +29,7 @@ type ProcessedReachable = (CandidateId, Reachable);
 ///
 /// TODO: Docs
 pub struct SelectiveForwardSolver {
-    /// The threshold by which the solver is bounded, in meters.
+    /// The threshold by which the solver is bounded, in centimeters.
     threshold_distance: f64,
 }
 
@@ -60,8 +60,8 @@ impl SelectiveForwardSolver {
                         if *node != next {
                             let target = ctx.map.get_position(&next).unwrap();
 
-                            // In centimeters
-                            (Haversine::distance(source, target) * 1_000f64) as u32
+                            // In centimeters (1m = 100cm)
+                            (Haversine::distance(source, target) * 100f64) as u32
                         } else {
                             // Total accrued distance
                             0u32
@@ -83,10 +83,8 @@ impl SelectiveForwardSolver {
         start: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
         Self::reachable_iterator(ctx, start).take_while(move |p| {
-            let distance_in_meters = p.total_cost as f64 / 1_000f64;
-
-            // Bounded by the threshold distance (meters)
-            distance_in_meters < self.threshold_distance
+            // Bounded by the threshold distance (centimeters)
+            (p.total_cost as f64) < self.threshold_distance
         })
     }
 
@@ -109,14 +107,14 @@ impl SelectiveForwardSolver {
         let mut next = source;
 
         while let Some((parent, _)) = parents.get(next) {
-            rev.push(*parent);
-            next = parent;
-
             // Located the target
             if *next == *target {
                 rev.reverse();
                 return Some(rev);
             }
+
+            rev.push(*parent);
+            next = parent;
         }
 
         None
@@ -207,7 +205,7 @@ impl Solver for SelectiveForwardSolver {
         let mut reachable_hash: HashMap<(usize, usize), Reachable> = HashMap::new();
 
         let graph_ref = Arc::clone(&transition.candidates.graph);
-        let Some((path, cost)) = astar(
+        let Some((path, cost)) = dijkstra(
             &start,
             |source| {
                 let successors = graph_ref
@@ -232,7 +230,6 @@ impl Solver for SelectiveForwardSolver {
                     return vec![(end, CandidateEdge::zero())];
                 }
 
-                let source_owned = *source;
                 let reached = self
                     // TODO: Supply context to the reachability function in order to reuse routes already made.
                     .reachable(context, source, successors.as_slice())
@@ -244,7 +241,7 @@ impl Solver for SelectiveForwardSolver {
                         let transition_cost = transition.heuristics.transition(TransitionContext {
                             // TODO: Remove clone after debugging.
                             optimal_path: trip.clone(),
-                            source_candidate: &source_owned,
+                            source_candidate: &reachable.source,
                             target_candidate: &reachable.target,
                             routing_context: context,
                         });
@@ -257,14 +254,6 @@ impl Solver for SelectiveForwardSolver {
                         let cost = emission_cost.saturating_add(transition_cost);
                         // debug!("Solving: T={transition_cost}, E={emission_cost}: {cost}");
 
-                        if transition_cost < 1 {
-                            info!(
-                                "LOW TRANSITION COST (D.f.={:?}): {}",
-                                reachable.path,
-                                trip.linestring().wkt_string()
-                            )
-                        }
-
                         let return_value = (reachable.target, CandidateEdge::new(cost));
                         reachable_hash.insert(reachable.hash(), reachable);
 
@@ -276,7 +265,7 @@ impl Solver for SelectiveForwardSolver {
 
                 reached
             },
-            |_| CandidateEdge::zero(),
+            // |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
             return Err(MatchError::CollapseFailure);

@@ -21,12 +21,12 @@ pub mod emission {
         const ZETA: f64 = 1.0;
         const BETA: f64 = -10.0;
 
-        fn calculate(&self, context: EmissionContext<'a>) -> Self::Cost {
+        fn calculate(&self, context: EmissionContext<'a>) -> Option<Self::Cost> {
             let distance =
                 Haversine::distance(*context.source_position, *context.candidate_position);
 
             let relative_to_error = DEFAULT_EMISSION_ERROR / distance;
-            relative_to_error.clamp(0.0, 1.0).recip().powi(2)
+            Some(relative_to_error.clamp(0.0, 1.0).recip().powi(2))
         }
     }
 }
@@ -92,23 +92,18 @@ pub mod transition {
         const ZETA: f64 = 1.0;
         const BETA: f64 = -1.0;
 
-        fn calculate(&self, context: TransitionContext<'a>) -> Self::Cost {
-            let shortest_distance = context.total_distance().unwrap_or(f64::INFINITY);
+        fn calculate(&self, context: TransitionContext<'a>) -> Option<Self::Cost> {
+            let lengths = context.lengths()?;
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
-            let deviance = {
-                let path_length = context.optimal_path.length();
-                let deviance = shortest_distance / path_length;
-
-                deviance.clamp(0.0, 1.0)
-            };
+            let deviance = lengths.deviance();
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let turn_cost = {
                 // Value in range [0, 180].
                 let imm_angle = context
                     .optimal_path
-                    .angular_complexity(shortest_distance)
+                    .angular_complexity(lengths.straightline_distance)
                     .powi(2);
 
                 imm_angle.clamp(0.0, 1.0)
@@ -124,7 +119,7 @@ pub mod transition {
             //     "Cost: {}, AvgCost={}, TurnCost={}, DistanceCost={}",
             //     spanned, avg_cost, turn_cost, deviance
             // );
-            spanned
+            Some(spanned)
         }
     }
 }

@@ -15,8 +15,10 @@ use crate::route::Graph;
 
 pub trait Scan {
     /// TODO: Docs
-    fn square_scan(&self, point: &Point, distance: f64) -> Vec<&Node>;
+    fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node>;
 
+    /// TODO: Docs r.e. distinct.
+    ///
     /// Finds all **distinct** edges within a square radius of the target position.
     fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge>;
 
@@ -33,27 +35,23 @@ pub trait Scan {
 
 impl Scan for Graph {
     #[inline]
-    fn square_scan(&self, point: &Point, distance: f64) -> Vec<&Node> {
+    fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node> {
         let bottom_right = Geodesic::destination(*point, 135.0, distance);
         let top_left = Geodesic::destination(*point, 315.0, distance);
+
         let bbox = AABB::from_corners(top_left, bottom_right);
-
-        let line = line_string![bottom_right.0, top_left.0];
-        debug!("Bounding Box: {:?}", line.wkt_string());
-
-        self.index().locate_in_envelope(&bbox).collect::<Vec<_>>()
+        self.index().locate_in_envelope(&bbox)
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
     #[inline]
     fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge> {
-        let mut edges_covered = BTreeSet::<EdgeIx>::new();
+        // let mut edges_covered = BTreeSet::<EdgeIx>::new();
 
         self.square_scan(point, distance)
-            .into_iter()
             .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
             .map(Edge::from)
-            .filter(move |Edge { id, .. }| !edges_covered.insert(*id))
+        // .filter(move |Edge { id, .. }| !edges_covered.insert(*id))
     }
 
     fn nearest_node(&self, point: Point) -> Option<&Node> {
