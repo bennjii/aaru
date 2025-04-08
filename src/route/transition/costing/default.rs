@@ -145,7 +145,7 @@ pub mod transition {
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             // Weighted: 30% Turn Cost, 70% Deviance (Weights must sum to 100%)
-            let avg_cost = (0.3 * turn_cost) + (0.7 * deviance);
+            let avg_cost = (0.5 * turn_cost) + (0.5 * deviance);
 
             // Take the inverse to "span" values
             Some(avg_cost.recip())

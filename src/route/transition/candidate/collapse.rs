@@ -42,11 +42,23 @@ impl Collapse {
     }
 
     /// Returns the interpolated route from the collapse as a linestring
-    pub fn interpolated(&self, graph: &Graph) -> LineString {
+    pub fn interpolated(&self, map: &Graph) -> LineString {
         self.interpolated
             .iter()
-            .flat_map(|reachable| reachable.path.clone())
-            .filter_map(|node| graph.get_position(&node))
+            .enumerate()
+            .flat_map(|(index, reachable)| {
+                let source = self.candidates.candidate(&reachable.source).unwrap();
+                let target = self.candidates.candidate(&reachable.target).unwrap();
+
+                let path = reachable
+                    .path
+                    .iter()
+                    .filter_map(|node| map.get_position(&node));
+
+                std::iter::repeat_n(source.position, if index == 0 { 1 } else { 0 })
+                    .chain(path)
+                    .chain(std::iter::once(target.position))
+            })
             .collect::<LineString>()
     }
 }

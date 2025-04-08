@@ -11,14 +11,12 @@ use crate::route::transition::{
 use geo::{Distance, Haversine};
 use log::{debug, info};
 use pathfinding::num_traits::Zero;
-use pathfinding::prelude::{astar, dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::{astar, dijkstra, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
-#[cfg(feature = "tracing")]
-use tracing::Level;
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
@@ -75,7 +73,6 @@ impl SelectiveForwardSolver {
     ///
     /// Supplies an offset, which represents the initial distance
     /// taken in travelling initial edges, in meters.
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::DEBUG, skip(self)))]
     fn bounded_iterator<'a, 'b>(
         &'b self,
         ctx: RoutingContext<'a>,
@@ -189,12 +186,15 @@ impl SelectiveForwardSolver {
                     .candidate(&reachable.target)
                     .map_or(u32::MAX, |v| v.emission);
 
-                let cost = emission_cost.saturating_add(transition_cost);
-                // debug!("Solving: T={transition_cost}, E={emission_cost}: {cost}");
+                let transition = (transition_cost as f64 * 0.8) as u32;
+                let emission = (emission_cost as f64 * 0.2) as u32;
 
-                let return_value = (reachable.target, CandidateEdge::new(cost));
+                let return_value = (
+                    reachable.target,
+                    CandidateEdge::new(emission.saturating_add(transition)),
+                );
+
                 reachable_hash.insert(reachable.hash(), reachable);
-
                 return_value
             })
             .collect::<Vec<_>>();
@@ -206,7 +206,6 @@ impl SelectiveForwardSolver {
 }
 
 impl Solver for SelectiveForwardSolver {
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::DEBUG, skip(self, ctx)))]
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
@@ -273,7 +272,7 @@ impl Solver for SelectiveForwardSolver {
         };
 
         let mut reachable_hash: HashMap<(usize, usize), Reachable> = HashMap::new();
-        let Some((path, cost)) = astar(
+        let Some((path, cost)) = dijkstra(
             &start,
             |source| {
                 self.reach(
@@ -284,7 +283,7 @@ impl Solver for SelectiveForwardSolver {
                     source,
                 )
             },
-            |_| CandidateEdge::zero(),
+            // |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
             return Err(MatchError::CollapseFailure);

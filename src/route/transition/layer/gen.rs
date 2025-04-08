@@ -118,7 +118,7 @@ where
 
                 let nodes = projected
                     .into_iter()
-                    .take(100)
+                    .take(50)
                     .enumerate()
                     .map(|(node_id, (position, edge))| {
                         // We have the actual projected position, and it's associated edge.
