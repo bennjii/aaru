@@ -148,7 +148,7 @@ pub mod transition {
             let avg_cost = (0.3 * turn_cost) + (0.7 * deviance);
 
             // Take the inverse to "span" values
-            Some(avg_cost.recip().powi(2))
+            Some(avg_cost.recip())
         }
     }
 }

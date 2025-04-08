@@ -4,8 +4,8 @@ use crate::route::transition::candidate::CandidateId;
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::solver::methods::{Reachable, Solver};
 use crate::route::transition::{
-    Candidate, CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext,
-    TransitionContext, TransitionStrategy, Trip,
+    CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext,
+    TransitionStrategy, Trip,
 };
 
 use geo::{Distance, Haversine};

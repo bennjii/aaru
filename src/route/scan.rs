@@ -1,15 +1,11 @@
 use geo::{line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, Point};
-use log::debug;
 use petgraph::Direction;
 use rstar::AABB;
-use std::collections::BTreeSet;
-use wkt::ToWkt;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
 use crate::codec::element::variants::Node;
-use crate::route::graph::EdgeIx;
 use crate::route::transition::Edge;
 use crate::route::Graph;
 
