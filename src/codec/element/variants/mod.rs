@@ -271,8 +271,8 @@ pub mod common {
         #[inline]
         pub fn road_tag(&self) -> Option<&str> {
             self.get(TagString::HIGHWAY)
-                .filter(|v| VALID_ROADWAYS.contains(&v.as_str()))
                 .map(|v| v.as_str())
+                .filter(|v| VALID_ROADWAYS.contains(v))
         }
 
         #[inline]
