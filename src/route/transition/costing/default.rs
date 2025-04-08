@@ -2,7 +2,7 @@ pub mod emission {
     use crate::route::transition::*;
     use geo::{Distance, Haversine};
 
-    // 10 meters (85th% GPS error)
+    /// 10 meters (85th% GPS error)
     const DEFAULT_EMISSION_ERROR: f64 = 10.0;
 
     /// Calculates the emission cost of a candidate relative
@@ -10,10 +10,46 @@ pub mod emission {
     ///
     /// ## Calculation
     ///
-    /// ```math
+    /// The emission cost is defined by the  relative distance
+    /// from the source position, given some "free" zone, known
+    /// as the [`emission_error`](#field.emission_error). Within this error, any
+    /// candidate is considered a no-cost transition as the likelihood
+    /// the position is within the boundary is equal within this radius.
     ///
+    /// The relative calculation is given simply below, where `distance`
+    /// defines the haversine distancing function between two Lat/Lng positions.
+    ///
+    /// ```math
+    /// relative(source, candidate) = err / distance(source, candidate)
     /// ```
-    pub struct DefaultEmissionCost;
+    ///
+    /// The cost derived is given as the square root of the reciprocal of
+    /// the relative distance.
+    ///
+    /// ```math
+    /// cost(source, candidate) = sqrt(1 / relative(source, candidate))
+    /// ```
+    ///
+    /// There exist values within the strategy
+    /// implementation which define how "aggressive" the falloff is.
+    /// These hyperparameters may need to be tuned in order to calculate for nodes
+    /// which have large error. Alternatively, providing your own emission error
+    /// is possible too.
+    pub struct DefaultEmissionCost {
+        /// The free radius around which emissions cost the same, to provide
+        /// equal opportunity to nodes within the expected GPS error.
+        ///
+        /// Default: [`DEFAULT_EMISSION_ERROR`]
+        pub emission_error: f64,
+    }
+
+    impl Default for DefaultEmissionCost {
+        fn default() -> Self {
+            DefaultEmissionCost {
+                emission_error: DEFAULT_EMISSION_ERROR,
+            }
+        }
+    }
 
     impl<'a> Strategy<EmissionContext<'a>> for DefaultEmissionCost {
         type Cost = f64;
@@ -25,8 +61,10 @@ pub mod emission {
             let distance =
                 Haversine::distance(*context.source_position, *context.candidate_position);
 
-            let relative_to_error = DEFAULT_EMISSION_ERROR / distance;
-            Some(relative_to_error.clamp(0.0, 1.0).recip().sqrt())
+            // Value in range [0, 1] (1=Low Cost, 0=High Cost)
+            let relative_to_error = (DEFAULT_EMISSION_ERROR / distance).clamp(0.0, 1.0);
+
+            Some(relative_to_error.recip().sqrt())
         }
     }
 }
@@ -93,6 +131,7 @@ pub mod transition {
         const BETA: f64 = -1.0;
 
         fn calculate(&self, context: TransitionContext<'a>) -> Option<Self::Cost> {
+            // Find the transition lengths (shortest path, trip length)
             let lengths = context.lengths()?;
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
@@ -109,13 +148,7 @@ pub mod transition {
             let avg_cost = (0.3 * turn_cost) + (0.7 * deviance);
 
             // Take the inverse to "span" values
-            let spanned = avg_cost.recip().powi(2);
-
-            // debug!(
-            //     "Cost: {}, AvgCost={}, TurnCost={}, DistanceCost={}",
-            //     spanned, avg_cost, turn_cost, deviance
-            // );
-            Some(spanned)
+            Some(avg_cost.recip().powi(2))
         }
     }
 }
@@ -148,7 +181,7 @@ pub mod costing {
 
     impl Default for CostingStrategies<DefaultEmissionCost, DefaultTransitionCost> {
         fn default() -> Self {
-            CostingStrategies::new(DefaultEmissionCost, DefaultTransitionCost)
+            CostingStrategies::new(DefaultEmissionCost::default(), DefaultTransitionCost)
         }
     }
 
