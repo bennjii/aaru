@@ -25,6 +25,8 @@ use std::time::Instant;
 use tracing::Level;
 
 pub type Weight = u32;
+
+// TODO: Convert `type X = Y` to `struct X(Y)` for type enforcement. (TypeName pattern)
 pub type NodeIx = OsmEntryId;
 pub type EdgeIx = OsmEntryId;
 

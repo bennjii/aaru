@@ -1,7 +1,7 @@
 use crate::route::transition::*;
 use std::f64::consts::E;
 
-const PRECISION: f64 = 1000.0f64;
+const PRECISION: f64 = 1_000.0f64;
 const OFFSET: f64 = E;
 
 pub trait Strategy<Ctx> {

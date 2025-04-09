@@ -207,6 +207,8 @@ impl Solver for AllForwardSolver {
                     target_candidate: &reachable.target,
                     routing_context: context,
 
+                    map_path: reachable.path.clone(),
+
                     layer_width: 0.0,
                 });
 

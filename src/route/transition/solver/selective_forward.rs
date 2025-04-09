@@ -174,6 +174,8 @@ impl SelectiveForwardSolver {
                 let transition_cost = transition.heuristics.transition(TransitionContext {
                     // TODO: Remove clone after debugging.
                     optimal_path: trip.clone(),
+                    map_path: reachable.path.clone(),
+
                     source_candidate: &reachable.source,
                     target_candidate: &reachable.target,
                     routing_context: context,

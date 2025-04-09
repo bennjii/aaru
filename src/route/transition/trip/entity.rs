@@ -146,7 +146,7 @@ impl Trip {
     ///
     /// TODO: Consult use of distance in heuristic
     pub fn angular_complexity(&self, distance: f64) -> f64 {
-        const SEGMENT_RATIO: f64 = 0.4; // 40% of distance (2.5 segments)
+        const SEGMENT_RATIO: f64 = 0.5; // 50% of distance (2 segments)
         const MIN_SEGMENT_SIZE: f64 = 100.0; // 100m minimum
 
         let segment_size: f64 = MIN_SEGMENT_SIZE.max(SEGMENT_RATIO * distance);
@@ -162,7 +162,7 @@ impl Trip {
     }
 
     /// Returns the length of the trip in meters, calculated
-    /// by the distance between each entry in the trip.
+    /// by the cumulative distance between each entry in the trip.
     pub fn length(&self) -> f64 {
         self.0.windows(2).fold(0.0, |length, node| {
             if let [a, b] = node {

@@ -1,3 +1,4 @@
+use crate::route::graph::{EdgeIx, NodeIx, Weight};
 use crate::route::transition::candidate::{Candidate, CandidateId, Candidates};
 use crate::route::Graph;
 
@@ -14,5 +15,9 @@ impl RoutingContext<'_> {
     /// TODO: Docs
     pub fn candidate(&self, candidate: &CandidateId) -> Option<Candidate> {
         self.candidates.candidate(candidate)
+    }
+
+    pub fn edge(&self, a: &NodeIx, b: &NodeIx) -> Option<&(Weight, EdgeIx)> {
+        self.map.graph.edge_weight(*a, *b)
     }
 }

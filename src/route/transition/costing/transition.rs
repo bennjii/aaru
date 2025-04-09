@@ -1,3 +1,4 @@
+use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::candidate::{Candidate, CandidateId};
 use crate::route::transition::{OffsetVariant, RoutingContext, Strategy, Trip};
 use geo::{Distance, Haversine};
@@ -13,6 +14,9 @@ pub struct TransitionContext<'a> {
     /// cost) often through heuristics such as
     /// immediate and summative angular rotation.
     pub optimal_path: Trip,
+
+    /// A list of all OSM nodes pertaining to the optimal trip path.
+    pub map_path: Vec<OsmEntryId>,
 
     /// The source candidate indicating the edge and
     /// position for which the path begins at.

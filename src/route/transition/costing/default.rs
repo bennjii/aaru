@@ -70,7 +70,11 @@ pub mod emission {
 }
 
 pub mod transition {
+    use crate::route::graph::{EdgeIx, Weight};
     use crate::route::transition::*;
+    use log::debug;
+    use pathfinding::num_traits::Pow;
+    use std::collections::HashSet;
 
     /// Calculates the transition cost between two candidates.
     ///
@@ -137,6 +141,22 @@ pub mod transition {
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let deviance = lengths.deviance();
 
+            // TODO: Consider including the map weighting as well.
+            let avg_weight = context
+                .map_path
+                .windows(2)
+                .filter_map(|node| match node {
+                    [a, b] => context.routing_context.edge(a, b),
+                    _ => None,
+                })
+                .map(|(weight, _)| *weight as f64)
+                .sum::<f64>()
+                / context.map_path.iter().len() as f64;
+
+            // Value in range [0, 1] (1=Low Cost, 0=High Cost)
+            // Defines the no. edges traversed (fewer distinct edge id's, the better)
+            let distinct_cost = (1.0 / avg_weight).sqrt().clamp(0.0, 1.0);
+
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let turn_cost = context
                 .optimal_path
@@ -144,8 +164,9 @@ pub mod transition {
                 .clamp(0.0, 1.0);
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
-            // Weighted: 30% Turn Cost, 70% Deviance (Weights must sum to 100%)
-            let avg_cost = (0.5 * turn_cost) + (0.5 * deviance);
+            //  Weighted: 30% Edge Distinction, 30% Turn Difficulty, 30% Distance Deviance
+            //      Note: Weights must sum to 100%
+            let avg_cost = (0.3 * distinct_cost) + (0.3 * turn_cost) + (0.3 * deviance);
 
             // Take the inverse to "span" values
             Some(avg_cost.recip())
