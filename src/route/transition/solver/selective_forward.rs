@@ -11,7 +11,7 @@ use crate::route::transition::{
 use geo::{Distance, Haversine};
 use log::{debug, info};
 use pathfinding::num_traits::Zero;
-use pathfinding::prelude::{astar, dijkstra, dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::{dijkstra, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
 use std::collections::HashMap;
@@ -198,8 +198,6 @@ impl SelectiveForwardSolver {
                 return_value
             })
             .collect::<Vec<_>>();
-
-        // debug!("Reachable from {source:?}: {reached:?}");
 
         reached
     }

@@ -146,12 +146,15 @@ impl Trip {
     ///
     /// TODO: Consult use of distance in heuristic
     pub fn angular_complexity(&self, distance: f64) -> f64 {
-        const SEGMENT_SIZE: f64 = 100.0f64; // 100m segments
+        const SEGMENT_RATIO: f64 = 0.4; // 40% of distance (2.5 segments)
+        const MIN_SEGMENT_SIZE: f64 = 100.0; // 100m minimum
+
+        let segment_size: f64 = MIN_SEGMENT_SIZE.max(SEGMENT_RATIO * distance);
 
         let sum = self.total_angle();
 
         // Complete Zig-Zag
-        let theoretical_max = (distance / SEGMENT_SIZE) * 90f64;
+        let theoretical_max = (distance / segment_size) * 90f64;
         // let theoretical_max = (self.0.len() as f64 - 2f64) * 90f64;
 
         // Sqrt used to create "stretch" to optimality.
