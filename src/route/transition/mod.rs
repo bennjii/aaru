@@ -6,12 +6,9 @@
 pub mod candidate;
 pub mod costing;
 pub mod graph;
+mod layer;
 pub mod solver;
 pub mod trip;
-
-mod layer;
-#[cfg(test)]
-mod test;
 
 // Re-Exports
 #[doc(hidden)]
