@@ -70,11 +70,7 @@ pub mod emission {
 }
 
 pub mod transition {
-    use crate::route::graph::{EdgeIx, Weight};
     use crate::route::transition::*;
-    use log::debug;
-    use pathfinding::num_traits::Pow;
-    use std::collections::HashSet;
 
     /// Calculates the transition cost between two candidates.
     ///

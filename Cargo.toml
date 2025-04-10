@@ -138,9 +138,6 @@ all = ["tile", "route", "codec"]
 [package.metadata.docs.rs]
 features = ["tile", "route", "codec"]
 
-[build]
-rustflags = ["-C", "target-cpu=native"]
-
 [profile.release]
 opt-level = 3
 lto = "fat"

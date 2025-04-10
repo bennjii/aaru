@@ -116,10 +116,10 @@ impl SelectiveForwardSolver {
         None
     }
 
-    fn reach<'a, E, T>(
+    fn reach<E, T>(
         &self,
         transition: &Transition<E, T>,
-        context: RoutingContext<'a>,
+        context: RoutingContext,
         (start, end): (CandidateId, CandidateId),
         reachable_hash: &mut HashMap<(usize, usize), Reachable>,
         source: &CandidateId,

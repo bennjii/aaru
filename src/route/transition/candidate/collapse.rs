@@ -53,7 +53,7 @@ impl Collapse {
                 let path = reachable
                     .path
                     .iter()
-                    .filter_map(|node| map.get_position(&node));
+                    .filter_map(|node| map.get_position(node));
 
                 std::iter::repeat_n(source.position, if index == 0 { 1 } else { 0 })
                     .chain(path)
