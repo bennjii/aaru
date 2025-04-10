@@ -1,13 +1,12 @@
-use geo::{coord, point, Point};
+use geo::{coord, point, Distance, Haversine, Point};
 use log::{debug, info};
-use rstar::PointDistance;
 use std::cmp::Ordering;
 use std::path::Path;
 use tonic::{Request, Response, Status};
 
-use router_service::{RouteRequest, RouteResponse};
+use router_service::{MatchedRoute, RouteRequest, RouteResponse};
 
-use crate::route::Graph;
+use crate::route::{Graph, Scan};
 use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,
     ClosestSnappedPointResponse, Coordinate, MapMatchRequest, MapMatchResponse,
@@ -84,24 +83,51 @@ impl RouterService for RouteService {
         &self,
         request: Request<MapMatchRequest>,
     ) -> Result<Response<MapMatchResponse>, Status> {
-        let mapmatch = request.into_inner();
-        let coordinates = mapmatch
+        let map_match = request.into_inner();
+        let coordinates = map_match
             .data
             .iter()
-            .map(|coord| coord! { x: coord.longitude, y: coord.longitude })
+            .map(|coord| coord! { x: coord.longitude, y: coord.latitude })
             .collect::<LineString>();
 
-        let linestring = self.graph.map_match(coordinates, mapmatch.distance);
+        let result = self
+            .graph
+            .map_match(coordinates)
+            .map_err(|err| Status::internal(format!("{:?}", err)))?;
+
+        let snapped_shape = result
+            .matched()
+            .iter()
+            .map(|node| Coordinate {
+                latitude: node.position.y(),
+                longitude: node.position.x(),
+            })
+            .collect::<Vec<_>>();
+
+        let interpolated = result
+            .interpolated(&self.graph)
+            .coords()
+            .map(|node| Coordinate {
+                latitude: node.y,
+                longitude: node.x,
+            })
+            .collect::<Vec<_>>();
+
+        // TODO: Correctly updraw this
+        let matching = MatchedRoute {
+            snapped_shape,
+            interpolated,
+
+            edges: vec![],
+            label: "!".to_string(),
+            cost: 0,
+        };
 
         Ok(Response::new(MapMatchResponse {
-            matched: linestring
-                .coords()
-                .map(|node| Coordinate {
-                    latitude: node.y,
-                    longitude: node.x,
-                })
-                .collect::<Vec<_>>(),
-            linestring: linestring.wkt_string(),
+            // TODO: Vector to allow trip-splitting in the future.
+            matchings: vec![matching],
+            // TODO: Aggregate all the errored trips.
+            warnings: vec![],
         }))
     }
 
@@ -140,16 +166,24 @@ impl RouterService for RouteService {
 
         let point = request
             .point
-            .map_or(Err(Status::invalid_argument("Missing Point")), |v| {
-                Ok(Point(coord! { x: v.longitude, y: v.latitude }))
-            })
-            .map_err(|err| Status::internal(format!("{:?}", err)))?;
+            .map(|v| Point(coord! { x: v.longitude, y: v.latitude }))
+            .ok_or(Status::invalid_argument("Missing Point"))?;
 
         info!(
             "Got request for {} for nodes within {} square meters",
             point.wkt_string(),
             request.search_radius
         );
+
+        let all_valids = self
+            .graph
+            .square_scan(&point, request.search_radius)
+            .map(|p| p.position.wkt_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        println!("All Valid Nodes: GEOMETRYCOLLECTION ({})", all_valids);
+
         let mut nearest_points = self
             .graph
             .nearest_projected_nodes(&point, request.search_radius)
@@ -157,10 +191,19 @@ impl RouterService for RouteService {
 
         debug!("Found {} points", nearest_points.len());
 
+        println!(
+            "Nearest points: GEOMETRYCOLLECTION ({})",
+            nearest_points
+                .iter()
+                .map(|(p, ..)| p.wkt_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
         // Get the closest of the discovered points
         nearest_points.sort_by(|(a, _), (b, _)| {
-            let dist_to_a = point.0.distance_2(&a.0);
-            let dist_to_b = point.0.distance_2(&b.0);
+            let dist_to_a = Haversine::distance(point, *a);
+            let dist_to_b = Haversine::distance(point, *b);
             dist_to_a.partial_cmp(&dist_to_b).unwrap_or(Ordering::Equal)
         });
 

@@ -22,6 +22,11 @@ name = "tile"
 required-features = ["tile"]
 path = "examples/tile.rs"
 
+[[example]]
+name = "route_client"
+path = "examples/route_client.rs"
+required-features = ["grpc_server"]
+
 [dependencies]
 # Algorithm
 rstar = { version = "0.12.2", features = ["serde"] }
@@ -40,8 +45,10 @@ tonic = { version = "0.12.3", features = ["tls", "tls-roots"], optional = true }
 tonic-reflection = { version = "0.12.3", optional = true }
 tonic-web = { version = "0.12.3", optional = true }
 
-bytes = { version = "1.8.0", features = ["default"] } # Required for io::Cursor
 prost = { version = "0.13.3" }
+prost-types = "0.13.4"
+
+bytes = { version = "1.8.0", features = ["default"] } # Required for io::Cursor
 tokio = { version = "1.41.1", features = [
     "rt",
     "rt-multi-thread",
@@ -83,6 +90,7 @@ geohash = "0.13.1"
 strum = { version = "0.26.3", features = ["phf", "derive"] }
 env_logger = "0.11.5"
 pathfinding = "4.11.0"
+approx = "0.5.1"
 
 [build-dependencies]
 tonic-build = { version = "0.12.3", features = ["prost"] }
@@ -132,13 +140,8 @@ features = ["tile", "route", "codec"]
 
 [profile.release]
 opt-level = 3
-lto = true
+lto = "fat"
 
 [profile.bench]
 opt-level = 3
 lto = true
-
-[[example]]
-name = "RouteClient"
-path = "examples/route_client.rs"
-required-features = ["grpc_server"]

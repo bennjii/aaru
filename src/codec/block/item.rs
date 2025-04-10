@@ -5,7 +5,7 @@
 use bytes::Buf;
 use either::Either;
 use flate2::read::ZlibDecoder;
-use log::{info, trace, warn};
+use log::{trace, warn};
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Read;
@@ -110,8 +110,6 @@ impl BlockItem {
 
     #[inline]
     pub fn raw_par_iter(&mut self) -> impl ParallelIterator<Item = Element> + '_ {
-        info!("Got self of type {}", self.r#type());
-
         match self {
             BlockItem::PrimitiveBlock(primitive) => Either::Left(
                 primitive
@@ -125,8 +123,6 @@ impl BlockItem {
 
     #[inline]
     pub fn par_iter(&mut self) -> impl ParallelIterator<Item = ProcessedElement> + '_ {
-        info!("Got self of type {}", self.r#type());
-
         match self {
             BlockItem::PrimitiveBlock(primitive) => Either::Left(
                 primitive

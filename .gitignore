@@ -4,4 +4,6 @@
 /.idea
 .env
 
+todo.md
+
 !district-of-columbia.osm.pbf
