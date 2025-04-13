@@ -7,7 +7,7 @@ use crate::route::transition::{
 use crate::route::{Graph, Scan};
 use std::fs::File;
 
-use geo::{MultiPoint, Point};
+use geo::{Distance, Haversine, MultiPoint, Point};
 use log::info;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
@@ -39,8 +39,8 @@ impl FromParallelIterator<Layer> for Layers {
     }
 }
 
-const DEFAULT_SEARCH_DISTANCE: f64 = 1_000.0; // 5km
-const DEFAULT_FILTER_DISTANCE: f64 = 50.0;
+const DEFAULT_SEARCH_DISTANCE: f64 = 1_000.0; // 1km (1_000m)
+const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 100m
 
 /// Generates the layers within the transition graph.
 ///
@@ -116,6 +116,7 @@ where
                 let nodes = projected
                     .into_iter()
                     .take(25)
+                    .take_while(|(p, _)| Haversine::distance(*p, origin) < self.filter_distance)
                     .enumerate()
                     .map(|(node_id, (position, edge))| {
                         // We have the actual projected position, and it's associated edge.
