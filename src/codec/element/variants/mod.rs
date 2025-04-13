@@ -278,13 +278,21 @@ pub mod common {
         #[inline]
         pub fn one_way(&self) -> bool {
             self.get(TagString::ONE_WAY)
-                .is_some_and(|v| v.as_str() == "yes")
+                .is_some_and(|v| v.as_str() == "yes" || v.as_str() == "-1")
         }
 
         #[inline]
         pub fn roundabout(&self) -> bool {
             self.get(TagString::JUNCTION)
-                .is_some_and(|v| v.as_str() == "roundabout")
+                .is_some_and(|v| v.as_str() == "roundabout" || v.as_str() == "circular")
+        }
+
+        // Source: https://wiki.openstreetmap.org/wiki/Default_speed_limits
+        // RoadType: oneway
+        // TagRules: oneway~yes|-1 or junction~roundabout|circular
+        #[inline]
+        pub fn unidirectional(&self) -> bool {
+            self.one_way() || self.roundabout()
         }
     }
 
