@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let elapsed = start.elapsed();
 
     let linestring = response
-        .matchings
+        .matches
         .first()
         .ok_or(Error)?
         .snapped_shape
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<LineString>();
 
     let interpolated = response
-        .matchings
+        .matches
         .first()
         .ok_or(Error)?
         .interpolated

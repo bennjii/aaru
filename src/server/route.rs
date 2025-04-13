@@ -125,7 +125,7 @@ impl RouterService for RouteService {
 
         Ok(Response::new(MapMatchResponse {
             // TODO: Vector to allow trip-splitting in the future.
-            matchings: vec![matching],
+            matches: vec![matching],
             // TODO: Aggregate all the errored trips.
             warnings: vec![],
         }))

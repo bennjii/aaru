@@ -37,7 +37,7 @@ impl FromParallelIterator<Layer> for Layers {
     }
 }
 
-const DEFAULT_SEARCH_DISTANCE: f64 = 5_000.0; // 5km
+const DEFAULT_SEARCH_DISTANCE: f64 = 1_000.0; // 5km
 const DEFAULT_FILTER_DISTANCE: f64 = 50.0;
 
 /// Generates the layers within the transition graph.
@@ -108,17 +108,12 @@ where
                 let mut projected = self
                     .map
                     // We'll do a best-effort search (square) radius
-                    .nearest_projected_nodes(&origin, self.search_distance)
+                    .edge_distinct_nearest_projected_nodes_sorted(origin, self.search_distance)
                     .collect::<Vec<_>>();
-
-                // TODO: Formalize take over filter
-                projected.sort_by(|(a, _), (b, _)| {
-                    Haversine::distance(*a, origin).total_cmp(&Haversine::distance(*b, origin))
-                });
 
                 let nodes = projected
                     .into_iter()
-                    .take(50)
+                    .take(25)
                     .enumerate()
                     .map(|(node_id, (position, edge))| {
                         // We have the actual projected position, and it's associated edge.

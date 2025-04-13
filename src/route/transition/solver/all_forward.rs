@@ -3,15 +3,12 @@ use crate::route::graph::NodeIx;
 use crate::route::transition::candidate::{CandidateEdge, CandidateId};
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::solver::methods::{Reachable, Solver};
-use crate::route::transition::{
-    Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext, TransitionStrategy,
-    Trip,
-};
+use crate::route::transition::{Collapse, Costing, EmissionStrategy, RoutingContext, SuccessorsLookupTable, TransitionContext, TransitionStrategy, Trip};
 
 use geo::{Distance, Haversine};
 use pathfinding::prelude::{dijkstra_reach, DijkstraReachableItem};
 use petgraph::Direction;
-use rayon::iter::IntoParallelIterator;
+use rayon::iter::{IntoParallelIterator, ParallelBridge};
 use rayon::{iter::ParallelIterator, slice::ParallelSlice};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -122,21 +119,26 @@ impl AllForwardSolver {
     fn all_reachable<'a, E, T>(
         &'a self,
         context: RoutingContext<'a>,
+        lut: &'a mut SuccessorsLookupTable,
         transition: &'a Transition<E, T>,
-    ) -> impl ParallelIterator<Item = ProcessedReachable> + 'a
+    ) -> impl ParallelIterator<Item = ProcessedReachable> + use<'a, E, T>
     where
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy + Send + Sync,
     {
         Self::flatten(transition)
             .into_par_iter()
-            .map(move |(left, right)| (left, self.reachable(context, &left, right.as_slice())))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(move |(left, right)| (left, self.reachable(context, lut, &left, right.as_slice())))
             .flat_map(move |(left, right)| {
                 right
                     .unwrap_or_default()
-                    .into_par_iter()
+                    .into_iter()
                     .map(move |reachable| (left, reachable))
             })
+            .par_bridge()
+            .into_par_iter()
     }
 }
 
@@ -144,6 +146,7 @@ impl Solver for AllForwardSolver {
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
+        lut: &mut SuccessorsLookupTable,
         source: &CandidateId,
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>> {
@@ -196,9 +199,11 @@ impl Solver for AllForwardSolver {
             map: transition.map,
         };
 
+        let mut lut = SuccessorsLookupTable::new();
+
         // Declaring all the pairs of indices that need to be refined.
         let transition_probabilities = self
-            .all_reachable(context, &transition)
+            .all_reachable(context, &mut lut, &transition)
             .map(|(source, reachable)| {
                 // Derive the transition cost of reaching this candidate
                 let cost = transition.heuristics.transition(TransitionContext {

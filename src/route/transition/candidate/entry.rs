@@ -7,6 +7,42 @@ use pathfinding::num_traits::Zero;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::Add;
+use petgraph::Direction;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DirectionAwareEdgeId {
+    id: EdgeIx,
+    direction: Direction,
+}
+
+impl DirectionAwareEdgeId {
+    pub fn new(id: EdgeIx) -> Self {
+        Self { id, direction: Direction::Outgoing }
+    }
+
+    pub fn forward(self) -> Self {
+        DirectionAwareEdgeId { direction: Direction::Outgoing, ..self }
+    }
+
+    pub fn backward(self) -> Self {
+        DirectionAwareEdgeId { direction: Direction::Incoming, ..self }
+    }
+}
+
+impl Ord for DirectionAwareEdgeId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.id.cmp(&other.id) {
+            Ordering::Equal => self.direction.cmp(&other.direction),
+            ord => ord,
+        }
+    }
+}
+
+impl PartialOrd for DirectionAwareEdgeId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Edge {
@@ -14,17 +50,17 @@ pub struct Edge {
     pub target: NodeIx,
 
     pub weight: Weight,
-    pub id: EdgeIx,
+    pub id: DirectionAwareEdgeId,
 }
 
-impl<'a> From<(NodeIx, NodeIx, &'a (Weight, EdgeIx))> for Edge {
-    fn from((source, target, edge): (NodeIx, NodeIx, &'a (Weight, EdgeIx))) -> Self {
+impl<'a> From<(NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))> for Edge {
+    fn from((source, target, edge): (NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))) -> Self {
         Edge::new(source, target, edge.0, edge.1)
     }
 }
 
 impl Edge {
-    pub fn new(source: NodeIx, target: NodeIx, weight: Weight, id: EdgeIx) -> Self {
+    pub fn new(source: NodeIx, target: NodeIx, weight: Weight, id: DirectionAwareEdgeId) -> Self {
         Self {
             source,
             target,

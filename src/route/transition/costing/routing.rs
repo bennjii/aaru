@@ -1,6 +1,7 @@
-use crate::route::graph::{EdgeIx, NodeIx, Weight};
+use crate::route::graph::{NodeIx, Weight};
 use crate::route::transition::candidate::{Candidate, CandidateId, Candidates};
 use crate::route::Graph;
+use crate::route::transition::DirectionAwareEdgeId;
 
 /// A base context provided to costing methods, allowing costing methods
 /// to access to further information within the current routing
@@ -17,7 +18,7 @@ impl RoutingContext<'_> {
         self.candidates.candidate(candidate)
     }
 
-    pub fn edge(&self, a: &NodeIx, b: &NodeIx) -> Option<&(Weight, EdgeIx)> {
+    pub fn edge(&self, a: &NodeIx, b: &NodeIx) -> Option<&(Weight, DirectionAwareEdgeId)> {
         self.map.graph.edge_weight(*a, *b)
     }
 }

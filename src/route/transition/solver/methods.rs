@@ -33,6 +33,7 @@ pub trait Solver {
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
+        lut: &mut SuccessorsLookupTable,
         source: &CandidateId,
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>>;
