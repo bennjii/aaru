@@ -1,3 +1,4 @@
+use std::fs::File;
 use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
 use crate::route::transition::layer::Layer;
 use crate::route::transition::CandidateLocation;
@@ -10,7 +11,9 @@ use geo::{Distance, Haversine, MultiPoint, Point};
 use log::info;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
+use wkb::Endianness;
 use wkt::ToWkt;
+use std::io::Write;
 
 #[derive(Default)]
 pub struct Layers {
@@ -157,7 +160,11 @@ where
         });
 
         let mp = points.into_iter().collect::<MultiPoint>();
-        info!("All Candidates ({}): {}", mp.len(), mp.wkt_string());
+        info!("Generated {} Candidates", mp.len());
+
+        let path = "candidates.wkt";
+        let mut output = File::create(path).unwrap();
+        write!(output, "{}", mp.wkt_string()).expect("must write");
 
         (layers, candidates)
     }
