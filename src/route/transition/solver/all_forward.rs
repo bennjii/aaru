@@ -3,7 +3,10 @@ use crate::route::graph::NodeIx;
 use crate::route::transition::candidate::{CandidateEdge, CandidateId};
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::solver::methods::{Reachable, Solver};
-use crate::route::transition::{Collapse, Costing, EmissionStrategy, RoutingContext, SuccessorsLookupTable, TransitionContext, TransitionStrategy, Trip};
+use crate::route::transition::{
+    Collapse, Costing, EmissionStrategy, RoutingContext, SuccessorsLookupTable, TransitionContext,
+    TransitionStrategy, Trip,
+};
 
 use geo::{Distance, Haversine};
 use pathfinding::prelude::{dijkstra_reach, DijkstraReachableItem};
@@ -146,7 +149,7 @@ impl Solver for AllForwardSolver {
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
-        lut: &mut SuccessorsLookupTable,
+        _lut: &mut SuccessorsLookupTable,
         source: &CandidateId,
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>> {

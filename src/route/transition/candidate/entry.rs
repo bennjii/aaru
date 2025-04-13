@@ -4,10 +4,10 @@ use crate::route::Graph;
 
 use geo::{Distance, Haversine, Point};
 use pathfinding::num_traits::Zero;
+use petgraph::Direction;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::Add;
-use petgraph::Direction;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DirectionAwareEdgeId {
@@ -17,15 +17,24 @@ pub struct DirectionAwareEdgeId {
 
 impl DirectionAwareEdgeId {
     pub fn new(id: EdgeIx) -> Self {
-        Self { id, direction: Direction::Outgoing }
+        Self {
+            id,
+            direction: Direction::Outgoing,
+        }
     }
 
     pub fn forward(self) -> Self {
-        DirectionAwareEdgeId { direction: Direction::Outgoing, ..self }
+        DirectionAwareEdgeId {
+            direction: Direction::Outgoing,
+            ..self
+        }
     }
 
     pub fn backward(self) -> Self {
-        DirectionAwareEdgeId { direction: Direction::Incoming, ..self }
+        DirectionAwareEdgeId {
+            direction: Direction::Incoming,
+            ..self
+        }
     }
 }
 

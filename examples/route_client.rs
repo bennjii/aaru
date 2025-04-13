@@ -3,12 +3,12 @@ use aaru::server::route::router_service::{Coordinate, Costing, MapMatchRequest};
 use geo::{coord, wkt, LineString};
 use std::fmt::Error;
 use std::fs::File;
+use std::io::Write;
 use tokio;
 use tokio::time::Instant;
 use tonic;
 use tonic::transport::Channel;
 use wkt::ToWkt;
-use std::io::Write;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

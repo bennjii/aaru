@@ -9,7 +9,7 @@ use crate::route::transition::{
 };
 
 use geo::{Distance, Haversine};
-use log::{debug, error, info};
+use log::{debug, info};
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::{dijkstra, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
@@ -17,7 +17,6 @@ use petgraph::Direction;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
-use tracing::field::debug;
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
@@ -41,13 +40,13 @@ impl Default for SelectiveForwardSolver {
 
 // UBPNODT: Upper-Bounded Piecewise-N Origin-Destination Table
 pub struct SuccessorsLookupTable {
-    successors: HashMap<NodeIx, Vec<(NodeIx, u32)>>
+    successors: HashMap<NodeIx, Vec<(NodeIx, u32)>>,
 }
 
 impl SuccessorsLookupTable {
     pub fn new() -> Self {
         Self {
-            successors: HashMap::new()
+            successors: HashMap::new(),
         }
     }
 
@@ -90,7 +89,7 @@ impl SuccessorsLookupTable {
 
     pub fn get_or_calculate(&mut self, ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, u32)> {
         if let Some(items) = self.get(node) {
-            return items
+            return items;
         }
 
         self.calc(ctx, node)
@@ -104,9 +103,7 @@ impl SelectiveForwardSolver {
         lut: &'a mut SuccessorsLookupTable,
         start: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a> {
-        dijkstra_reach(start, move |node| {
-            lut.get_or_calculate(ctx, node)
-        })
+        dijkstra_reach(start, move |node| lut.get_or_calculate(ctx, node))
     }
 
     /// TODO: Docs

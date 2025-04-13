@@ -1,4 +1,3 @@
-use std::fs::File;
 use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
 use crate::route::transition::layer::Layer;
 use crate::route::transition::CandidateLocation;
@@ -6,14 +5,14 @@ use crate::route::transition::{
     Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
 };
 use crate::route::{Graph, Scan};
+use std::fs::File;
 
-use geo::{Distance, Haversine, MultiPoint, Point};
+use geo::{MultiPoint, Point};
 use log::info;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
-use wkb::Endianness;
-use wkt::ToWkt;
 use std::io::Write;
+use wkt::ToWkt;
 
 #[derive(Default)]
 pub struct Layers {
@@ -108,7 +107,7 @@ where
                     origin.wkt_string()
                 );
 
-                let mut projected = self
+                let projected = self
                     .map
                     // We'll do a best-effort search (square) radius
                     .edge_distinct_nearest_projected_nodes_sorted(origin, self.search_distance)
