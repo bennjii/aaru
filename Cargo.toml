@@ -103,6 +103,10 @@ criterion = { version = "2.7.2", features = [
 ], package = "codspeed-criterion-compat" }
 
 [[bench]]
+name = "map_match"
+harness = false
+
+[[bench]]
 name = "codec_sweep"
 harness = false
 
