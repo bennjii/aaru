@@ -18,6 +18,7 @@ use petgraph::Direction;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
+use wkt::ToWkt;
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
@@ -294,12 +295,18 @@ impl Solver for SelectiveForwardSolver {
                         let target_percentage = candidate.percentage(ctx.map)?;
 
                         let movement_forward = if tracking_forward {
-                            source_percentage < target_percentage
+                            source_percentage <= target_percentage
                         } else if tracking_backward {
-                            source_percentage < (1.0 - target_percentage)
+                            source_percentage <= (1.0 - target_percentage)
                         } else {
                             break 'stmt;
                         };
+
+                        debug!(
+                            "Found Forward={movement_forward} movement with {source_percentage} to {target_percentage} on {}. {:?} : {:?}",
+                            if tracking_forward { "Forward " } else { "Backward " },
+                            candidate.position.wkt_string(), source_candidate.position.wkt_string()
+                        );
 
                         return if movement_forward {
                             // We are moving forward, it is simply the distance between the nodes

@@ -30,7 +30,7 @@ required-features = ["grpc_server"]
 [dependencies]
 # Algorithm
 rstar = { version = "0.12.2", features = ["serde"] }
-petgraph = { version = "0.8.1", features = ["serde-1", "graphmap", "rayon"] }
+petgraph = { version = "0.6.5", features = ["serde-1", "graphmap", "rayon"] }
 
 # Testing Deps.
 serde = { version = "1.0.214", features = ["derive"] }
