@@ -125,7 +125,7 @@ impl Trip {
             .map(|entries| {
                 if let [a, b] = entries {
                     // Returns the bearing relative to due-north
-                    Haversine::bearing(a.position, b.position)
+                    Haversine.bearing(a.position, b.position)
                 } else {
                     0.0
                 }
@@ -203,7 +203,7 @@ impl Trip {
     pub fn length(&self) -> f64 {
         self.0.windows(2).fold(0.0, |length, node| {
             if let [a, b] = node {
-                return length + Haversine::distance(a.position, b.position);
+                return length + Haversine.distance(a.position, b.position);
             }
 
             length

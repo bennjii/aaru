@@ -4,7 +4,7 @@ use crate::route::transition::candidate::{CandidateEdge, CandidateId};
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::solver::methods::{Reachable, Solver};
 use crate::route::transition::{
-    Collapse, Costing, EmissionStrategy, RoutingContext, SuccessorsLookupTable, TransitionContext,
+    Collapse, Costing, EmissionStrategy, ResolutionMethod, RoutingContext, TransitionContext,
     TransitionStrategy, Trip,
 };
 
@@ -54,7 +54,7 @@ impl AllForwardSolver {
                             let target = ctx.map.get_position(&next).unwrap();
 
                             // In centimeters
-                            (Haversine::distance(source, target) * 1_000f64) as u32
+                            (Haversine.distance(source, target) * 1_000f64) as u32
                         } else {
                             // Total accrued distance
                             0u32
@@ -157,7 +157,7 @@ impl Solver for AllForwardSolver {
         // TODO: Explain why this is necessary.
         let end_node = left.edge.target;
         let end_position = ctx.map.get_position(&end_node)?;
-        let edge_offset = Haversine::distance(left.position, end_position);
+        let edge_offset = Haversine.distance(left.position, end_position);
 
         // Upper-Bounded reachable map containing a Child:Parent relation
         // Note: Parent is OsmEntryId::NULL, which will not be within the map, indicating the root element.
@@ -212,6 +212,7 @@ impl Solver for AllForwardSolver {
                     routing_context: context,
 
                     map_path: reachable.path.as_slice(),
+                    requested_resolution_method: ResolutionMethod::default(),
 
                     layer_width: 0.0,
                 });

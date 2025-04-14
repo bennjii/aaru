@@ -202,8 +202,8 @@ impl RouterService for RouteService {
 
         // Get the closest of the discovered points
         nearest_points.sort_by(|(a, _), (b, _)| {
-            let dist_to_a = Haversine::distance(point, *a);
-            let dist_to_b = Haversine::distance(point, *b);
+            let dist_to_a = Haversine.distance(point, *a);
+            let dist_to_b = Haversine.distance(point, *b);
             dist_to_a.partial_cmp(&dist_to_b).unwrap_or(Ordering::Equal)
         });
 

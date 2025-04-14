@@ -59,7 +59,7 @@ pub mod emission {
 
         fn calculate(&self, context: EmissionContext<'a>) -> Option<Self::Cost> {
             let distance =
-                Haversine::distance(*context.source_position, *context.candidate_position);
+                Haversine.distance(*context.source_position, *context.candidate_position);
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let relative_to_error = (DEFAULT_EMISSION_ERROR / distance).clamp(0.0, 1.0);

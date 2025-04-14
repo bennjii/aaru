@@ -1,6 +1,6 @@
 use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::candidate::{Candidate, CandidateId};
-use crate::route::transition::{RoutingContext, Strategy, Trip, VirtualTail};
+use crate::route::transition::{ResolutionMethod, RoutingContext, Strategy, Trip, VirtualTail};
 use geo::{Distance, Haversine};
 
 pub trait TransitionStrategy: for<'a> Strategy<TransitionContext<'a>> {}
@@ -32,6 +32,9 @@ pub struct TransitionContext<'a> {
 
     /// The length between the layer nodes
     pub layer_width: f64,
+
+    // TODO: Docs
+    pub requested_resolution_method: ResolutionMethod,
 }
 
 pub struct TransitionLengths {
@@ -91,12 +94,21 @@ impl TransitionContext<'_> {
         (self.source_candidate(), self.target_candidate())
     }
 
-    /// Calculates the total offset, of both source and target positions within the context
+    /// Calculates the total offset, of both source and target positions within the context,
+    /// considering the resolution method requested
     pub fn total_offset(&self, source: &Candidate, target: &Candidate) -> Option<f64> {
-        let inner_offset = source.offset(&self.routing_context, VirtualTail::ToSource)?;
-        let outer_offset = target.offset(&self.routing_context, VirtualTail::ToTarget)?;
+        match self.requested_resolution_method {
+            ResolutionMethod::Standard => {
+                // TODO: Validate these are the right order
+                let inner_offset = source.offset(&self.routing_context, VirtualTail::ToSource)?;
+                let outer_offset = target.offset(&self.routing_context, VirtualTail::ToTarget)?;
 
-        Some(inner_offset + outer_offset)
+                Some(inner_offset + outer_offset)
+            }
+            ResolutionMethod::DistanceOnly => {
+                Some(Haversine.distance(source.position, target.position))
+            }
+        }
     }
 
     pub fn lengths(&self) -> Option<TransitionLengths> {
@@ -104,7 +116,7 @@ impl TransitionContext<'_> {
         let offset = self.total_offset(&source, &target)?;
 
         let route_length = self.optimal_path.length() + offset;
-        let straightline_distance = Haversine::distance(source.position, target.position);
+        let straightline_distance = Haversine.distance(source.position, target.position);
 
         Some(TransitionLengths {
             straightline_distance,

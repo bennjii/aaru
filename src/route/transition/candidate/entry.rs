@@ -88,7 +88,7 @@ impl Edge {
         let source_position = graph.get_position(&source)?;
         let target_position = graph.get_position(&target)?;
 
-        Some(Haversine::distance(source_position, target_position))
+        Some(Haversine.distance(source_position, target_position))
     }
 }
 
@@ -157,11 +157,11 @@ impl Candidate {
         match variant {
             VirtualTail::ToSource => {
                 let source = ctx.map.get_position(&self.edge.source)?;
-                Some(Haversine::distance(source, self.position))
+                Some(Haversine.distance(source, self.position))
             }
             VirtualTail::ToTarget => {
                 let target = ctx.map.get_position(&self.edge.target)?;
-                Some(Haversine::distance(self.position, target))
+                Some(Haversine.distance(self.position, target))
             }
         }
     }

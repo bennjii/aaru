@@ -79,7 +79,7 @@ impl SuccessorsLookupTable {
                         let target = ctx.map.get_position(&next).unwrap();
 
                         // In centimeters (1m = 100cm)
-                        (Haversine::distance(source, target) * 100f64) as u32
+                        (Haversine.distance(source, target) * 100f64) as u32
                     } else {
                         // Total accrued distance
                         0u32
@@ -215,12 +215,13 @@ impl SelectiveForwardSolver {
                 let sl = transition.layers.layers.get(source_layer).unwrap();
                 let tl = transition.layers.layers.get(target_layer).unwrap();
 
-                let layer_width = Haversine::distance(sl.origin, tl.origin);
+                let layer_width = Haversine.distance(sl.origin, tl.origin);
 
                 let transition_cost = transition.heuristics.transition(TransitionContext {
                     // TODO: Remove clone after debugging.
                     optimal_path: trip,
                     map_path: reachable.path.as_slice(),
+                    requested_resolution_method: reachable.resolution_method,
 
                     source_candidate: &reachable.source,
                     target_candidate: &reachable.target,
@@ -295,19 +296,19 @@ impl Solver for SelectiveForwardSolver {
                         let movement_forward = if tracking_forward {
                             source_percentage < target_percentage
                         } else if tracking_backward {
-                            target_percentage < source_percentage
+                            source_percentage < (1.0 - target_percentage)
                         } else {
                             break 'stmt;
                         };
 
                         return if movement_forward {
                             // We are moving forward, it is simply the distance between the nodes
-                            Some(Reachable::new(*source, *target, vec![]))
+                            Some(Reachable::new(*source, *target, vec![]).distance_only())
                         } else {
                             // We are going "backwards", behaviour becomes dependent on
                             // the directionality of the edge. However, to return across the
                             // node is an independent transition, and is not covered.
-                            None
+                            break 'stmt;
                         };
                     }
                 }

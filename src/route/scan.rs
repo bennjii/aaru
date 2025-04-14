@@ -1,5 +1,5 @@
 use geo::{
-    line_string, Destination, Distance, Geodesic, Haversine, LineInterpolatePoint, LineLocatePoint,
+    line_string, Destination, Distance, Geodesic, Haversine, InterpolatableLine, LineLocatePoint,
     Point,
 };
 use itertools::Itertools;
@@ -47,8 +47,8 @@ pub trait Scan {
 impl Scan for Graph {
     #[inline]
     fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node> {
-        let bottom_right = Geodesic::destination(*point, 135.0, distance);
-        let top_left = Geodesic::destination(*point, 315.0, distance);
+        let bottom_right = Geodesic.destination(*point, 135.0, distance);
+        let top_left = Geodesic.destination(*point, 315.0, distance);
 
         let bbox = AABB::from_corners(top_left, bottom_right);
         self.index().locate_in_envelope(&bbox)
@@ -87,7 +87,7 @@ impl Scan for Graph {
                 // upon the linestring to obtain a point
                 linestring
                     .line_locate_point(point)
-                    .and_then(|frac| linestring.line_interpolate_point(frac))
+                    .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
                     .map(|point| (point, edge))
             })
     }
@@ -99,7 +99,9 @@ impl Scan for Graph {
     ) -> impl Iterator<Item = (Point, Edge)> {
         self.nearest_projected_nodes(&point, distance)
             .sorted_by(|(a, _), (b, _)| {
-                Haversine::distance(*a, point).total_cmp(&Haversine::distance(*b, point))
+                Haversine
+                    .distance(*a, point)
+                    .total_cmp(&Haversine.distance(*b, point))
             })
     }
 

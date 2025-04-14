@@ -116,7 +116,7 @@ where
                 let nodes = projected
                     .into_iter()
                     .take(25)
-                    .take_while(|(p, _)| Haversine::distance(*p, origin) < self.filter_distance)
+                    .take_while(|(p, _)| Haversine.distance(*p, origin) < self.filter_distance)
                     .enumerate()
                     .map(|(node_id, (position, edge))| {
                         // We have the actual projected position, and it's associated edge.
