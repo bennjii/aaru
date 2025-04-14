@@ -137,7 +137,6 @@ pub mod transition {
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let deviance = lengths.deviance();
 
-            // TODO: Consider including the map weighting as well.
             let avg_weight = context
                 .map_path
                 .windows(2)

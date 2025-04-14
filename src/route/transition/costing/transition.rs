@@ -1,6 +1,6 @@
 use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::candidate::{Candidate, CandidateId};
-use crate::route::transition::{OffsetVariant, RoutingContext, Strategy, Trip};
+use crate::route::transition::{RoutingContext, Strategy, Trip, VirtualTail};
 use geo::{Distance, Haversine};
 
 pub trait TransitionStrategy: for<'a> Strategy<TransitionContext<'a>> {}
@@ -16,7 +16,7 @@ pub struct TransitionContext<'a> {
     pub optimal_path: Trip,
 
     /// A list of all OSM nodes pertaining to the optimal trip path.
-    pub map_path: Vec<OsmEntryId>,
+    pub map_path: &'a [OsmEntryId],
 
     /// The source candidate indicating the edge and
     /// position for which the path begins at.
@@ -30,6 +30,7 @@ pub struct TransitionContext<'a> {
     /// such as node positions upon the map, and referencing other candidates.
     pub routing_context: RoutingContext<'a>,
 
+    /// The length between the layer nodes
     pub layer_width: f64,
 }
 
@@ -92,8 +93,8 @@ impl TransitionContext<'_> {
 
     /// Calculates the total offset, of both source and target positions within the context
     pub fn total_offset(&self, source: &Candidate, target: &Candidate) -> Option<f64> {
-        let inner_offset = source.offset(&self.routing_context, OffsetVariant::Inner)?;
-        let outer_offset = target.offset(&self.routing_context, OffsetVariant::Outer)?;
+        let inner_offset = source.offset(&self.routing_context, VirtualTail::ToSource)?;
+        let outer_offset = target.offset(&self.routing_context, VirtualTail::ToTarget)?;
 
         Some(inner_offset + outer_offset)
     }

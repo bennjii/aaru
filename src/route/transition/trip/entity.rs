@@ -1,7 +1,6 @@
 use crate::codec::element::variants::{Node, OsmEntryId};
 use crate::route::Graph;
 use geo::{Bearing, Distance, Haversine, LineString};
-use itertools::Itertools;
 
 /// `Trip`
 ///

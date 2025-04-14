@@ -7,6 +7,7 @@ use crate::route::transition::{
     CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext,
     TransitionStrategy, Trip,
 };
+use std::cell::RefCell;
 
 use geo::{Distance, Haversine};
 use log::{debug, info};
@@ -28,18 +29,22 @@ type ProcessedReachable = (CandidateId, Reachable);
 pub struct SelectiveForwardSolver {
     /// The threshold by which the solver is bounded, in centimeters.
     threshold_distance: f64,
+
+    successors_lookup_table: RefCell<SuccessorsLookupTable>,
 }
 
 impl Default for SelectiveForwardSolver {
     fn default() -> Self {
         Self {
             threshold_distance: DEFAULT_THRESHOLD,
+            successors_lookup_table: RefCell::new(SuccessorsLookupTable::new()),
         }
     }
 }
 
 // UBPNODT: Upper-Bounded Piecewise-N Origin-Destination Table
 pub struct SuccessorsLookupTable {
+    // TODO: Move ref-cell inside?
     successors: HashMap<NodeIx, Vec<(NodeIx, u32)>>,
 }
 
@@ -98,12 +103,16 @@ impl SuccessorsLookupTable {
 
 impl SelectiveForwardSolver {
     /// Returns all the nodes reachable by the solver in an iterator, measured in distance
-    fn reachable_iterator<'a>(
+    fn reachable_iterator<'a, 'b>(
+        &'b self,
         ctx: RoutingContext<'a>,
-        lut: &'a mut SuccessorsLookupTable,
         start: &'a NodeIx,
-    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a> {
-        dijkstra_reach(start, move |node| lut.get_or_calculate(ctx, node))
+    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
+        dijkstra_reach(start, move |node| {
+            self.successors_lookup_table
+                .borrow_mut()
+                .get_or_calculate(ctx, node)
+        })
     }
 
     /// TODO: Docs
@@ -113,10 +122,9 @@ impl SelectiveForwardSolver {
     fn bounded_iterator<'a, 'b>(
         &'b self,
         ctx: RoutingContext<'a>,
-        lut: &'a mut SuccessorsLookupTable,
         start: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
-        Self::reachable_iterator(ctx, lut, start).take_while(move |p| {
+        self.reachable_iterator(ctx, start).take_while(move |p| {
             // Bounded by the threshold distance (centimeters)
             (p.total_cost as f64) < self.threshold_distance
         })
@@ -158,7 +166,6 @@ impl SelectiveForwardSolver {
         &self,
         transition: &Transition<E, T>,
         context: RoutingContext,
-        lut: &mut SuccessorsLookupTable,
         (start, end): (CandidateId, CandidateId),
         reachable_hash: &mut HashMap<(usize, usize), Reachable>,
         source: &CandidateId,
@@ -193,7 +200,7 @@ impl SelectiveForwardSolver {
         let reached = self
             // TODO: Supply context to the reachability function in order to reuse routes
             //       already made. Plus, consider working as contraction hierarchies
-            .reachable(context, lut, source, successors.as_slice())
+            .reachable(context, source, successors.as_slice())
             .unwrap_or_default()
             .into_iter()
             .map(|reachable| {
@@ -212,8 +219,8 @@ impl SelectiveForwardSolver {
 
                 let transition_cost = transition.heuristics.transition(TransitionContext {
                     // TODO: Remove clone after debugging.
-                    optimal_path: trip.clone(),
-                    map_path: reachable.path.clone(),
+                    optimal_path: trip,
+                    map_path: reachable.path.as_slice(),
 
                     source_candidate: &reachable.source,
                     target_candidate: &reachable.target,
@@ -248,7 +255,6 @@ impl Solver for SelectiveForwardSolver {
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
-        lut: &mut SuccessorsLookupTable,
         source: &CandidateId,
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>> {
@@ -258,11 +264,9 @@ impl Solver for SelectiveForwardSolver {
         // Note: Parent is OsmEntryId::NULL, which will not be within the map,
         //       indicating the root element.
         let predicate_map = self
-            .bounded_iterator(ctx, lut, &source_candidate.edge.target)
+            .bounded_iterator(ctx, &source_candidate.edge.target)
             .map(|predicate| {
                 let parent = predicate.parent.unwrap_or(OsmEntryId::null());
-                // TODO: I dont think this is considering if they're on the SAME edge, but just different offsets (!!)
-
                 (predicate.node, (parent, predicate.total_cost))
             })
             .collect::<HashMap<OsmEntryId, (OsmEntryId, u32)>>();
@@ -273,9 +277,39 @@ impl Solver for SelectiveForwardSolver {
                 // Get the candidate information of the target found
                 let candidate = ctx.candidate(target)?;
 
-                if candidate.edge.source == source_candidate.edge.source {
-                    // TODO: Have to properly cost this transition over the same edge
-                    return Some(Reachable::new(*source, *target, vec![]));
+                // Both candidates are on the same edge
+                'stmt: {
+                    if candidate.edge.id.index() == source_candidate.edge.id.index() {
+                        let common_source = candidate.edge.source == source_candidate.edge.source;
+                        let common_target = candidate.edge.target == source_candidate.edge.target;
+
+                        let inverted_source = candidate.edge.source == source_candidate.edge.target;
+                        let inverted_target = candidate.edge.target == source_candidate.edge.source;
+
+                        let tracking_forward = common_source && common_target;
+                        let tracking_backward = inverted_source && inverted_target;
+
+                        let source_percentage = source_candidate.percentage(ctx.map)?;
+                        let target_percentage = candidate.percentage(ctx.map)?;
+
+                        let movement_forward = if tracking_forward {
+                            source_percentage < target_percentage
+                        } else if tracking_backward {
+                            target_percentage < source_percentage
+                        } else {
+                            break 'stmt;
+                        };
+
+                        return if movement_forward {
+                            // We are moving forward, it is simply the distance between the nodes
+                            Some(Reachable::new(*source, *target, vec![]))
+                        } else {
+                            // We are going "backwards", behaviour becomes dependent on
+                            // the directionality of the edge. However, to return across the
+                            // node is an independent transition, and is not covered.
+                            None
+                        };
+                    }
                 }
 
                 // Generate the path to this target using the predicate map
@@ -318,8 +352,6 @@ impl Solver for SelectiveForwardSolver {
             map: transition.map,
         };
 
-        let mut lut = SuccessorsLookupTable::new();
-
         let mut reachable_hash: HashMap<(usize, usize), Reachable> = HashMap::new();
         let Some((path, cost)) = dijkstra(
             &start,
@@ -327,7 +359,6 @@ impl Solver for SelectiveForwardSolver {
                 self.reach(
                     &transition,
                     context,
-                    &mut lut,
                     (start, end),
                     &mut reachable_hash,
                     source,

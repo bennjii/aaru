@@ -122,7 +122,6 @@ impl AllForwardSolver {
     fn all_reachable<'a, E, T>(
         &'a self,
         context: RoutingContext<'a>,
-        lut: &'a mut SuccessorsLookupTable,
         transition: &'a Transition<E, T>,
     ) -> impl ParallelIterator<Item = ProcessedReachable> + use<'a, E, T>
     where
@@ -133,7 +132,7 @@ impl AllForwardSolver {
             .into_par_iter()
             .collect::<Vec<_>>()
             .into_iter()
-            .map(move |(left, right)| (left, self.reachable(context, lut, &left, right.as_slice())))
+            .map(move |(left, right)| (left, self.reachable(context, &left, right.as_slice())))
             .flat_map(move |(left, right)| {
                 right
                     .unwrap_or_default()
@@ -149,7 +148,6 @@ impl Solver for AllForwardSolver {
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
-        _lut: &mut SuccessorsLookupTable,
         source: &CandidateId,
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>> {
@@ -202,11 +200,9 @@ impl Solver for AllForwardSolver {
             map: transition.map,
         };
 
-        let mut lut = SuccessorsLookupTable::new();
-
         // Declaring all the pairs of indices that need to be refined.
         let transition_probabilities = self
-            .all_reachable(context, &mut lut, &transition)
+            .all_reachable(context, &transition)
             .map(|(source, reachable)| {
                 // Derive the transition cost of reaching this candidate
                 let cost = transition.heuristics.transition(TransitionContext {
@@ -215,7 +211,7 @@ impl Solver for AllForwardSolver {
                     target_candidate: &reachable.target,
                     routing_context: context,
 
-                    map_path: reachable.path.clone(),
+                    map_path: reachable.path.as_slice(),
 
                     layer_width: 0.0,
                 });
