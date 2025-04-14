@@ -19,8 +19,7 @@ pub trait Scan {
     fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node>;
 
     /// TODO: Docs r.e. distinct.
-    ///
-    /// Finds all **distinct** edges within a square radius of the target position.
+    /// Finds all edges within a set square radius
     fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge>;
 
     /// Finds the nearest node to a lat/lng position
@@ -37,6 +36,8 @@ pub trait Scan {
         point: Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge)>;
+
+    /// Finds all **distinct** edges within a square radius of the target position.
     fn edge_distinct_nearest_projected_nodes_sorted(
         &self,
         point: Point,
