@@ -2,11 +2,60 @@ use crate::route::graph::{EdgeIx, NodeIx, Weight};
 use crate::route::transition::RoutingContext;
 use crate::route::Graph;
 
-use geo::{Distance, Haversine, Point};
+use geo::{Distance, Haversine, LineLocatePoint, LineString, Point};
 use pathfinding::num_traits::Zero;
+use petgraph::Direction;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::Add;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DirectionAwareEdgeId {
+    id: EdgeIx,
+    direction: Direction,
+}
+
+impl DirectionAwareEdgeId {
+    pub fn new(id: EdgeIx) -> Self {
+        Self {
+            id,
+            direction: Direction::Outgoing,
+        }
+    }
+
+    pub fn index(&self) -> EdgeIx {
+        self.id
+    }
+
+    pub fn forward(self) -> Self {
+        DirectionAwareEdgeId {
+            direction: Direction::Outgoing,
+            ..self
+        }
+    }
+
+    pub fn backward(self) -> Self {
+        DirectionAwareEdgeId {
+            direction: Direction::Incoming,
+            ..self
+        }
+    }
+}
+
+impl Ord for DirectionAwareEdgeId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.id.cmp(&other.id) {
+            Ordering::Equal => self.direction.cmp(&other.direction),
+            ord => ord,
+        }
+    }
+}
+
+impl PartialOrd for DirectionAwareEdgeId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Edge {
@@ -14,17 +63,17 @@ pub struct Edge {
     pub target: NodeIx,
 
     pub weight: Weight,
-    pub id: EdgeIx,
+    pub id: DirectionAwareEdgeId,
 }
 
-impl<'a> From<(NodeIx, NodeIx, &'a (Weight, EdgeIx))> for Edge {
-    fn from((source, target, edge): (NodeIx, NodeIx, &'a (Weight, EdgeIx))) -> Self {
+impl<'a> From<(NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))> for Edge {
+    fn from((source, target, edge): (NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))) -> Self {
         Edge::new(source, target, edge.0, edge.1)
     }
 }
 
 impl Edge {
-    pub fn new(source: NodeIx, target: NodeIx, weight: Weight, id: EdgeIx) -> Self {
+    pub fn new(source: NodeIx, target: NodeIx, weight: Weight, id: DirectionAwareEdgeId) -> Self {
         Self {
             source,
             target,
@@ -39,7 +88,7 @@ impl Edge {
         let source_position = graph.get_position(&source)?;
         let target_position = graph.get_position(&target)?;
 
-        Some(Haversine::distance(source_position, target_position))
+        Some(Haversine.distance(source_position, target_position))
     }
 }
 
@@ -70,28 +119,49 @@ pub struct Candidate {
 /// Calculates offset distances for the virtualized candidate position.
 ///
 ///                 Candidate
-///            Inner    |    Outer
+///          ToSource   |   ToTarget
 ///        +------------|------------+
 ///      Source                    Target
-pub enum OffsetVariant {
+pub enum VirtualTail {
     /// The distance from the edge's source to the virtual candidate position.
-    Inner,
+    ToSource,
 
     /// The distance from the virtual candidate position to the edge target.
-    Outer,
+    ToTarget,
 }
 
 impl Candidate {
-    /// Calculates the offset, in meters, of the candidate to it's edge by the [`OffsetVariant`].
-    pub fn offset(&self, ctx: &RoutingContext, variant: OffsetVariant) -> Option<f64> {
+    /// TODO: Docs
+    ///
+    /// Returns the percentage of the distance through the edge,
+    /// relative to the position upon the linestring by which it lies,
+    /// considering the line to start at the Source and end at the Target node.
+    ///
+    ///                Edge Percentages
+    ///     Source                         Target
+    ///       +---------|----------------|---+
+    ///                0.4              0.9
+    ///               (40%)            (90%)
+    ///
+    pub fn percentage(&self, graph: &Graph) -> Option<f64> {
+        let edge = graph
+            .resolve_line(&[self.edge.source, self.edge.target])
+            .into_iter()
+            .collect::<LineString>();
+
+        edge.line_locate_point(&self.position)
+    }
+
+    /// Calculates the offset, in meters, of the candidate to it's edge by the [`VirtualTail`].
+    pub fn offset(&self, ctx: &RoutingContext, variant: VirtualTail) -> Option<f64> {
         match variant {
-            OffsetVariant::Inner => {
+            VirtualTail::ToSource => {
                 let source = ctx.map.get_position(&self.edge.source)?;
-                Some(Haversine::distance(source, self.position))
+                Some(Haversine.distance(source, self.position))
             }
-            OffsetVariant::Outer => {
+            VirtualTail::ToTarget => {
                 let target = ctx.map.get_position(&self.edge.target)?;
-                Some(Haversine::distance(self.position, target))
+                Some(Haversine.distance(self.position, target))
             }
         }
     }

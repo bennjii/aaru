@@ -22,7 +22,7 @@ impl rstar::PointDistance for Node {
         &self,
         point: &<Self::Envelope as Envelope>::Point,
     ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
-        Euclidean::distance(self.position, *point).powi(2)
+        Euclidean.distance(self.position, *point).powi(2)
     }
 }
 
@@ -46,8 +46,8 @@ impl Node {
     }
 
     pub fn bounding(&self, distance: f64) -> AABB<Point> {
-        let bottom_right = Geodesic::destination(self.position, 135.0, distance);
-        let top_left = Geodesic::destination(self.position, 315.0, distance);
+        let bottom_right = Geodesic.destination(self.position, 135.0, distance);
+        let top_left = Geodesic.destination(self.position, 315.0, distance);
         AABB::from_corners(top_left, bottom_right)
     }
 

@@ -2,11 +2,20 @@ use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::*;
 
+#[derive(Debug, Default, Copy, Clone)]
+pub enum ResolutionMethod {
+    #[default]
+    Standard,
+    DistanceOnly,
+}
+
 #[derive(Clone)]
 pub struct Reachable {
     pub source: CandidateId,
     pub target: CandidateId,
     pub path: Vec<OsmEntryId>,
+
+    pub(crate) resolution_method: ResolutionMethod,
 }
 
 impl Reachable {
@@ -15,6 +24,14 @@ impl Reachable {
             source,
             target,
             path,
+            resolution_method: Default::default(),
+        }
+    }
+
+    pub fn distance_only(self) -> Self {
+        Self {
+            resolution_method: ResolutionMethod::DistanceOnly,
+            ..self
         }
     }
 

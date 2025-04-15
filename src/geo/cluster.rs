@@ -208,7 +208,7 @@ impl Default for IntoCluster {
         IntoCluster {
             epsilon: 1.0,
             c_capacity: 10,
-            distance: Haversine::distance,
+            distance: |a, b| Haversine.distance(a, b),
             c: Vec::new(),
             v: Vec::new(),
         }

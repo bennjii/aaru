@@ -5,11 +5,13 @@ use crate::route::transition::{
     Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
 };
 use crate::route::{Graph, Scan};
+use std::fs::File;
 
 use geo::{Distance, Haversine, MultiPoint, Point};
 use log::info;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
+use std::io::Write;
 use wkt::ToWkt;
 
 #[derive(Default)]
@@ -37,8 +39,8 @@ impl FromParallelIterator<Layer> for Layers {
     }
 }
 
-const DEFAULT_SEARCH_DISTANCE: f64 = 5_000.0; // 5km
-const DEFAULT_FILTER_DISTANCE: f64 = 50.0;
+const DEFAULT_SEARCH_DISTANCE: f64 = 1_000.0; // 1km (1_000m)
+const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 100m
 
 /// Generates the layers within the transition graph.
 ///
@@ -105,20 +107,16 @@ where
                     origin.wkt_string()
                 );
 
-                let mut projected = self
+                let projected = self
                     .map
                     // We'll do a best-effort search (square) radius
-                    .nearest_projected_nodes(&origin, self.search_distance)
+                    .edge_distinct_nearest_projected_nodes_sorted(origin, self.search_distance)
                     .collect::<Vec<_>>();
-
-                // TODO: Formalize take over filter
-                projected.sort_by(|(a, _), (b, _)| {
-                    Haversine::distance(*a, origin).total_cmp(&Haversine::distance(*b, origin))
-                });
 
                 let nodes = projected
                     .into_iter()
-                    .take(50)
+                    .take(25)
+                    .take_while(|(p, _)| Haversine.distance(*p, origin) < self.filter_distance)
                     .enumerate()
                     .map(|(node_id, (position, edge))| {
                         // We have the actual projected position, and it's associated edge.
@@ -162,7 +160,11 @@ where
         });
 
         let mp = points.into_iter().collect::<MultiPoint>();
-        info!("All Candidates ({}): {}", mp.len(), mp.wkt_string());
+        info!("Generated {} Candidates", mp.len());
+
+        let path = "candidates.wkt";
+        let mut output = File::create(path).unwrap();
+        write!(output, "{}", mp.wkt_string()).expect("must write");
 
         (layers, candidates)
     }

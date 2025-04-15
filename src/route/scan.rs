@@ -1,12 +1,17 @@
-use geo::{line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, Point};
+use geo::{
+    line_string, Destination, Distance, Geodesic, Haversine, InterpolatableLine, LineLocatePoint,
+    Point,
+};
+use itertools::Itertools;
 use petgraph::Direction;
 use rstar::AABB;
+use std::collections::BTreeSet;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
 use crate::codec::element::variants::Node;
-use crate::route::transition::Edge;
+use crate::route::transition::{DirectionAwareEdgeId, Edge};
 use crate::route::Graph;
 
 pub trait Scan {
@@ -14,8 +19,7 @@ pub trait Scan {
     fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node>;
 
     /// TODO: Docs r.e. distinct.
-    ///
-    /// Finds all **distinct** edges within a square radius of the target position.
+    /// Finds all edges within a set square radius
     fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge>;
 
     /// Finds the nearest node to a lat/lng position
@@ -27,13 +31,25 @@ pub trait Scan {
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge)>;
+    fn nearest_projected_nodes_sorted(
+        &self,
+        point: Point,
+        distance: f64,
+    ) -> impl Iterator<Item = (Point, Edge)>;
+
+    /// Finds all **distinct** edges within a square radius of the target position.
+    fn edge_distinct_nearest_projected_nodes_sorted(
+        &self,
+        point: Point,
+        distance: f64,
+    ) -> impl Iterator<Item = (Point, Edge)>;
 }
 
 impl Scan for Graph {
     #[inline]
     fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node> {
-        let bottom_right = Geodesic::destination(*point, 135.0, distance);
-        let top_left = Geodesic::destination(*point, 315.0, distance);
+        let bottom_right = Geodesic.destination(*point, 135.0, distance);
+        let top_left = Geodesic.destination(*point, 315.0, distance);
 
         let bbox = AABB::from_corners(top_left, bottom_right);
         self.index().locate_in_envelope(&bbox)
@@ -42,12 +58,9 @@ impl Scan for Graph {
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
     #[inline]
     fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge> {
-        // let mut edges_covered = BTreeSet::<EdgeIx>::new();
-
         self.square_scan(point, distance)
             .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
             .map(Edge::from)
-        // .filter(move |Edge { id, .. }| !edges_covered.insert(*id))
     }
 
     fn nearest_node(&self, point: Point) -> Option<&Node> {
@@ -75,8 +88,36 @@ impl Scan for Graph {
                 // upon the linestring to obtain a point
                 linestring
                     .line_locate_point(point)
-                    .and_then(|frac| linestring.line_interpolate_point(frac))
+                    .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
                     .map(|point| (point, edge))
             })
+    }
+
+    fn nearest_projected_nodes_sorted(
+        &self,
+        point: Point,
+        distance: f64,
+    ) -> impl Iterator<Item = (Point, Edge)> {
+        self.nearest_projected_nodes(&point, distance)
+            .sorted_by(|(a, _), (b, _)| {
+                Haversine
+                    .distance(*a, point)
+                    .total_cmp(&Haversine.distance(*b, point))
+            })
+    }
+
+    fn edge_distinct_nearest_projected_nodes_sorted(
+        &self,
+        point: Point,
+        distance: f64,
+    ) -> impl Iterator<Item = (Point, Edge)> {
+        let mut edges_covered = BTreeSet::<DirectionAwareEdgeId>::new();
+
+        // Removes all candidates from the **sorted** projected nodes which lie on the same WayID,
+        // such that we only keep the closest node for every way, and considering direction a
+        // WayID as a composite of the underlying map ID and the direction of the points within
+        // the way.
+        self.nearest_projected_nodes_sorted(point, distance)
+            .filter(move |(_, Edge { id, .. })| edges_covered.insert(*id))
     }
 }
