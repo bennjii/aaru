@@ -7,7 +7,7 @@ use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
-use crate::route::transition::{CostingStrategies, SelectiveForwardSolver};
+use crate::route::transition::{CostingStrategies, DirectionAwareEdgeId, SelectiveForwardSolver};
 use crate::route::Scan;
 
 use geo::{LineString, Point};
@@ -32,7 +32,7 @@ pub type EdgeIx = OsmEntryId;
 
 pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
-pub type GraphStructure = DiGraphMap<NodeIx, (Weight, EdgeIx)>;
+pub type GraphStructure = DiGraphMap<NodeIx, (Weight, DirectionAwareEdgeId)>;
 
 const MAX_WEIGHT: Weight = 255 as Weight;
 
@@ -139,16 +139,19 @@ impl Graph {
                             None => MAX_WEIGHT,
                         };
 
-                        let one_way = way.tags().one_way();
-                        let roundabout = way.tags().roundabout();
-                        let weight = (weight, way.id());
+                        let bidirectional = !way.tags().unidirectional();
 
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
-                                global_graph.lock().unwrap().add_edge(a.id, b.id, weight);
-                                if !one_way && !roundabout {
-                                    global_graph.lock().unwrap().add_edge(b.id, a.id, weight);
+                                let direction_aware = DirectionAwareEdgeId::new(way.id());
+                                let mut lock = global_graph.lock().unwrap();
+
+                                lock.add_edge(a.id, b.id, (weight, direction_aware.forward()));
+
+                                // If way is bidi, add opposite edge with a DirAw backward.
+                                if bidirectional {
+                                    lock.add_edge(b.id, a.id, (weight, direction_aware.backward()));
                                 }
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);

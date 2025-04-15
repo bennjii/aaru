@@ -4,14 +4,14 @@ use crate::route::transition::candidate::{CandidateEdge, CandidateId};
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::solver::methods::{Reachable, Solver};
 use crate::route::transition::{
-    Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext, TransitionStrategy,
-    Trip,
+    Collapse, Costing, EmissionStrategy, ResolutionMethod, RoutingContext, TransitionContext,
+    TransitionStrategy, Trip,
 };
 
 use geo::{Distance, Haversine};
 use pathfinding::prelude::{dijkstra_reach, DijkstraReachableItem};
 use petgraph::Direction;
-use rayon::iter::IntoParallelIterator;
+use rayon::iter::{IntoParallelIterator, ParallelBridge};
 use rayon::{iter::ParallelIterator, slice::ParallelSlice};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -54,7 +54,7 @@ impl AllForwardSolver {
                             let target = ctx.map.get_position(&next).unwrap();
 
                             // In centimeters
-                            (Haversine::distance(source, target) * 1_000f64) as u32
+                            (Haversine.distance(source, target) * 1_000f64) as u32
                         } else {
                             // Total accrued distance
                             0u32
@@ -123,20 +123,24 @@ impl AllForwardSolver {
         &'a self,
         context: RoutingContext<'a>,
         transition: &'a Transition<E, T>,
-    ) -> impl ParallelIterator<Item = ProcessedReachable> + 'a
+    ) -> impl ParallelIterator<Item = ProcessedReachable> + use<'a, E, T>
     where
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy + Send + Sync,
     {
         Self::flatten(transition)
             .into_par_iter()
+            .collect::<Vec<_>>()
+            .into_iter()
             .map(move |(left, right)| (left, self.reachable(context, &left, right.as_slice())))
             .flat_map(move |(left, right)| {
                 right
                     .unwrap_or_default()
-                    .into_par_iter()
+                    .into_iter()
                     .map(move |reachable| (left, reachable))
             })
+            .par_bridge()
+            .into_par_iter()
     }
 }
 
@@ -153,7 +157,7 @@ impl Solver for AllForwardSolver {
         // TODO: Explain why this is necessary.
         let end_node = left.edge.target;
         let end_position = ctx.map.get_position(&end_node)?;
-        let edge_offset = Haversine::distance(left.position, end_position);
+        let edge_offset = Haversine.distance(left.position, end_position);
 
         // Upper-Bounded reachable map containing a Child:Parent relation
         // Note: Parent is OsmEntryId::NULL, which will not be within the map, indicating the root element.
@@ -207,7 +211,8 @@ impl Solver for AllForwardSolver {
                     target_candidate: &reachable.target,
                     routing_context: context,
 
-                    map_path: reachable.path.clone(),
+                    map_path: reachable.path.as_slice(),
+                    requested_resolution_method: ResolutionMethod::default(),
 
                     layer_width: 0.0,
                 });

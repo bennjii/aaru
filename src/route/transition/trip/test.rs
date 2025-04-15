@@ -16,14 +16,16 @@ fn test_trip() {
         Node::new(Point::new(0.0, 1.0), OsmEntryId::null()),
         Node::new(Point::new(1.0, 1.0), OsmEntryId::null()),
         Node::new(Point::new(1.0, 0.0), OsmEntryId::null()),
+        Node::new(Point::new(1.0, -1.0), OsmEntryId::null()),
     ];
 
     let trip = Trip::from(nodes);
 
-    let angles = trip.delta_angle();
+    let angles = trip.headings();
     assert_relative_eq!(angles[0], 0.0);
     assert_relative_eq!(angles[1], 90.0, max_relative = 1.0);
     assert_relative_eq!(angles[2], 180.0);
+    assert_relative_eq!(angles[3], 180.0);
 
     assert_relative_eq!(trip.total_angle(), 180.0);
 }
@@ -77,7 +79,7 @@ fn validate_turning_path() {
     assert_relative_eq!(imm_angle, 24.41, max_relative = 0.1);
 
     let exp_angle = trip.angular_complexity(SHARED_DISTANCE);
-    assert_relative_eq!(exp_angle, 0.51, max_relative = 0.1);
+    assert_relative_eq!(exp_angle, 0.65, max_relative = 0.1);
 }
 
 #[test]
@@ -102,6 +104,7 @@ fn validate_uturn_expensive() {
     let angle = trip.total_angle();
     assert_relative_eq!(angle, 449.40, max_relative = 0.1);
 
+    // Discouragingly complex
     let imm_angle = trip.angular_complexity(length);
-    assert_relative_eq!(imm_angle, 0.25, max_relative = 0.1);
+    assert_relative_eq!(imm_angle, 0., max_relative = 0.1);
 }

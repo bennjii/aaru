@@ -7,6 +7,7 @@ use crate::route::transition::{
     CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext,
     TransitionStrategy, Trip,
 };
+use std::cell::RefCell;
 
 use geo::{Distance, Haversine};
 use log::{debug, info};
@@ -17,6 +18,7 @@ use petgraph::Direction;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
+use wkt::ToWkt;
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
@@ -28,44 +30,89 @@ type ProcessedReachable = (CandidateId, Reachable);
 pub struct SelectiveForwardSolver {
     /// The threshold by which the solver is bounded, in centimeters.
     threshold_distance: f64,
+
+    successors_lookup_table: RefCell<SuccessorsLookupTable>,
 }
 
 impl Default for SelectiveForwardSolver {
     fn default() -> Self {
         Self {
             threshold_distance: DEFAULT_THRESHOLD,
+            successors_lookup_table: RefCell::new(SuccessorsLookupTable::new()),
         }
+    }
+}
+
+// UBPNODT: Upper-Bounded Piecewise-N Origin-Destination Table
+pub struct SuccessorsLookupTable {
+    // TODO: Move ref-cell inside?
+    successors: HashMap<NodeIx, Vec<(NodeIx, u32)>>,
+}
+
+impl SuccessorsLookupTable {
+    pub fn new() -> Self {
+        Self {
+            successors: HashMap::new(),
+        }
+    }
+
+    // TODO: Consider adding some complex sharing lifetimes to allow for removing the `cloned` call
+    pub fn get(&self, node: &NodeIx) -> Option<Vec<(NodeIx, u32)>> {
+        self.successors.get(node).cloned()
+    }
+
+    pub fn set(&mut self, node: &NodeIx, successors: Vec<(NodeIx, u32)>) {
+        self.successors.insert(*node, successors);
+    }
+
+    pub fn calc(&mut self, ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, u32)> {
+        // Calc. once
+        let source = ctx.map.get_position(node).unwrap();
+
+        let successors = ctx
+            .map
+            .graph
+            .edges_directed(*node, Direction::Outgoing)
+            .map(|(_, next, _w)| {
+                (
+                    next,
+                    if *node != next {
+                        let target = ctx.map.get_position(&next).unwrap();
+
+                        // In centimeters (1m = 100cm)
+                        (Haversine.distance(source, target) * 100f64) as u32
+                    } else {
+                        // Total accrued distance
+                        0u32
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
+        self.set(node, successors.clone());
+        successors
+    }
+
+    pub fn get_or_calculate(&mut self, ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, u32)> {
+        if let Some(items) = self.get(node) {
+            return items;
+        }
+
+        self.calc(ctx, node)
     }
 }
 
 impl SelectiveForwardSolver {
     /// Returns all the nodes reachable by the solver in an iterator, measured in distance
-    fn reachable_iterator<'a>(
+    fn reachable_iterator<'a, 'b>(
+        &'b self,
         ctx: RoutingContext<'a>,
         start: &'a NodeIx,
-    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a> {
-        dijkstra_reach(start, |node| {
-            // Calc. once
-            let source = ctx.map.get_position(node).unwrap();
-
-            ctx.map
-                .graph
-                .edges_directed(*node, Direction::Outgoing)
-                .map(|(_, next, _w)| {
-                    (
-                        next,
-                        if *node != next {
-                            let target = ctx.map.get_position(&next).unwrap();
-
-                            // In centimeters (1m = 100cm)
-                            (Haversine::distance(source, target) * 100f64) as u32
-                        } else {
-                            // Total accrued distance
-                            0u32
-                        },
-                    )
-                })
-                .collect::<Vec<_>>()
+    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
+        dijkstra_reach(start, move |node| {
+            self.successors_lookup_table
+                .borrow_mut()
+                .get_or_calculate(ctx, node)
         })
     }
 
@@ -78,7 +125,7 @@ impl SelectiveForwardSolver {
         ctx: RoutingContext<'a>,
         start: &'a NodeIx,
     ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
-        Self::reachable_iterator(ctx, start).take_while(move |p| {
+        self.reachable_iterator(ctx, start).take_while(move |p| {
             // Bounded by the threshold distance (centimeters)
             (p.total_cost as f64) < self.threshold_distance
         })
@@ -169,12 +216,13 @@ impl SelectiveForwardSolver {
                 let sl = transition.layers.layers.get(source_layer).unwrap();
                 let tl = transition.layers.layers.get(target_layer).unwrap();
 
-                let layer_width = Haversine::distance(sl.origin, tl.origin);
+                let layer_width = Haversine.distance(sl.origin, tl.origin);
 
                 let transition_cost = transition.heuristics.transition(TransitionContext {
                     // TODO: Remove clone after debugging.
-                    optimal_path: trip.clone(),
-                    map_path: reachable.path.clone(),
+                    optimal_path: trip,
+                    map_path: reachable.path.as_slice(),
+                    requested_resolution_method: reachable.resolution_method,
 
                     source_candidate: &reachable.source,
                     target_candidate: &reachable.target,
@@ -230,6 +278,47 @@ impl Solver for SelectiveForwardSolver {
             .filter_map(|target| {
                 // Get the candidate information of the target found
                 let candidate = ctx.candidate(target)?;
+
+                // Both candidates are on the same edge
+                'stmt: {
+                    if candidate.edge.id.index() == source_candidate.edge.id.index() {
+                        let common_source = candidate.edge.source == source_candidate.edge.source;
+                        let common_target = candidate.edge.target == source_candidate.edge.target;
+
+                        let inverted_source = candidate.edge.source == source_candidate.edge.target;
+                        let inverted_target = candidate.edge.target == source_candidate.edge.source;
+
+                        let tracking_forward = common_source && common_target;
+                        let tracking_backward = inverted_source && inverted_target;
+
+                        let source_percentage = source_candidate.percentage(ctx.map)?;
+                        let target_percentage = candidate.percentage(ctx.map)?;
+
+                        let movement_forward = if tracking_forward {
+                            source_percentage <= target_percentage
+                        } else if tracking_backward {
+                            source_percentage <= (1.0 - target_percentage)
+                        } else {
+                            break 'stmt;
+                        };
+
+                        debug!(
+                            "Found Forward={movement_forward} movement with {source_percentage} to {target_percentage} on {}. {:?} : {:?}",
+                            if tracking_forward { "Forward " } else { "Backward " },
+                            candidate.position.wkt_string(), source_candidate.position.wkt_string()
+                        );
+
+                        return if movement_forward {
+                            // We are moving forward, it is simply the distance between the nodes
+                            Some(Reachable::new(*source, *target, vec![]).distance_only())
+                        } else {
+                            // We are going "backwards", behaviour becomes dependent on
+                            // the directionality of the edge. However, to return across the
+                            // node is an independent transition, and is not covered.
+                            break 'stmt;
+                        };
+                    }
+                }
 
                 // Generate the path to this target using the predicate map
                 let path_to_target = Self::path_builder(
