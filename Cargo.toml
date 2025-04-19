@@ -110,10 +110,6 @@ name = "map_match"
 harness = false
 
 [[bench]]
-name = "map_match"
-harness = false
-
-[[bench]]
 name = "codec_sweep"
 harness = false
 

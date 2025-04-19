@@ -55,7 +55,7 @@ pub mod emission {
         type Cost = f64;
 
         const ZETA: f64 = 1.0;
-        const BETA: f64 = -10.0;
+        const BETA: f64 = -20.0;
 
         fn calculate(&self, context: EmissionContext<'a>) -> Option<Self::Cost> {
             let distance =
@@ -64,7 +64,7 @@ pub mod emission {
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let relative_to_error = (DEFAULT_EMISSION_ERROR / distance).clamp(0.0, 1.0);
 
-            Some(relative_to_error.recip().sqrt())
+            Some(relative_to_error.recip().powi(2))
         }
     }
 }

@@ -118,6 +118,6 @@ impl Scan for Graph {
         // WayID as a composite of the underlying map ID and the direction of the points within
         // the way.
         self.nearest_projected_nodes_sorted(point, distance)
-            .filter(move |(_, Edge { id, .. })| edges_covered.insert(*id))
+        // .filter(move |(_, Edge { id, .. })| edges_covered.insert(*id))
     }
 }

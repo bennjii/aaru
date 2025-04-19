@@ -17,7 +17,7 @@ pub mod common {
 
     use crate::codec::{relation::MemberType, PrimitiveBlock};
 
-    const VALID_ROADWAYS: [&str; 12] = [
+    const VALID_ROADWAYS: [&str; 16] = [
         "motorway",
         "motorway_link",
         "trunk",
@@ -29,7 +29,12 @@ pub mod common {
         "tertiary",
         "tertiary_link",
         "residential",
+        "unclassified",
+        // Special Road Types
         "living_street",
+        "service",
+        "busway",
+        "road",
     ];
 
     #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
