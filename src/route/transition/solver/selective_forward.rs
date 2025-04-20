@@ -89,22 +89,6 @@ impl SuccessorsLookupTable {
             })
             .collect::<Vec<_>>();
 
-        // Found movement with 0.08287177967988785 to 0.6324876072320774 which goes Backward.
-        // 2025-04-18T06:22:41.095634Z DEBUG map_match:map_match: aaru::route::transition::solver::selective_forward: => POINT(-118.22163196469717 33.945908870682466) : CandidateSource=OsmEntryId { identifier: 7874986047, variant: Node }, CandidateTarget=OsmEntryId { identifier: 7874986054, variant: Node }
-        // 2025-04-18T06:22:41.095638Z DEBUG map_match:map_match: aaru::route::transition::solver::selective_forward: => POINT(-118.22519919204524 33.946305939363896) : SourceCandidateSource=OsmEntryId { identifier: 122960717, variant: Node }, SourceCandidateTarget=OsmEntryId { identifier: 7263536199, variant: Node }
-        if [
-            7263536199i64,
-            6755876743i64,
-            6755876766i64,
-            6807814185i64,
-            7874986047i64,
-            7874986054i64,
-        ]
-        .contains(&node.identifier)
-        {
-            warn!("NodesForTargetOfInterested({node:?})={:?}", successors)
-        }
-
         self.set(node, successors.clone());
         successors
     }
@@ -305,8 +289,6 @@ impl Solver for SelectiveForwardSolver {
 
                         let source_percentage = source_candidate.percentage(ctx.map)?;
                         let target_percentage = candidate.percentage(ctx.map)?;
-
-                        // 2025-04-18T02:49:20.984890Z DEBUG map_match:map_match: aaru::route::transition::solver::selective_forward: Found movement with 0.08287177967988785 to 0.6324876072320774 on Backward . "POINT(-118.22163196469717 33.945908870682466)" : "POINT(-118.22519919204524 33.946305939363896)"
 
                         debug!(
                             "Found movement with {source_percentage} to {target_percentage} which goes {}.",
