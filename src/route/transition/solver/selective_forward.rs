@@ -10,7 +10,7 @@ use crate::route::transition::{
 use std::cell::RefCell;
 
 use geo::{Distance, Haversine};
-use log::{debug, info};
+use log::{debug, info, warn};
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::{dijkstra, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
@@ -88,6 +88,22 @@ impl SuccessorsLookupTable {
                 )
             })
             .collect::<Vec<_>>();
+
+        // Found movement with 0.08287177967988785 to 0.6324876072320774 which goes Backward.
+        // 2025-04-18T06:22:41.095634Z DEBUG map_match:map_match: aaru::route::transition::solver::selective_forward: => POINT(-118.22163196469717 33.945908870682466) : CandidateSource=OsmEntryId { identifier: 7874986047, variant: Node }, CandidateTarget=OsmEntryId { identifier: 7874986054, variant: Node }
+        // 2025-04-18T06:22:41.095638Z DEBUG map_match:map_match: aaru::route::transition::solver::selective_forward: => POINT(-118.22519919204524 33.946305939363896) : SourceCandidateSource=OsmEntryId { identifier: 122960717, variant: Node }, SourceCandidateTarget=OsmEntryId { identifier: 7263536199, variant: Node }
+        if [
+            7263536199i64,
+            6755876743i64,
+            6755876766i64,
+            6807814185i64,
+            7874986047i64,
+            7874986054i64,
+        ]
+        .contains(&node.identifier)
+        {
+            warn!("NodesForTargetOfInterested({node:?})={:?}", successors)
+        }
 
         self.set(node, successors.clone());
         successors
@@ -236,8 +252,8 @@ impl SelectiveForwardSolver {
                     .candidate(&reachable.target)
                     .map_or(u32::MAX, |v| v.emission);
 
-                let transition = (transition_cost as f64 * 0.8) as u32;
-                let emission = (emission_cost as f64 * 0.2) as u32;
+                let transition = (transition_cost as f64 * 0.6) as u32;
+                let emission = (emission_cost as f64 * 0.4) as u32;
 
                 let return_value = (
                     reachable.target,
@@ -285,30 +301,25 @@ impl Solver for SelectiveForwardSolver {
                         let common_source = candidate.edge.source == source_candidate.edge.source;
                         let common_target = candidate.edge.target == source_candidate.edge.target;
 
-                        let inverted_source = candidate.edge.source == source_candidate.edge.target;
-                        let inverted_target = candidate.edge.target == source_candidate.edge.source;
-
                         let tracking_forward = common_source && common_target;
-                        let tracking_backward = inverted_source && inverted_target;
 
                         let source_percentage = source_candidate.percentage(ctx.map)?;
                         let target_percentage = candidate.percentage(ctx.map)?;
 
-                        let movement_forward = if tracking_forward {
-                            source_percentage <= target_percentage
-                        } else if tracking_backward {
-                            source_percentage <= (1.0 - target_percentage)
-                        } else {
-                            break 'stmt;
-                        };
+                        // 2025-04-18T02:49:20.984890Z DEBUG map_match:map_match: aaru::route::transition::solver::selective_forward: Found movement with 0.08287177967988785 to 0.6324876072320774 on Backward . "POINT(-118.22163196469717 33.945908870682466)" : "POINT(-118.22519919204524 33.946305939363896)"
 
                         debug!(
-                            "Found Forward={movement_forward} movement with {source_percentage} to {target_percentage} on {}. {:?} : {:?}",
-                            if tracking_forward { "Forward " } else { "Backward " },
-                            candidate.position.wkt_string(), source_candidate.position.wkt_string()
+                            "Found movement with {source_percentage} to {target_percentage} which goes {}.",
+                            if tracking_forward { "Forward" } else { "Backward" },
+                        );
+                        debug!("=> {} : CandidateSource={:?}, CandidateTarget={:?}",
+                            candidate.position.wkt_string(), candidate.edge.source, candidate.edge.target
+                        );
+                        debug!("=> {} : SourceCandidateSource={:?}, SourceCandidateTarget={:?}",
+                            source_candidate.position.wkt_string(), source_candidate.edge.source, source_candidate.edge.target
                         );
 
-                        return if movement_forward {
+                        return if tracking_forward && source_percentage <= target_percentage {
                             // We are moving forward, it is simply the distance between the nodes
                             Some(Reachable::new(*source, *target, vec![]).distance_only())
                         } else {

@@ -69,8 +69,12 @@ impl TransitionLengths {
     ///     optimal route between them of `250m`, the deviance is `0.4`.
     ///
     /// Note that a lower deviance score means the values are less aligned.
+    #[inline]
     pub fn deviance(&self) -> f64 {
-        (self.straightline_distance / self.route_length).clamp(0.0, 1.0)
+        let numer = self.straightline_distance / 4.0;
+        let demon = self.route_length - self.straightline_distance;
+
+        (numer / demon).abs().clamp(0.0, 1.0)
     }
 }
 
@@ -99,9 +103,11 @@ impl TransitionContext<'_> {
     pub fn total_offset(&self, source: &Candidate, target: &Candidate) -> Option<f64> {
         match self.requested_resolution_method {
             ResolutionMethod::Standard => {
-                // TODO: Validate these are the right order
-                let inner_offset = source.offset(&self.routing_context, VirtualTail::ToSource)?;
-                let outer_offset = target.offset(&self.routing_context, VirtualTail::ToTarget)?;
+                // Also validate that this isn't the only way we need to calculate the distances,
+                // since its perfectly possible to need the other way around (virt. tail) depending on which
+                // invariants are upheld upstream
+                let inner_offset = source.offset(&self.routing_context, VirtualTail::ToTarget)?;
+                let outer_offset = target.offset(&self.routing_context, VirtualTail::ToSource)?;
 
                 Some(inner_offset + outer_offset)
             }

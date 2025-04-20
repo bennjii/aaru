@@ -34,7 +34,7 @@ pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
 pub type GraphStructure = DiGraphMap<NodeIx, (Weight, DirectionAwareEdgeId)>;
 
-const MAX_WEIGHT: Weight = 255 as Weight;
+const MAX_WEIGHT: Weight = u32::MAX as Weight;
 
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
@@ -91,19 +91,27 @@ impl Graph {
 
         // TODO: Base this dynamically on geospacial properties and roading shape
 
+        // Primary roadways
         weights.insert("motorway", 1);
-        weights.insert("motorway_link", 2);
+        weights.insert("motorway_link", 1);
         weights.insert("trunk", 3);
-        weights.insert("trunk_link", 4);
+        weights.insert("trunk_link", 3);
         weights.insert("primary", 5);
-        weights.insert("primary_link", 6);
+        weights.insert("primary_link", 5);
         weights.insert("secondary", 7);
-        weights.insert("secondary_link", 8);
+        weights.insert("secondary_link", 7);
         weights.insert("tertiary", 9);
-        weights.insert("tertiary_link", 10);
-        weights.insert("unclassified", 11);
-        weights.insert("residential", 12);
-        weights.insert("living_street", 13);
+        weights.insert("tertiary_link", 9);
+
+        // Residential
+        weights.insert("residential", 11);
+        weights.insert("unclassified", 12);
+
+        // Misc / Service. (Shouldn't be impossible to traverse, just difficult.)
+        weights.insert("living_street", 50);
+        weights.insert("service", 51);
+        weights.insert("busway", 52);
+        weights.insert("road", 53);
 
         Ok(weights)
     }
