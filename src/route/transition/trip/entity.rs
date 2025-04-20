@@ -122,12 +122,17 @@ impl Trip {
     pub fn headings(&self) -> Vec<f64> {
         self.0
             .windows(2)
-            .map(|entries| {
+            .filter_map(|entries| {
                 if let [a, b] = entries {
+                    // Because bearing cannot be calculated for overlapping nodes
+                    if Haversine.distance(a.position, b.position) < 1.0 {
+                        return None;
+                    }
+
                     // Returns the bearing relative to due-north
-                    Haversine.bearing(a.position, b.position)
+                    Some(Haversine.bearing(a.position, b.position))
                 } else {
-                    0.0
+                    None
                 }
             })
             .collect::<Vec<_>>()

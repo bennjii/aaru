@@ -40,7 +40,7 @@ pub trait Strategy<Ctx> {
         let cost = -1.0 * self.calculate(ctx).map_or(f64::INFINITY, |v| v.into()) / Self::BETA;
 
         // Shift so low-costs have low output costs (normalised)
-        let shifted = (multiplier * cost.exp()) - OFFSET;
+        let shifted = ((multiplier * cost.exp()) - OFFSET).max(0.);
 
         // Since output must be `u32`, we shift by `PRECISION` to
         // increase the cost precision.

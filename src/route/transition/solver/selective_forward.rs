@@ -10,7 +10,7 @@ use crate::route::transition::{
 use std::cell::RefCell;
 
 use geo::{Distance, Haversine};
-use log::{debug, info};
+use log::{debug, info, warn};
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::{dijkstra, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
@@ -236,8 +236,8 @@ impl SelectiveForwardSolver {
                     .candidate(&reachable.target)
                     .map_or(u32::MAX, |v| v.emission);
 
-                let transition = (transition_cost as f64 * 0.8) as u32;
-                let emission = (emission_cost as f64 * 0.2) as u32;
+                let transition = (transition_cost as f64 * 0.6) as u32;
+                let emission = (emission_cost as f64 * 0.4) as u32;
 
                 let return_value = (
                     reachable.target,
@@ -285,30 +285,23 @@ impl Solver for SelectiveForwardSolver {
                         let common_source = candidate.edge.source == source_candidate.edge.source;
                         let common_target = candidate.edge.target == source_candidate.edge.target;
 
-                        let inverted_source = candidate.edge.source == source_candidate.edge.target;
-                        let inverted_target = candidate.edge.target == source_candidate.edge.source;
-
                         let tracking_forward = common_source && common_target;
-                        let tracking_backward = inverted_source && inverted_target;
 
                         let source_percentage = source_candidate.percentage(ctx.map)?;
                         let target_percentage = candidate.percentage(ctx.map)?;
 
-                        let movement_forward = if tracking_forward {
-                            source_percentage <= target_percentage
-                        } else if tracking_backward {
-                            source_percentage <= (1.0 - target_percentage)
-                        } else {
-                            break 'stmt;
-                        };
-
                         debug!(
-                            "Found Forward={movement_forward} movement with {source_percentage} to {target_percentage} on {}. {:?} : {:?}",
-                            if tracking_forward { "Forward " } else { "Backward " },
-                            candidate.position.wkt_string(), source_candidate.position.wkt_string()
+                            "Found movement with {source_percentage} to {target_percentage} which goes {}.",
+                            if tracking_forward { "Forward" } else { "Backward" },
+                        );
+                        debug!("=> {} : CandidateSource={:?}, CandidateTarget={:?}",
+                            candidate.position.wkt_string(), candidate.edge.source, candidate.edge.target
+                        );
+                        debug!("=> {} : SourceCandidateSource={:?}, SourceCandidateTarget={:?}",
+                            source_candidate.position.wkt_string(), source_candidate.edge.source, source_candidate.edge.target
                         );
 
-                        return if movement_forward {
+                        return if tracking_forward && source_percentage <= target_percentage {
                             // We are moving forward, it is simply the distance between the nodes
                             Some(Reachable::new(*source, *target, vec![]).distance_only())
                         } else {
