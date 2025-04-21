@@ -33,6 +33,7 @@ pub struct SelectiveForwardSolver {
     threshold_distance: f64,
 
     successors_lookup_table: RefCell<SuccessorsLookupTable>,
+    reachable_hash: RefCell<FxHashMap<(usize, usize), Reachable>>,
 }
 
 impl Default for SelectiveForwardSolver {
@@ -40,6 +41,7 @@ impl Default for SelectiveForwardSolver {
         Self {
             threshold_distance: DEFAULT_THRESHOLD,
             successors_lookup_table: RefCell::new(SuccessorsLookupTable::new()),
+            reachable_hash: RefCell::new(FxHashMap::default()),
         }
     }
 }
@@ -89,6 +91,7 @@ impl Add<CumulativeFraction> for CumulativeFraction {
 struct WeightAndDistance(CumulativeFraction, u32);
 
 impl WeightAndDistance {
+    #[inline]
     pub fn repr(&self) -> u32 {
         ((self.0.value() as f64).sqrt() * self.1 as f64) as u32
     }
@@ -256,17 +259,17 @@ impl SelectiveForwardSolver {
         None
     }
 
-    fn reach<E, T>(
-        &self,
-        transition: &Transition<E, T>,
-        context: RoutingContext,
+    fn reach<'a, 'b, E, T>(
+        &'b self,
+        transition: &'b Transition<'b, E, T>,
+        context: RoutingContext<'b>,
         (start, end): (CandidateId, CandidateId),
-        reachable_hash: &mut FxHashMap<(usize, usize), Reachable>,
         source: &CandidateId,
-    ) -> Vec<(CandidateId, CandidateEdge)>
+    ) -> Box<dyn Iterator<Item = (CandidateId, CandidateEdge)> + 'b>
     where
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy + Send + Sync,
+        'b: 'a,
     {
         let graph_ref = Arc::clone(&transition.candidates.graph);
         let successors = graph_ref
@@ -279,64 +282,66 @@ impl SelectiveForwardSolver {
         // #[cold]
         if *source == start {
             // No cost to reach a first node.
-            return successors
-                .into_iter()
-                .map(|candidate| (candidate, CandidateEdge::zero()))
-                .collect::<Vec<_>>();
+            return Box::new(
+                successors
+                    .into_iter()
+                    .map(|candidate| (candidate, CandidateEdge::zero())),
+            );
         }
 
         // Fast-track to the finish line
         if successors.contains(&end) {
             debug!("End-Successors: {:?}", successors);
-            return vec![(end, CandidateEdge::zero())];
+            return Box::new(std::iter::once((end, CandidateEdge::zero())));
         }
 
-        let reached = self
-            // TODO: Supply context to the reachability function in order to reuse routes
-            //       already made. Plus, consider working as contraction hierarchies
-            .reachable(context, source, successors.as_slice())
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|reachable| {
-                let source_layer = context.candidate(&reachable.source)?.location.layer_id;
-                let target_layer = context.candidate(&reachable.target)?.location.layer_id;
+        Box::new(
+            self
+                // TODO: Supply context to the reachability function in order to reuse routes
+                //       already made. Plus, consider working as contraction hierarchies
+                .reachable(context, source, successors.as_slice())
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(move |reachable| {
+                    let source_layer = context.candidate(&reachable.source)?.location.layer_id;
+                    let target_layer = context.candidate(&reachable.target)?.location.layer_id;
 
-                let sl = transition.layers.layers.get(source_layer)?;
-                let tl = transition.layers.layers.get(target_layer)?;
+                    let sl = transition.layers.layers.get(source_layer)?;
+                    let tl = transition.layers.layers.get(target_layer)?;
 
-                let layer_width = Haversine.distance(sl.origin, tl.origin);
+                    let layer_width = Haversine.distance(sl.origin, tl.origin);
 
-                let transition_cost = transition.heuristics.transition(TransitionContext {
-                    optimal_path: Trip::new_with_map(transition.map, &reachable.path),
-                    map_path: &reachable.path,
-                    requested_resolution_method: reachable.resolution_method,
+                    let transition_cost = transition.heuristics.transition(TransitionContext {
+                        optimal_path: Trip::new_with_map(transition.map, &reachable.path),
+                        map_path: &reachable.path,
+                        requested_resolution_method: reachable.resolution_method,
 
-                    source_candidate: &reachable.source,
-                    target_candidate: &reachable.target,
-                    routing_context: context,
+                        source_candidate: &reachable.source,
+                        target_candidate: &reachable.target,
+                        routing_context: context,
 
-                    layer_width,
-                });
+                        layer_width,
+                    });
 
-                let emission_cost = transition
-                    .candidates
-                    .candidate(&reachable.target)
-                    .map_or(u32::MAX, |v| v.emission);
+                    let emission_cost = transition
+                        .candidates
+                        .candidate(&reachable.target)
+                        .map_or(u32::MAX, |v| v.emission);
 
-                let transition = (transition_cost as f64 * 0.6) as u32;
-                let emission = (emission_cost as f64 * 0.4) as u32;
+                    let transition = (transition_cost as f64 * 0.6) as u32;
+                    let emission = (emission_cost as f64 * 0.4) as u32;
 
-                let return_value = (
-                    reachable.target,
-                    CandidateEdge::new(emission.saturating_add(transition)),
-                );
+                    let return_value = (
+                        reachable.target,
+                        CandidateEdge::new(emission.saturating_add(transition)),
+                    );
 
-                reachable_hash.insert(reachable.hash(), reachable);
-                Some(return_value)
-            })
-            .collect::<Vec<_>>();
-
-        reached
+                    self.reachable_hash
+                        .borrow_mut()
+                        .insert(reachable.hash(), reachable);
+                    Some(return_value)
+                }),
+        )
     }
 }
 
@@ -447,18 +452,9 @@ impl Solver for SelectiveForwardSolver {
             map: transition.map,
         };
 
-        let mut reachable_hash: FxHashMap<(usize, usize), Reachable> = FxHashMap::default();
         let Some((path, cost)) = astar(
             &start,
-            |source| {
-                self.reach(
-                    &transition,
-                    context,
-                    (start, end),
-                    &mut reachable_hash,
-                    source,
-                )
-            },
+            |source| self.reach(&transition, context, (start, end), source),
             |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
@@ -471,7 +467,10 @@ impl Solver for SelectiveForwardSolver {
             .windows(2)
             .filter_map(|nodes| {
                 if let [a, b] = nodes {
-                    reachable_hash.get(&(a.index(), b.index())).cloned()
+                    self.reachable_hash
+                        .borrow()
+                        .get(&(a.index(), b.index()))
+                        .cloned()
                 } else {
                     None
                 }

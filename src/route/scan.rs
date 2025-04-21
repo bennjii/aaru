@@ -105,6 +105,7 @@ impl Scan for Graph {
             .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
     }
 
+    #[inline]
     fn edge_distinct_nearest_projected_nodes_sorted(
         &self,
         point: Point,
