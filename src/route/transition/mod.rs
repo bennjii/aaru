@@ -7,6 +7,7 @@ pub mod candidate;
 pub mod costing;
 pub mod graph;
 mod layer;
+mod primitives;
 pub mod solver;
 pub mod trip;
 
