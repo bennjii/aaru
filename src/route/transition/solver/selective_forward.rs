@@ -11,14 +11,14 @@ use geo::{Distance, Haversine};
 use log::{debug, info};
 use measure_time::debug_time;
 use pathfinding::num_traits::Zero;
-use pathfinding::prelude::{astar, dijkstra, dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::{astar, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::hash::Hash;
-use std::ops::{Add, Deref};
+use std::ops::Add;
 use std::sync::Arc;
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
@@ -297,24 +297,18 @@ impl SelectiveForwardSolver {
             .reachable(context, source, successors.as_slice())
             .unwrap_or_default()
             .into_iter()
-            .map(|reachable| {
-                let trip = Trip::new_with_map(transition.map, reachable.path.as_slice());
+            .filter_map(|reachable| {
+                let source_layer = context.candidate(&reachable.source)?.location.layer_id;
+                let target_layer = context.candidate(&reachable.target)?.location.layer_id;
 
-                let source = context.candidate(&reachable.source);
-                let target = context.candidate(&reachable.target);
-
-                let source_layer = source.unwrap().location.layer_id;
-                let target_layer = target.unwrap().location.layer_id;
-
-                let sl = transition.layers.layers.get(source_layer).unwrap();
-                let tl = transition.layers.layers.get(target_layer).unwrap();
+                let sl = transition.layers.layers.get(source_layer)?;
+                let tl = transition.layers.layers.get(target_layer)?;
 
                 let layer_width = Haversine.distance(sl.origin, tl.origin);
 
                 let transition_cost = transition.heuristics.transition(TransitionContext {
-                    // TODO: Remove clone after debugging.
-                    optimal_path: trip,
-                    map_path: reachable.path.as_slice(),
+                    optimal_path: Trip::new_with_map(transition.map, &reachable.path),
+                    map_path: &reachable.path,
                     requested_resolution_method: reachable.resolution_method,
 
                     source_candidate: &reachable.source,
@@ -338,7 +332,7 @@ impl SelectiveForwardSolver {
                 );
 
                 reachable_hash.insert(reachable.hash(), reachable);
-                return_value
+                Some(return_value)
             })
             .collect::<Vec<_>>();
 

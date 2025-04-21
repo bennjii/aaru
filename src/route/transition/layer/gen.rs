@@ -5,15 +5,11 @@ use crate::route::transition::{
     Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
 };
 use crate::route::{Graph, Scan};
-use std::fs::File;
 
-use geo::{Distance, Haversine, MultiPoint, Point};
-use log::info;
+use geo::Point;
 use measure_time::debug_time;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
-use std::io::Write;
-use wkt::ToWkt;
 
 #[derive(Default)]
 pub struct Layers {
@@ -103,14 +99,10 @@ where
             .enumerate()
             .map(|(layer_id, origin)| {
                 // Generate an individual layer
-                let projected = self
+                let nodes = self
                     .map
                     // We'll do a best-effort search (square) radius
                     .edge_distinct_nearest_projected_nodes_sorted(origin, self.search_distance)
-                    .collect::<Vec<_>>();
-
-                let nodes = projected
-                    .into_iter()
                     .take(25)
                     .take_while(|(_, _, d)| *d < self.filter_distance)
                     .enumerate()
@@ -127,12 +119,14 @@ where
 
                         let candidate_reference = CandidateRef::new(emission);
                         (candidate, candidate_reference)
-                    });
+                    })
+                    .collect::<Vec<_>>();
 
                 // Inner-Scope for the graph, dropped on close.
                 let nodes = {
                     let mut graph = candidates.graph.write().unwrap();
                     nodes
+                        .into_iter()
                         .map(|(candidate, candidate_ref)| {
                             let node_index = graph.add_node(candidate_ref);
                             let _ = candidates.lookup.insert(node_index, candidate);
@@ -145,18 +139,6 @@ where
                 Layer { nodes, origin }
             })
             .collect::<Layers>();
-
-        // let mut points = vec![];
-        // candidates.lookup.scan(|_, candidate| {
-        //     points.push(candidate.position);
-        // });
-        //
-        // let mp = points.into_iter().collect::<MultiPoint>();
-        // info!("Generated {} Candidates", mp.len());
-        //
-        // let path = "candidates.wkt";
-        // let mut output = File::create(path).unwrap();
-        // write!(output, "{}", mp.wkt_string()).expect("must write");
 
         (layers, candidates)
     }
