@@ -1,5 +1,5 @@
 use crate::codec::element::variants::OsmEntryId;
-use crate::route::graph::NodeIx;
+use crate::route::graph::{NodeIx, Weight};
 use crate::route::transition::candidate::CandidateId;
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::solver::methods::{Reachable, Solver};
@@ -7,16 +7,17 @@ use crate::route::transition::{
     CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext,
     TransitionStrategy, Trip,
 };
-use std::cell::RefCell;
-
 use geo::{Distance, Haversine};
-use log::{debug, info, warn};
+use log::{debug, info};
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::{dijkstra, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
+use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::ops::Add;
 use std::sync::Arc;
 use wkt::ToWkt;
 
@@ -43,29 +44,117 @@ impl Default for SelectiveForwardSolver {
     }
 }
 
+#[derive(Copy, Clone, Hash, Debug)]
+struct CumulativeFraction {
+    numerator: Weight,
+    denominator: u32,
+}
+
+impl Zero for CumulativeFraction {
+    fn zero() -> Self {
+        CumulativeFraction {
+            numerator: 0,
+            denominator: 0,
+        }
+    }
+
+    fn is_zero(&self) -> bool {
+        self.value() == 0
+    }
+}
+
+impl CumulativeFraction {
+    fn value(&self) -> Weight {
+        if self.denominator == 0 {
+            return 0;
+        }
+
+        self.numerator / self.denominator
+    }
+}
+
+impl Add<CumulativeFraction> for CumulativeFraction {
+    type Output = CumulativeFraction;
+
+    fn add(self, rhs: CumulativeFraction) -> Self::Output {
+        CumulativeFraction {
+            numerator: self.numerator + rhs.numerator,
+            denominator: self.denominator + rhs.denominator,
+        }
+    }
+}
+
+#[allow(clippy::derived_hash_with_manual_eq)]
+#[derive(Copy, Clone, Hash, Debug)]
+struct WeightAndDistance(CumulativeFraction, u32);
+
+impl WeightAndDistance {
+    pub fn repr(&self) -> u32 {
+        ((self.0.value() as f64).sqrt() * self.1 as f64) as u32
+    }
+}
+
+impl Eq for WeightAndDistance {}
+
+impl PartialEq<Self> for WeightAndDistance {
+    fn eq(&self, other: &Self) -> bool {
+        self.repr() == other.repr()
+    }
+}
+
+impl PartialOrd for WeightAndDistance {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for WeightAndDistance {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.repr().cmp(&other.repr())
+    }
+}
+
+impl Add<Self> for WeightAndDistance {
+    type Output = WeightAndDistance;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        WeightAndDistance(self.0 + rhs.0, self.1 + rhs.1)
+    }
+}
+
+impl Zero for WeightAndDistance {
+    fn zero() -> Self {
+        WeightAndDistance(CumulativeFraction::zero(), 0)
+    }
+
+    fn is_zero(&self) -> bool {
+        self.repr() == 0
+    }
+}
+
 // UBPNODT: Upper-Bounded Piecewise-N Origin-Destination Table
-pub struct SuccessorsLookupTable {
+struct SuccessorsLookupTable {
     // TODO: Move ref-cell inside?
-    successors: HashMap<NodeIx, Vec<(NodeIx, u32)>>,
+    successors: HashMap<NodeIx, Vec<(NodeIx, WeightAndDistance)>>,
 }
 
 impl SuccessorsLookupTable {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             successors: HashMap::new(),
         }
     }
 
     // TODO: Consider adding some complex sharing lifetimes to allow for removing the `cloned` call
-    pub fn get(&self, node: &NodeIx) -> Option<Vec<(NodeIx, u32)>> {
+    fn get(&self, node: &NodeIx) -> Option<Vec<(NodeIx, WeightAndDistance)>> {
         self.successors.get(node).cloned()
     }
 
-    pub fn set(&mut self, node: &NodeIx, successors: Vec<(NodeIx, u32)>) {
+    fn set(&mut self, node: &NodeIx, successors: Vec<(NodeIx, WeightAndDistance)>) {
         self.successors.insert(*node, successors);
     }
 
-    pub fn calc(&mut self, ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, u32)> {
+    fn calc(&mut self, ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, WeightAndDistance)> {
         // Calc. once
         let source = ctx.map.get_position(node).unwrap();
 
@@ -73,17 +162,29 @@ impl SuccessorsLookupTable {
             .map
             .graph
             .edges_directed(*node, Direction::Outgoing)
-            .map(|(_, next, _w)| {
+            .map(|(_, next, (w, _))| {
                 (
                     next,
                     if *node != next {
                         let target = ctx.map.get_position(&next).unwrap();
 
                         // In centimeters (1m = 100cm)
-                        (Haversine.distance(source, target) * 100f64) as u32
+                        WeightAndDistance(
+                            CumulativeFraction {
+                                numerator: *w,
+                                denominator: 1,
+                            },
+                            (Haversine.distance(source, target) * 100f64) as u32,
+                        )
                     } else {
                         // Total accrued distance
-                        0u32
+                        WeightAndDistance(
+                            CumulativeFraction {
+                                numerator: *w,
+                                denominator: 1,
+                            },
+                            0,
+                        )
                     },
                 )
             })
@@ -93,7 +194,11 @@ impl SuccessorsLookupTable {
         successors
     }
 
-    pub fn get_or_calculate(&mut self, ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, u32)> {
+    fn get_or_calculate(
+        &mut self,
+        ctx: RoutingContext,
+        node: &NodeIx,
+    ) -> Vec<(NodeIx, WeightAndDistance)> {
         if let Some(items) = self.get(node) {
             return items;
         }
@@ -108,7 +213,7 @@ impl SelectiveForwardSolver {
         &'b self,
         ctx: RoutingContext<'a>,
         start: &'a NodeIx,
-    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
+    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, WeightAndDistance>> + use<'a, 'b> {
         dijkstra_reach(start, move |node| {
             self.successors_lookup_table
                 .borrow_mut()
@@ -124,10 +229,10 @@ impl SelectiveForwardSolver {
         &'b self,
         ctx: RoutingContext<'a>,
         start: &'a NodeIx,
-    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
+    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, WeightAndDistance>> + use<'a, 'b> {
         self.reachable_iterator(ctx, start).take_while(move |p| {
             // Bounded by the threshold distance (centimeters)
-            (p.total_cost as f64) < self.threshold_distance
+            (p.total_cost.1 as f64) < self.threshold_distance
         })
     }
 
@@ -271,7 +376,7 @@ impl Solver for SelectiveForwardSolver {
                 let parent = predicate.parent.unwrap_or(OsmEntryId::null());
                 (predicate.node, (parent, predicate.total_cost))
             })
-            .collect::<HashMap<OsmEntryId, (OsmEntryId, u32)>>();
+            .collect::<HashMap<OsmEntryId, (OsmEntryId, WeightAndDistance)>>();
 
         let reachable = targets
             .iter()

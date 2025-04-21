@@ -93,15 +93,15 @@ impl Graph {
 
         // Primary roadways
         weights.insert("motorway", 1);
-        weights.insert("motorway_link", 1);
+        weights.insert("motorway_link", 2);
         weights.insert("trunk", 3);
-        weights.insert("trunk_link", 3);
+        weights.insert("trunk_link", 4);
         weights.insert("primary", 5);
-        weights.insert("primary_link", 5);
+        weights.insert("primary_link", 6);
         weights.insert("secondary", 7);
-        weights.insert("secondary_link", 7);
+        weights.insert("secondary_link", 8);
         weights.insert("tertiary", 9);
-        weights.insert("tertiary_link", 9);
+        weights.insert("tertiary_link", 10);
 
         // Residential
         weights.insert("residential", 11);
