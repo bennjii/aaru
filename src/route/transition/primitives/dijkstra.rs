@@ -3,7 +3,6 @@ use indexmap::map::Entry;
 use indexmap::IndexMap;
 use pathfinding::num_traits::Zero;
 use rustc_hash::{FxHashSet, FxHasher};
-use smallvec::SmallVec;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::hash::{BuildHasherDefault, Hash};

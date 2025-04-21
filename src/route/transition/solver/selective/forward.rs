@@ -1,12 +1,12 @@
 use crate::codec::element::variants::OsmEntryId;
-use crate::route::graph::{NodeIx, Weight};
-use crate::route::transition::candidate::CandidateId;
+use crate::route::graph::NodeIx;
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::primitives::{Dijkstra, DijkstraReachableItem};
-use crate::route::transition::solver::methods::{Reachable, Solver};
+use crate::route::transition::solver::selective::successors::SuccessorsLookupTable;
+use crate::route::transition::solver::selective::weight_and_distance::WeightAndDistance;
 use crate::route::transition::{
-    CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext,
-    TransitionStrategy, Trip,
+    CandidateEdge, CandidateId, Collapse, Costing, EmissionStrategy, Reachable, RoutingContext,
+    Solver, TransitionContext, TransitionStrategy, Trip,
 };
 use geo::{Distance, Haversine};
 use log::{debug, info};
@@ -17,10 +17,8 @@ use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::hash::Hash;
 use std::num::NonZeroI64;
-use std::ops::{Add, Deref};
 use std::sync::{Arc, Mutex};
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
@@ -45,170 +43,6 @@ impl Default for SelectiveForwardSolver {
             successors_lookup_table: Arc::new(Mutex::new(SuccessorsLookupTable::new())),
             reachable_hash: RefCell::new(FxHashMap::default()),
         }
-    }
-}
-
-#[derive(Copy, Clone, Hash, Debug)]
-struct CumulativeFraction {
-    numerator: Weight,
-    denominator: u32,
-}
-
-impl Zero for CumulativeFraction {
-    fn zero() -> Self {
-        CumulativeFraction {
-            numerator: 0,
-            denominator: 0,
-        }
-    }
-
-    fn is_zero(&self) -> bool {
-        self.value() == 0
-    }
-}
-
-impl CumulativeFraction {
-    fn value(&self) -> Weight {
-        if self.denominator == 0 {
-            return 0;
-        }
-
-        self.numerator / self.denominator
-    }
-}
-
-impl Add<CumulativeFraction> for CumulativeFraction {
-    type Output = CumulativeFraction;
-
-    fn add(self, rhs: CumulativeFraction) -> Self::Output {
-        CumulativeFraction {
-            numerator: self.numerator + rhs.numerator,
-            denominator: self.denominator + rhs.denominator,
-        }
-    }
-}
-
-#[allow(clippy::derived_hash_with_manual_eq)]
-#[derive(Copy, Clone, Hash, Debug)]
-pub struct WeightAndDistance(CumulativeFraction, u32);
-
-impl WeightAndDistance {
-    #[inline]
-    pub fn repr(&self) -> u32 {
-        ((self.0.value() as f64).sqrt() * self.1 as f64) as u32
-    }
-}
-
-impl Eq for WeightAndDistance {}
-
-impl PartialEq<Self> for WeightAndDistance {
-    fn eq(&self, other: &Self) -> bool {
-        self.repr() == other.repr()
-    }
-}
-
-impl PartialOrd for WeightAndDistance {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for WeightAndDistance {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.repr().cmp(&other.repr())
-    }
-}
-
-impl Add<Self> for WeightAndDistance {
-    type Output = WeightAndDistance;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        WeightAndDistance(self.0 + rhs.0, self.1 + rhs.1)
-    }
-}
-
-impl Zero for WeightAndDistance {
-    fn zero() -> Self {
-        WeightAndDistance(CumulativeFraction::zero(), 0)
-    }
-
-    fn is_zero(&self) -> bool {
-        self.repr() == 0
-    }
-}
-
-// DG.UB.PN.OD.T: Dynamically-Generated Upper-Bounded Piecewise-N Origin-Destination Table (😅)
-#[derive(Debug)]
-pub struct SuccessorsLookupTable {
-    // TODO: Move ref-cell inside?
-    successors: FxHashMap<NonZeroI64, Arc<Vec<(NonZeroI64, WeightAndDistance)>>>,
-}
-
-impl SuccessorsLookupTable {
-    #[inline]
-    pub fn new() -> Self {
-        Self {
-            successors: FxHashMap::default(),
-        }
-    }
-
-    pub fn __remove_me(node: &NonZeroI64) -> NodeIx {
-        OsmEntryId::as_node(node.get())
-    }
-
-    #[inline]
-    fn calculate(ctx: RoutingContext, node: &NonZeroI64) -> Vec<(NonZeroI64, WeightAndDistance)> {
-        debug!("cache miss");
-
-        // Calc. once
-        let source = ctx.map.get_position(&Self::__remove_me(node)).unwrap();
-
-        let successors = ctx
-            .map
-            .graph
-            .edges_directed(Self::__remove_me(node), Direction::Outgoing)
-            .map(|(_, next, (w, _))| {
-                (
-                    NonZeroI64::new(next.identifier).unwrap(),
-                    if Self::__remove_me(node) != next {
-                        let target = ctx.map.get_position(&next).unwrap();
-
-                        // In centimeters (1m = 100cm)
-                        WeightAndDistance(
-                            CumulativeFraction {
-                                numerator: *w,
-                                denominator: 1,
-                            },
-                            (Haversine.distance(source, target) * 100f64) as u32,
-                        )
-                    } else {
-                        // Total accrued distance
-                        WeightAndDistance(
-                            CumulativeFraction {
-                                numerator: *w,
-                                denominator: 1,
-                            },
-                            0,
-                        )
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-
-        successors
-    }
-
-    #[inline]
-    fn lookup(
-        &mut self,
-        ctx: RoutingContext,
-        node: &NonZeroI64,
-    ) -> Arc<Vec<(NonZeroI64, WeightAndDistance)>> {
-        Arc::clone(
-            self.successors
-                .entry(*node)
-                .or_insert_with_key(|node| Arc::new(SuccessorsLookupTable::calculate(ctx, node))),
-        )
     }
 }
 
