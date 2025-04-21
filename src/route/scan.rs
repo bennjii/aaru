@@ -5,13 +5,12 @@ use geo::{
 use itertools::Itertools;
 use petgraph::Direction;
 use rstar::AABB;
-use std::collections::BTreeSet;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
 use crate::codec::element::variants::Node;
-use crate::route::transition::{DirectionAwareEdgeId, Edge};
+use crate::route::transition::Edge;
 use crate::route::Graph;
 
 pub trait Scan {
@@ -111,7 +110,7 @@ impl Scan for Graph {
         point: Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)> {
-        let mut edges_covered = BTreeSet::<DirectionAwareEdgeId>::new();
+        // let mut edges_covered = BTreeSet::<DirectionAwareEdgeId>::new();
 
         // Removes all candidates from the **sorted** projected nodes which lie on the same WayID,
         // such that we only keep the closest node for every way, and considering direction a

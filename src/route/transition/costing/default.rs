@@ -1,6 +1,5 @@
 pub mod emission {
     use crate::route::transition::*;
-    use geo::{Distance, Haversine};
 
     /// 1 meter (1/10th of the 85th% GPS error)
     const DEFAULT_EMISSION_ERROR: f64 = 1.0;
