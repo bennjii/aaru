@@ -9,6 +9,7 @@ use std::fs::File;
 
 use geo::{Distance, Haversine, MultiPoint, Point};
 use log::info;
+use measure_time::debug_time;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
 use std::io::Write;
@@ -93,6 +94,7 @@ where
     /// to search for projected nodes within said radius from
     /// the position on the input point.
     pub fn with_points(&self, input: Vec<Point>) -> (Layers, Candidates) {
+        debug_time!("layer `with_points` generation");
         let candidates = Candidates::default();
 
         // In parallel, create each layer, and collect into a single structure.
@@ -101,12 +103,6 @@ where
             .enumerate()
             .map(|(layer_id, origin)| {
                 // Generate an individual layer
-                info!(
-                    "Generating layer {} (Point={})",
-                    layer_id,
-                    origin.wkt_string()
-                );
-
                 let projected = self
                     .map
                     // We'll do a best-effort search (square) radius

@@ -9,17 +9,17 @@ use crate::route::transition::{
 };
 use geo::{Distance, Haversine};
 use log::{debug, info};
+use measure_time::debug_time;
 use pathfinding::num_traits::Zero;
-use pathfinding::prelude::{dijkstra, dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::{astar, dijkstra, dijkstra_reach, DijkstraReachableItem};
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
+use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Add;
 use std::sync::Arc;
-use wkt::ToWkt;
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
@@ -135,26 +135,17 @@ impl Zero for WeightAndDistance {
 // UBPNODT: Upper-Bounded Piecewise-N Origin-Destination Table
 struct SuccessorsLookupTable {
     // TODO: Move ref-cell inside?
-    successors: HashMap<NodeIx, Vec<(NodeIx, WeightAndDistance)>>,
+    successors: FxHashMap<NodeIx, Vec<(NodeIx, WeightAndDistance)>>,
 }
 
 impl SuccessorsLookupTable {
     fn new() -> Self {
         Self {
-            successors: HashMap::new(),
+            successors: FxHashMap::default(),
         }
     }
 
-    // TODO: Consider adding some complex sharing lifetimes to allow for removing the `cloned` call
-    fn get(&self, node: &NodeIx) -> Option<Vec<(NodeIx, WeightAndDistance)>> {
-        self.successors.get(node).cloned()
-    }
-
-    fn set(&mut self, node: &NodeIx, successors: Vec<(NodeIx, WeightAndDistance)>) {
-        self.successors.insert(*node, successors);
-    }
-
-    fn calc(&mut self, ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, WeightAndDistance)> {
+    fn calculate(ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, WeightAndDistance)> {
         // Calc. once
         let source = ctx.map.get_position(node).unwrap();
 
@@ -190,20 +181,13 @@ impl SuccessorsLookupTable {
             })
             .collect::<Vec<_>>();
 
-        self.set(node, successors.clone());
         successors
     }
 
-    fn get_or_calculate(
-        &mut self,
-        ctx: RoutingContext,
-        node: &NodeIx,
-    ) -> Vec<(NodeIx, WeightAndDistance)> {
-        if let Some(items) = self.get(node) {
-            return items;
-        }
-
-        self.calc(ctx, node)
+    fn lookup(&mut self, ctx: RoutingContext, node: &NodeIx) -> &[(NodeIx, WeightAndDistance)] {
+        self.successors
+            .entry(*node)
+            .or_insert_with_key(|node| SuccessorsLookupTable::calculate(ctx, node))
     }
 }
 
@@ -217,7 +201,10 @@ impl SelectiveForwardSolver {
         dijkstra_reach(start, move |node| {
             self.successors_lookup_table
                 .borrow_mut()
-                .get_or_calculate(ctx, node)
+                .lookup(ctx, node)
+                .into_iter()
+                .map(|(successor, distance)| (*successor, *distance))
+                .collect::<Vec<_>>()
         })
     }
 
@@ -246,7 +233,7 @@ impl SelectiveForwardSolver {
     pub(crate) fn path_builder<N, C>(
         source: &N,
         target: &N,
-        parents: &HashMap<N, (N, C)>,
+        parents: &FxHashMap<N, (N, C)>,
     ) -> Option<Vec<N>>
     where
         N: Eq + Hash + Copy,
@@ -273,7 +260,7 @@ impl SelectiveForwardSolver {
         transition: &Transition<E, T>,
         context: RoutingContext,
         (start, end): (CandidateId, CandidateId),
-        reachable_hash: &mut HashMap<(usize, usize), Reachable>,
+        reachable_hash: &mut FxHashMap<(usize, usize), Reachable>,
         source: &CandidateId,
     ) -> Vec<(CandidateId, CandidateEdge)>
     where
@@ -376,7 +363,7 @@ impl Solver for SelectiveForwardSolver {
                 let parent = predicate.parent.unwrap_or(OsmEntryId::null());
                 (predicate.node, (parent, predicate.total_cost))
             })
-            .collect::<HashMap<OsmEntryId, (OsmEntryId, WeightAndDistance)>>();
+            .collect::<FxHashMap<OsmEntryId, (OsmEntryId, WeightAndDistance)>>();
 
         let reachable = targets
             .iter()
@@ -395,16 +382,16 @@ impl Solver for SelectiveForwardSolver {
                         let source_percentage = source_candidate.percentage(ctx.map)?;
                         let target_percentage = candidate.percentage(ctx.map)?;
 
-                        debug!(
-                            "Found movement with {source_percentage} to {target_percentage} which goes {}.",
-                            if tracking_forward { "Forward" } else { "Backward" },
-                        );
-                        debug!("=> {} : CandidateSource={:?}, CandidateTarget={:?}",
-                            candidate.position.wkt_string(), candidate.edge.source, candidate.edge.target
-                        );
-                        debug!("=> {} : SourceCandidateSource={:?}, SourceCandidateTarget={:?}",
-                            source_candidate.position.wkt_string(), source_candidate.edge.source, source_candidate.edge.target
-                        );
+                        // debug!(
+                        //     "Found movement with {source_percentage} to {target_percentage} which goes {}.",
+                        //     if tracking_forward { "Forward" } else { "Backward" },
+                        // );
+                        // debug!("=> {} : CandidateSource={:?}, CandidateTarget={:?}",
+                        //     candidate.position.wkt_string(), candidate.edge.source, candidate.edge.target
+                        // );
+                        // debug!("=> {} : SourceCandidateSource={:?}, SourceCandidateTarget={:?}",
+                        //     source_candidate.position.wkt_string(), source_candidate.edge.source, source_candidate.edge.target
+                        // );
 
                         return if tracking_forward && source_percentage <= target_percentage {
                             // We are moving forward, it is simply the distance between the nodes
@@ -439,17 +426,24 @@ impl Solver for SelectiveForwardSolver {
     {
         info!("Solving...");
 
-        let (start, end) = transition
-            .candidates
-            .attach_ends(&transition.layers)
-            .ok_or(MatchError::CollapseFailure)?;
+        let (start, end) = {
+            debug_time!("attach candidate ends");
+
+            transition
+                .candidates
+                .attach_ends(&transition.layers)
+                .ok_or(MatchError::CollapseFailure)?
+        };
 
         debug!(
             "Start={start:?}. End={end:?}. Candidates: {:?}",
             transition.candidates
         );
 
-        transition.candidates.weave(&transition.layers);
+        {
+            debug_time!("candidate weave");
+            transition.candidates.weave(&transition.layers);
+        }
 
         debug!("Linked / Weaved all layers!");
 
@@ -458,8 +452,8 @@ impl Solver for SelectiveForwardSolver {
             map: transition.map,
         };
 
-        let mut reachable_hash: HashMap<(usize, usize), Reachable> = HashMap::new();
-        let Some((path, cost)) = dijkstra(
+        let mut reachable_hash: FxHashMap<(usize, usize), Reachable> = FxHashMap::default();
+        let Some((path, cost)) = astar(
             &start,
             |source| {
                 self.reach(
@@ -470,7 +464,7 @@ impl Solver for SelectiveForwardSolver {
                     source,
                 )
             },
-            // |_| CandidateEdge::zero(),
+            |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
             return Err(MatchError::CollapseFailure);
