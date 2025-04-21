@@ -18,7 +18,7 @@ use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::hash::Hash;
-use std::ops::Add;
+use std::ops::{Add, Deref};
 use std::sync::Arc;
 
 const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
@@ -132,19 +132,21 @@ impl Zero for WeightAndDistance {
     }
 }
 
-// UBPNODT: Upper-Bounded Piecewise-N Origin-Destination Table
+// DG.UB.PN.OD.T: Dynamically-Generated Upper-Bounded Piecewise-N Origin-Destination Table (😅)
 struct SuccessorsLookupTable {
     // TODO: Move ref-cell inside?
     successors: FxHashMap<NodeIx, Vec<(NodeIx, WeightAndDistance)>>,
 }
 
 impl SuccessorsLookupTable {
+    #[inline]
     fn new() -> Self {
         Self {
             successors: FxHashMap::default(),
         }
     }
 
+    #[inline]
     fn calculate(ctx: RoutingContext, node: &NodeIx) -> Vec<(NodeIx, WeightAndDistance)> {
         // Calc. once
         let source = ctx.map.get_position(node).unwrap();
@@ -184,6 +186,7 @@ impl SuccessorsLookupTable {
         successors
     }
 
+    #[inline]
     fn lookup(&mut self, ctx: RoutingContext, node: &NodeIx) -> &[(NodeIx, WeightAndDistance)] {
         self.successors
             .entry(*node)
@@ -202,9 +205,7 @@ impl SelectiveForwardSolver {
             self.successors_lookup_table
                 .borrow_mut()
                 .lookup(ctx, node)
-                .into_iter()
-                .map(|(successor, distance)| (*successor, *distance))
-                .collect::<Vec<_>>()
+                .to_vec()
         })
     }
 

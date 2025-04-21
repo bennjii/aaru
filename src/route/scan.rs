@@ -31,18 +31,19 @@ pub trait Scan {
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge)>;
+
     fn nearest_projected_nodes_sorted(
         &self,
         point: Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)>;
+    ) -> impl Iterator<Item = (Point, Edge, f64)>;
 
     /// Finds all **distinct** edges within a square radius of the target position.
     fn edge_distinct_nearest_projected_nodes_sorted(
         &self,
         point: Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)>;
+    ) -> impl Iterator<Item = (Point, Edge, f64)>;
 }
 
 impl Scan for Graph {
@@ -63,6 +64,7 @@ impl Scan for Graph {
             .map(Edge::from)
     }
 
+    #[inline]
     fn nearest_node(&self, point: Point) -> Option<&Node> {
         self.index.nearest_neighbor(&point)
     }
@@ -93,24 +95,22 @@ impl Scan for Graph {
             })
     }
 
+    #[inline]
     fn nearest_projected_nodes_sorted(
         &self,
-        point: Point,
+        source: Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)> {
-        self.nearest_projected_nodes(&point, distance)
-            .sorted_by(|(a, _), (b, _)| {
-                Haversine
-                    .distance(*a, point)
-                    .total_cmp(&Haversine.distance(*b, point))
-            })
+    ) -> impl Iterator<Item = (Point, Edge, f64)> {
+        self.nearest_projected_nodes(&source, distance)
+            .map(move |(point, edge)| (point, edge, Haversine.distance(point, source)))
+            .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
     }
 
     fn edge_distinct_nearest_projected_nodes_sorted(
         &self,
         point: Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)> {
+    ) -> impl Iterator<Item = (Point, Edge, f64)> {
         let mut edges_covered = BTreeSet::<DirectionAwareEdgeId>::new();
 
         // Removes all candidates from the **sorted** projected nodes which lie on the same WayID,

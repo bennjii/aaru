@@ -112,31 +112,27 @@ where
                 let nodes = projected
                     .into_iter()
                     .take(25)
-                    .take_while(|(p, _)| Haversine.distance(*p, origin) < self.filter_distance)
+                    .take_while(|(_, _, d)| *d < self.filter_distance)
                     .enumerate()
-                    .map(|(node_id, (position, edge))| {
+                    .map(|(node_id, (position, edge, distance))| {
                         // We have the actual projected position, and it's associated edge.
                         // Therefore, we can use the Emission costing function to calculate
                         // the associated emission cost of this candidate.
                         let emission = self
                             .heuristics
-                            // TODO: This will calculate the distance between TWICE since we do it above.
-                            //    => Investigate if we can save this value and supply it to the ctx.
-                            .emission(EmissionContext::new(&position, &origin));
+                            .emission(EmissionContext::new(&position, &origin, distance));
 
                         let location = CandidateLocation { layer_id, node_id };
                         let candidate = Candidate::new(edge, position, emission, location);
 
                         let candidate_reference = CandidateRef::new(emission);
                         (candidate, candidate_reference)
-                    })
-                    .collect::<Vec<(Candidate, CandidateRef)>>();
+                    });
 
                 // Inner-Scope for the graph, dropped on close.
                 let nodes = {
                     let mut graph = candidates.graph.write().unwrap();
                     nodes
-                        .into_iter()
                         .map(|(candidate, candidate_ref)| {
                             let node_index = graph.add_node(candidate_ref);
                             let _ = candidates.lookup.insert(node_index, candidate);
@@ -150,17 +146,17 @@ where
             })
             .collect::<Layers>();
 
-        let mut points = vec![];
-        candidates.lookup.scan(|_, candidate| {
-            points.push(candidate.position);
-        });
-
-        let mp = points.into_iter().collect::<MultiPoint>();
-        info!("Generated {} Candidates", mp.len());
-
-        let path = "candidates.wkt";
-        let mut output = File::create(path).unwrap();
-        write!(output, "{}", mp.wkt_string()).expect("must write");
+        // let mut points = vec![];
+        // candidates.lookup.scan(|_, candidate| {
+        //     points.push(candidate.position);
+        // });
+        //
+        // let mp = points.into_iter().collect::<MultiPoint>();
+        // info!("Generated {} Candidates", mp.len());
+        //
+        // let path = "candidates.wkt";
+        // let mut output = File::create(path).unwrap();
+        // write!(output, "{}", mp.wkt_string()).expect("must write");
 
         (layers, candidates)
     }
