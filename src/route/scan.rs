@@ -76,32 +76,26 @@ impl Scan for Graph {
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge)> {
+        let hashmap = self.hash.read().unwrap();
+
         // Total overhead of this function is negligible.
-        let nodes = self.nearest_edges(point, distance).collect::<Vec<_>>();
+        self.nearest_edges(point, distance)
+            .filter_map(move |edge| {
+                let src = hashmap.get(&edge.source)?;
+                let trg = hashmap.get(&edge.target)?;
 
-        {
-            // PROBLEM
-            let hashmap = self.hash.read().unwrap();
+                Some((LineString::new(vec![src.position.0, trg.position.0]), edge))
+            })
+            .filter_map(move |(linestring, edge)| {
+                // We locate the point upon the linestring,
+                // and then project that fractional (%)
+                // upon the linestring to obtain a point
 
-            nodes
-                .into_iter()
-                .filter_map(move |edge| {
-                    let src = hashmap.get(&edge.source)?;
-                    let trg = hashmap.get(&edge.target)?;
-
-                    Some((LineString::new(vec![src.position.0, trg.position.0]), edge))
-                })
-                .filter_map(move |(linestring, edge)| {
-                    // We locate the point upon the linestring,
-                    // and then project that fractional (%)
-                    // upon the linestring to obtain a point
-
-                    linestring
-                        .line_locate_point(point)
-                        .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
-                        .map(|point| (point, edge))
-                })
-        }
+                linestring
+                    .line_locate_point(point)
+                    .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
+                    .map(|point| (point, edge))
+            })
     }
 
     #[inline]
@@ -111,21 +105,26 @@ impl Scan for Graph {
         search_distance: f64,
         filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)> {
-        let mut nodes = {
-            let hl = {
-                self.nearest_projected_nodes(&source, search_distance)
-                    .collect::<Vec<_>>()
-            }; // ~ 5-20ms
+        self.nearest_projected_nodes(&source, search_distance)
+            .map(move |(point, edge)| (point, edge, Haversine.distance(point, source)))
+            .filter(|(_, _, d)| *d < filter_distance)
+            .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
 
-            hl // ~ 0.05ms
-                .into_iter()
-                .map(move |(point, edge)| (point, edge, Haversine.distance(point, source))) // Not culprit.
-                .filter(|(_, _, d)| *d < filter_distance) // Not culprit.
-                .collect::<Vec<_>>()
-        };
-
-        nodes.sort_by(|(_, _, a), (_, _, b)| a.total_cmp(b));
-        nodes.into_iter()
+        // let mut nodes = {
+        //     let hl = {
+        //         self.nearest_projected_nodes(&source, search_distance)
+        //             .collect::<Vec<_>>()
+        //     }; // ~ 5-20ms
+        //
+        //     hl // ~ 0.05ms
+        //         .into_iter()
+        //         .map(move |(point, edge)| (point, edge, Haversine.distance(point, source))) // Not culprit.
+        //         .filter(|(_, _, d)| *d < filter_distance) // Not culprit.
+        //         .collect::<Vec<_>>()
+        // };
+        //
+        // nodes.sort_by(|(_, _, a), (_, _, b)| a.total_cmp(b));
+        // nodes.into_iter()
     }
 
     #[inline]
