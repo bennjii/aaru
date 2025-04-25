@@ -1,7 +1,7 @@
 use aaru::codec::consts::{
     LAX_LYNWOOD_MATCHED, LAX_LYNWOOD_TRIP, LOS_ANGELES, VENTURA_MATCHED, VENTURA_TRIP, ZURICH,
 };
-use aaru::route::transition::SuccessorsLookupTable;
+use aaru::route::transition::{PredicateCache, SuccessorsLookupTable};
 use aaru::route::Graph;
 use criterion::criterion_main;
 use geo::{coord, LineString};
@@ -46,7 +46,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("match");
     group.significance_level(0.1).sample_size(30);
 
-    let lookup = Arc::new(Mutex::new(SuccessorsLookupTable::new()));
+    let lookup = Arc::new(Mutex::new(PredicateCache::default()));
 
     MATCH_CASES.into_iter().for_each(|ga| {
         let path = Path::new(ga.source_file).as_os_str().to_ascii_lowercase();
