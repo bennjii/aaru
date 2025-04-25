@@ -7,7 +7,7 @@ use tonic::{Request, Response, Status};
 
 use router_service::{MatchedRoute, RouteRequest, RouteResponse};
 
-use crate::route::transition::{PredicateCache, SuccessorsLookupTable};
+use crate::route::transition::PredicateCache;
 use crate::route::{Graph, Scan};
 use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,

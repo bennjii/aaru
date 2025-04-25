@@ -3,9 +3,9 @@ use pathfinding::num_traits::Zero;
 use std::ops::Add;
 
 #[derive(Copy, Clone, Hash, Debug)]
-pub(super) struct CumulativeFraction {
-    pub(super) numerator: Weight,
-    pub(super) denominator: u32,
+pub struct CumulativeFraction {
+    pub numerator: Weight,
+    pub denominator: u32,
 }
 
 impl Zero for CumulativeFraction {

@@ -1,26 +1,19 @@
-use crate::codec::element::variants::OsmEntryId;
-use crate::route::graph::NodeIx;
-use crate::route::transition::graph::{MatchError, Transition};
-use crate::route::transition::primitives::{Dijkstra, DijkstraReachableItem};
-use crate::route::transition::selective::cache::PredicateCache;
-use crate::route::transition::solver::selective::successors::SuccessorsLookupTable;
-use crate::route::transition::solver::selective::weight_and_distance::WeightAndDistance;
-use crate::route::transition::{
-    CandidateEdge, CandidateId, Collapse, Costing, EmissionStrategy, Reachable, RoutingContext,
-    Solver, TransitionContext, TransitionStrategy, Trip,
-};
-use geo::{Distance, Haversine};
 use log::{debug, info};
 use measure_time::debug_time;
-use pathfinding::num_traits::Zero;
-use pathfinding::prelude::astar;
-use petgraph::prelude::EdgeRef;
-use petgraph::Direction;
+
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::hash::Hash;
-use std::num::NonZeroI64;
 use std::sync::{Arc, Mutex};
+
+use geo::{Distance, Haversine};
+use pathfinding::num_traits::Zero;
+use pathfinding::prelude::*;
+use petgraph::prelude::EdgeRef;
+use petgraph::Direction;
+
+use crate::route::transition::graph::{MatchError, Transition};
+use crate::route::transition::*;
 
 type ProcessedReachable = (CandidateId, Reachable);
 

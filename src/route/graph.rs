@@ -9,7 +9,6 @@ use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
 use crate::route::transition::{
     CostingStrategies, DirectionAwareEdgeId, PredicateCache, SelectiveForwardSolver,
-    SuccessorsLookupTable,
 };
 use crate::route::Scan;
 
@@ -21,7 +20,6 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rstar::RTree;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::iter::Successors;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;

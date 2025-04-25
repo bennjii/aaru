@@ -8,7 +8,6 @@ use rustc_hash::{FxHashSet, FxHasher};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::hash::{BuildHasherDefault, Hash};
-use std::ops::Index;
 
 type FxIndexMap<K, V> = IndexMap<K, V, BuildHasherDefault<FxHasher>>;
 

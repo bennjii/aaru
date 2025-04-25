@@ -1,14 +1,10 @@
-use geo::{Distance, Haversine};
-use log::debug;
-use petgraph::Direction;
+use geo::Distance;
 use rustc_hash::FxHashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use crate::codec::element::variants::OsmEntryId;
-use crate::route::transition::selective::cumulative::CumulativeFraction;
-use crate::route::transition::{RoutingContext, WeightAndDistance};
+use crate::route::transition::RoutingContext;
 
 /// A generic read-through cache for a hashmap-backed data structure
 #[derive(Debug)]
@@ -36,7 +32,8 @@ where
     }
 }
 
-trait Calculable<K, V> {
+// TODO: Docs
+pub trait Calculable<K, V> {
     fn calculate(&mut self, ctx: &RoutingContext, key: K) -> V;
 }
 
@@ -47,7 +44,7 @@ where
     V: Debug,
     Meta: Debug,
 {
-    pub(crate) fn query<'a>(&mut self, ctx: &RoutingContext<'a>, key: K) -> Arc<V> {
+    pub fn query<'a>(&mut self, ctx: &RoutingContext<'a>, key: K) -> Arc<V> {
         if let Some(value) = self.map.get(&key) {
             return Arc::clone(value);
         }
