@@ -8,7 +8,8 @@ use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
 use crate::route::transition::{
-    CostingStrategies, DirectionAwareEdgeId, SelectiveForwardSolver, SuccessorsLookupTable,
+    CostingStrategies, DirectionAwareEdgeId, PredicateCache, SelectiveForwardSolver,
+    SuccessorsLookupTable,
 };
 use crate::route::Scan;
 
@@ -224,7 +225,7 @@ impl Graph {
     pub fn map_match(
         &self,
         linestring: LineString,
-        cache: Arc<Mutex<SuccessorsLookupTable>>,
+        cache: Arc<Mutex<PredicateCache>>,
     ) -> Result<Collapse, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 

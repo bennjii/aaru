@@ -2,6 +2,7 @@ use crate::codec::element::variants::OsmEntryId;
 use crate::route::graph::NodeIx;
 use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::primitives::{Dijkstra, DijkstraReachableItem};
+use crate::route::transition::selective::cache::PredicateCache;
 use crate::route::transition::solver::selective::successors::SuccessorsLookupTable;
 use crate::route::transition::solver::selective::weight_and_distance::WeightAndDistance;
 use crate::route::transition::{
@@ -21,62 +22,32 @@ use std::hash::Hash;
 use std::num::NonZeroI64;
 use std::sync::{Arc, Mutex};
 
-const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
-
 type ProcessedReachable = (CandidateId, Reachable);
 
 /// A Upper-Bounded Dijkstra (UBD) algorithm.
 ///
 /// TODO: Docs
 pub struct SelectiveForwardSolver {
-    /// The threshold by which the solver is bounded, in centimeters.
-    threshold_distance: f64,
-
-    successors_lookup_table: Arc<Mutex<SuccessorsLookupTable>>,
+    // Internally holds a successors cache
+    predicate: Arc<Mutex<PredicateCache>>,
     reachable_hash: RefCell<FxHashMap<(usize, usize), Reachable>>,
 }
 
 impl Default for SelectiveForwardSolver {
     fn default() -> Self {
         Self {
-            threshold_distance: DEFAULT_THRESHOLD,
-            successors_lookup_table: Arc::new(Mutex::new(SuccessorsLookupTable::new())),
+            predicate: Arc::new(Mutex::new(PredicateCache::default())),
             reachable_hash: RefCell::new(FxHashMap::default()),
         }
     }
 }
 
 impl SelectiveForwardSolver {
-    pub fn use_cache(self, cache: Arc<Mutex<SuccessorsLookupTable>>) -> Self {
+    pub fn use_cache(self, cache: Arc<Mutex<PredicateCache>>) -> Self {
         Self {
-            successors_lookup_table: cache,
+            predicate: cache,
             ..self
         }
-    }
-
-    /// TODO: Docs
-    ///
-    /// Supplies an offset, which represents the initial distance
-    /// taken in travelling initial edges, in meters.
-    fn bounded_iterator<'a, 'b>(
-        &'b self,
-        ctx: RoutingContext<'a>,
-        start: &'a NodeIx,
-    ) -> impl Iterator<Item = DijkstraReachableItem> + use<'a, 'b> {
-        let index = &NonZeroI64::new(start.identifier).unwrap();
-
-        Dijkstra
-            .reach(index, move |node| {
-                self.successors_lookup_table
-                    .lock()
-                    .unwrap()
-                    .lookup(ctx, node)
-                    .to_vec()
-            })
-            .take_while(move |p| {
-                // Bounded by the threshold distance (centimeters)
-                (p.total_cost.1 as f64) < self.threshold_distance
-            })
     }
 
     /// Creates a path from the source up the parent map until no more parents
@@ -214,15 +185,10 @@ impl Solver for SelectiveForwardSolver {
         let predicate_map = {
             debug_time!("reachability predicate map");
 
-            self.bounded_iterator(ctx, &source_candidate.edge.target)
-                .map(|predicate| {
-                    let parent = predicate.parent.map_or(0, |v| v.get());
-                    (
-                        OsmEntryId::as_node(predicate.node.get()),
-                        (OsmEntryId::as_node(parent), predicate.total_cost),
-                    )
-                })
-                .collect::<FxHashMap<OsmEntryId, (OsmEntryId, WeightAndDistance)>>()
+            self.predicate
+                .lock()
+                .unwrap()
+                .query(&ctx, source_candidate.edge.target)
         };
 
         let reachable = {

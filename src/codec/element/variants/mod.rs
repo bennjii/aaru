@@ -43,6 +43,12 @@ pub mod common {
         variant: MemberType,
     }
 
+    impl Default for OsmEntryId {
+        fn default() -> Self {
+            OsmEntryId::null()
+        }
+    }
+
     impl OsmEntryId {
         pub const fn new(id: i64, variant: MemberType) -> OsmEntryId {
             OsmEntryId {

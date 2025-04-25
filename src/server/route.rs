@@ -7,7 +7,7 @@ use tonic::{Request, Response, Status};
 
 use router_service::{MatchedRoute, RouteRequest, RouteResponse};
 
-use crate::route::transition::SuccessorsLookupTable;
+use crate::route::transition::{PredicateCache, SuccessorsLookupTable};
 use crate::route::{Graph, Scan};
 use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,
@@ -28,7 +28,7 @@ pub mod router_service {
 #[derive(Debug)]
 pub struct RouteService {
     graph: Graph,
-    lookup: Arc<Mutex<SuccessorsLookupTable>>,
+    lookup: Arc<Mutex<PredicateCache>>,
 }
 
 impl RouteService {
@@ -38,7 +38,7 @@ impl RouteService {
 
         Ok(RouteService {
             graph,
-            lookup: Arc::new(Mutex::new(SuccessorsLookupTable::new())),
+            lookup: Arc::new(Mutex::new(PredicateCache::default())),
         })
     }
 }

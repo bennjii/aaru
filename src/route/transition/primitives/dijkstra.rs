@@ -1,4 +1,6 @@
+use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::WeightAndDistance;
+
 use indexmap::map::Entry;
 use indexmap::IndexMap;
 use pathfinding::num_traits::Zero;
@@ -6,12 +8,11 @@ use rustc_hash::{FxHashSet, FxHasher};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::hash::{BuildHasherDefault, Hash};
-use std::num::NonZeroI64;
 use std::ops::Index;
 
 type FxIndexMap<K, V> = IndexMap<K, V, BuildHasherDefault<FxHasher>>;
 
-type Node = NonZeroI64;
+type Node = OsmEntryId;
 type Cost = WeightAndDistance;
 
 #[derive(Debug)]
