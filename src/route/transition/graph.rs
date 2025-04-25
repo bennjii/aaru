@@ -1,8 +1,5 @@
 use std::fmt::Debug;
 
-use geo::LineString;
-use log::debug;
-
 use crate::route::graph::NodeIx;
 use crate::route::transition::candidate::{Candidate, Candidates, Collapse};
 use crate::route::transition::costing::emission::EmissionStrategy;
@@ -10,6 +7,9 @@ use crate::route::transition::costing::transition::TransitionStrategy;
 use crate::route::transition::layer::{LayerGenerator, Layers};
 use crate::route::transition::{CostingStrategies, Solver};
 use crate::route::Graph;
+use geo::LineString;
+use log::debug;
+use measure_time::debug_time;
 
 type LayerId = usize;
 type NodeId = usize;
@@ -56,11 +56,13 @@ where
         linestring: LineString,
         heuristics: CostingStrategies<E, T>,
     ) -> Transition<'a, E, T> {
+        debug_time!("transition graph generation");
+
         let points = linestring.into_points();
         let generator = LayerGenerator::new(map, &heuristics);
 
         // Generate the layers and candidates.
-        let (layers, candidates) = generator.with_points(points);
+        let (layers, candidates) = generator.with_points(&points);
 
         Transition {
             map,
@@ -71,6 +73,7 @@ where
     }
 
     pub fn solve(self, solver: impl Solver) -> Result<Collapse, MatchError> {
+        debug_time!("transition solve");
         // Indirection to call.
         solver.solve(self)
     }

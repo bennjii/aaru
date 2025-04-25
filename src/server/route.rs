@@ -2,10 +2,12 @@ use geo::{coord, point, Distance, Haversine, Point};
 use log::{debug, info};
 use std::cmp::Ordering;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use tonic::{Request, Response, Status};
 
 use router_service::{MatchedRoute, RouteRequest, RouteResponse};
 
+use crate::route::transition::PredicateCache;
 use crate::route::{Graph, Scan};
 use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,
@@ -26,6 +28,7 @@ pub mod router_service {
 #[derive(Debug)]
 pub struct RouteService {
     graph: Graph,
+    lookup: Arc<Mutex<PredicateCache>>,
 }
 
 impl RouteService {
@@ -33,7 +36,10 @@ impl RouteService {
         let path = Path::new(file);
         let graph = Graph::new(path.as_os_str().to_ascii_lowercase())?;
 
-        Ok(RouteService { graph })
+        Ok(RouteService {
+            graph,
+            lookup: Arc::new(Mutex::new(PredicateCache::default())),
+        })
     }
 }
 
@@ -92,7 +98,7 @@ impl RouterService for RouteService {
 
         let result = self
             .graph
-            .map_match(coordinates)
+            .map_match(coordinates, Arc::clone(&self.lookup))
             .map_err(|err| Status::internal(format!("{:?}", err)))?;
 
         let snapped_shape = result

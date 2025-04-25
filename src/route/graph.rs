@@ -7,7 +7,9 @@ use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
-use crate::route::transition::{CostingStrategies, DirectionAwareEdgeId, SelectiveForwardSolver};
+use crate::route::transition::{
+    CostingStrategies, DirectionAwareEdgeId, PredicateCache, SelectiveForwardSolver,
+};
 use crate::route::Scan;
 
 use geo::{LineString, Point};
@@ -19,7 +21,7 @@ use rstar::RTree;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
-use std::sync::{Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 #[cfg(feature = "tracing")]
 use tracing::Level;
@@ -218,7 +220,11 @@ impl Graph {
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, linestring: LineString) -> Result<Collapse, MatchError> {
+    pub fn map_match(
+        &self,
+        linestring: LineString,
+        cache: Arc<Mutex<PredicateCache>>,
+    ) -> Result<Collapse, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         let costing = CostingStrategies::default();
@@ -228,7 +234,7 @@ impl Graph {
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        transition.solve(SelectiveForwardSolver::default())
+        transition.solve(SelectiveForwardSolver::default().use_cache(cache))
     }
 
     pub(crate) fn route_nodes(

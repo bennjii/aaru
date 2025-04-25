@@ -1,6 +1,5 @@
 pub mod emission {
     use crate::route::transition::*;
-    use geo::{Distance, Haversine};
 
     /// 1 meter (1/10th of the 85th% GPS error)
     const DEFAULT_EMISSION_ERROR: f64 = 1.0;
@@ -57,12 +56,10 @@ pub mod emission {
         const ZETA: f64 = 0.5;
         const BETA: f64 = -10.0; // TODO: Maybe allow dynamic parameters based on the GPS drift-?
 
+        #[inline]
         fn calculate(&self, context: EmissionContext<'a>) -> Option<Self::Cost> {
-            let distance =
-                Haversine.distance(*context.source_position, *context.candidate_position);
-
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
-            let relative_to_error = (DEFAULT_EMISSION_ERROR / distance).clamp(0.0, 1.0);
+            let relative_to_error = (DEFAULT_EMISSION_ERROR / context.distance).clamp(0.0, 1.0);
 
             Some(relative_to_error.recip().powf(1.5))
         }
@@ -130,6 +127,7 @@ pub mod transition {
         const ZETA: f64 = 1.0;
         const BETA: f64 = -1.0;
 
+        #[inline]
         fn calculate(&self, context: TransitionContext<'a>) -> Option<Self::Cost> {
             // Find the transition lengths (shortest path, trip length)
             let lengths = context.lengths()?;
