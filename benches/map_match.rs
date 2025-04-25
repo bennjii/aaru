@@ -10,7 +10,6 @@ use geo::{coord, LineString};
 use itertools::assert_equal;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tracing_subscriber::fmt::format;
 use wkt::{ToWkt, TryFromWkt};
 
 struct MapMatchScenario {
