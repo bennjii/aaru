@@ -33,7 +33,6 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
- "rand",
  "rayon",
  "rstar",
  "rustc-hash",

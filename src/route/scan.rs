@@ -1,17 +1,14 @@
 use geo::{
-    line_string, Destination, Distance, Geodesic, Haversine, InterpolatableLine, LineLocatePoint,
-    LineString, Point,
+    Destination, Distance, Geodesic, Haversine, InterpolatableLine, LineLocatePoint, LineString,
+    Point,
 };
 use itertools::Itertools;
-use measure_time::debug_time;
 use petgraph::Direction;
-use rayon::iter::{IntoParallelIterator, ParallelBridge};
 use rstar::AABB;
 
 use crate::codec::element::variants::Node;
 use crate::route::transition::Edge;
 use crate::route::Graph;
-use rand::random;
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
@@ -79,46 +76,32 @@ impl Scan for Graph {
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge)> {
-        let id = random::<i32>();
-
         // Total overhead of this function is negligible.
-        let nodes = {
-            debug_time!("nearest_projected_nodes generation {id}");
-            self.nearest_edges(point, distance).collect::<Vec<_>>()
-        };
+        let nodes = self.nearest_edges(point, distance).collect::<Vec<_>>();
 
         {
             // PROBLEM
-            let p1 = {
-                let hashmap = self.hash.read().unwrap();
+            let hashmap = self.hash.read().unwrap();
 
-                nodes
-                    .into_iter()
-                    .filter_map(|edge| {
-                        let src = hashmap.get(&edge.source)?;
-                        let trg = hashmap.get(&edge.target)?;
+            nodes
+                .into_iter()
+                .filter_map(move |edge| {
+                    let src = hashmap.get(&edge.source)?;
+                    let trg = hashmap.get(&edge.target)?;
 
-                        Some((LineString::new(vec![src.position.0, trg.position.0]), edge))
-                    })
-                    .collect::<Vec<_>>()
-            };
+                    Some((LineString::new(vec![src.position.0, trg.position.0]), edge))
+                })
+                .filter_map(move |(linestring, edge)| {
+                    // We locate the point upon the linestring,
+                    // and then project that fractional (%)
+                    // upon the linestring to obtain a point
 
-            {
-                p1.into_iter()
-                    .filter_map(move |(linestring, edge)| {
-                        // We locate the point upon the linestring,
-                        // and then project that fractional (%)
-                        // upon the linestring to obtain a point
-
-                        linestring
-                            .line_locate_point(point)
-                            .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
-                            .map(|point| (point, edge))
-                    })
-                    .collect::<Vec<_>>()
-            }
+                    linestring
+                        .line_locate_point(point)
+                        .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
+                        .map(|point| (point, edge))
+                })
         }
-        .into_iter()
     }
 
     #[inline]
@@ -152,18 +135,13 @@ impl Scan for Graph {
         search_distance: f64,
         filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)> {
-        debug_time!("edge distinct nearest projected nodes");
         // let mut edges_covered = BTreeSet::<DirectionAwareEdgeId>::new();
 
         // Removes all candidates from the **sorted** projected nodes which lie on the same WayID,
         // such that we only keep the closest node for every way, and considering direction a
         // WayID as a composite of the underlying map ID and the direction of the points within
         // the way.
-        let nodes = self
-            .nearest_projected_nodes_sorted(point, search_distance, filter_distance)
-            .collect::<Vec<_>>();
-
-        nodes.into_iter()
+        self.nearest_projected_nodes_sorted(point, search_distance, filter_distance)
         // TODO: Revisit - Has problems creating *correct* routes.
         // .filter(move |(_, Edge { id, .. })| edges_covered.insert(*id))
     }
