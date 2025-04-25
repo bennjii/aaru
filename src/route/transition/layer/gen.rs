@@ -5,10 +5,12 @@ use crate::route::transition::{
     Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
 };
 use crate::route::{Graph, Scan};
+use std::thread;
+use std::time::Duration;
 
 use geo::Point;
 use measure_time::debug_time;
-use rayon::iter::{IndexedParallelIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
 
 #[derive(Default)]
@@ -95,12 +97,13 @@ where
 
         // In parallel, create each layer, and collect into a single structure.
         let layers = input
-            .into_par_iter()
+            .par_iter()
             .enumerate()
             .map(|(layer_id, origin)| {
                 debug_time!("individual layer generation (!!)");
 
                 // Generate an individual layer
+                // Function takes about 10ms to compute.
                 let nodes = {
                     debug_time!("node generation");
 
@@ -150,8 +153,8 @@ where
                     origin: *origin,
                 }
             })
-            .collect::<Layers>();
+            .collect::<Vec<Layer>>();
 
-        (layers, candidates)
+        (Layers { layers }, candidates)
     }
 }

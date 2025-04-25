@@ -1,18 +1,19 @@
 use geo::{
     line_string, Destination, Distance, Geodesic, Haversine, InterpolatableLine, LineLocatePoint,
-    Point,
+    LineString, Point,
 };
 use itertools::Itertools;
 use measure_time::debug_time;
 use petgraph::Direction;
+use rayon::iter::{IntoParallelIterator, ParallelBridge};
 use rstar::AABB;
-
-#[cfg(feature = "tracing")]
-use tracing::Level;
 
 use crate::codec::element::variants::Node;
 use crate::route::transition::Edge;
 use crate::route::Graph;
+use rand::random;
+#[cfg(feature = "tracing")]
+use tracing::Level;
 
 pub trait Scan {
     /// TODO: Docs
@@ -78,27 +79,48 @@ impl Scan for Graph {
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge)> {
-        self.nearest_edges(point, distance)
-            .filter_map(|edge| {
-                debug_time!("create linestring entry");
+        let id = random::<i32>();
+
+        // Total overhead of this function is negligible.
+        let nodes = {
+            debug_time!("nearest_projected_nodes generation {id}");
+            self.nearest_edges(point, distance).collect::<Vec<_>>()
+        };
+
+        {
+            // PROBLEM
+            let p1 = {
+                debug_time!("nearest_projected_nodes filter P1 {id}");
                 let hashmap = self.hash.read().unwrap();
-                let src = hashmap.get(&edge.source)?;
-                let trg = hashmap.get(&edge.target)?;
 
-                Some((line_string![src.position.0, trg.position.0], edge))
-            })
-            .filter_map(move |(linestring, edge)| {
-                debug_time!("interpolate_entry");
+                nodes
+                    .into_iter()
+                    .filter_map(|edge| {
+                        let src = hashmap.get(&edge.source)?;
+                        let trg = hashmap.get(&edge.target)?;
 
-                // We locate the point upon the linestring,
-                // and then project that fractional (%)
-                // upon the linestring to obtain a point
+                        Some((LineString::new(vec![src.position.0, trg.position.0]), edge))
+                    })
+                    .collect::<Vec<_>>()
+            };
 
-                linestring
-                    .line_locate_point(point)
-                    .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
-                    .map(|point| (point, edge))
-            })
+            {
+                debug_time!("nearest_projected_nodes filter P2 {id}");
+                p1.into_iter()
+                    .filter_map(move |(linestring, edge)| {
+                        // We locate the point upon the linestring,
+                        // and then project that fractional (%)
+                        // upon the linestring to obtain a point
+
+                        linestring
+                            .line_locate_point(point)
+                            .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
+                            .map(|point| (point, edge))
+                    })
+                    .collect::<Vec<_>>()
+            }
+        }
+        .into_iter()
     }
 
     #[inline]
@@ -108,10 +130,21 @@ impl Scan for Graph {
         search_distance: f64,
         filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)> {
-        self.nearest_projected_nodes(&source, search_distance)
-            .map(move |(point, edge)| (point, edge, Haversine.distance(point, source)))
-            .filter(|(_, _, d)| *d < filter_distance)
-            .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
+        let mut nodes = {
+            let hl = {
+                self.nearest_projected_nodes(&source, search_distance)
+                    .collect::<Vec<_>>()
+            }; // ~ 5-20ms
+
+            hl // ~ 0.05ms
+                .into_iter()
+                .map(move |(point, edge)| (point, edge, Haversine.distance(point, source))) // Not culprit.
+                .filter(|(_, _, d)| *d < filter_distance) // Not culprit.
+                .collect::<Vec<_>>()
+        };
+
+        nodes.sort_by(|(_, _, a), (_, _, b)| a.total_cmp(b));
+        nodes.into_iter()
     }
 
     #[inline]
@@ -121,13 +154,18 @@ impl Scan for Graph {
         search_distance: f64,
         filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)> {
+        debug_time!("edge distinct nearest projected nodes");
         // let mut edges_covered = BTreeSet::<DirectionAwareEdgeId>::new();
 
         // Removes all candidates from the **sorted** projected nodes which lie on the same WayID,
         // such that we only keep the closest node for every way, and considering direction a
         // WayID as a composite of the underlying map ID and the direction of the points within
         // the way.
-        self.nearest_projected_nodes_sorted(point, search_distance, filter_distance)
+        let nodes = self
+            .nearest_projected_nodes_sorted(point, search_distance, filter_distance)
+            .collect::<Vec<_>>();
+
+        nodes.into_iter()
         // TODO: Revisit - Has problems creating *correct* routes.
         // .filter(move |(_, Edge { id, .. })| edges_covered.insert(*id))
     }
