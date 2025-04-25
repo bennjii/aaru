@@ -39,7 +39,6 @@ dependencies = [
  "scc",
  "serde",
  "serde_qs",
- "smallvec",
  "strum",
  "test-log",
  "tokio",
