@@ -6,7 +6,7 @@
 pub mod candidate;
 pub mod costing;
 pub mod graph;
-mod layer;
+pub mod layer;
 mod primitives;
 pub mod solver;
 pub mod trip;
@@ -16,6 +16,8 @@ pub mod trip;
 pub use candidate::*;
 #[doc(hidden)]
 pub use costing::*;
+#[doc(hidden)]
+pub use layer::*;
 #[doc(hidden)]
 pub use solver::*;
 #[doc(hidden)]

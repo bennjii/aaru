@@ -1,12 +1,16 @@
 use aaru::codec::consts::{
     LAX_LYNWOOD_MATCHED, LAX_LYNWOOD_TRIP, LOS_ANGELES, VENTURA_MATCHED, VENTURA_TRIP, ZURICH,
 };
-use aaru::route::transition::{PredicateCache, SuccessorsLookupTable};
+use aaru::route::transition::{
+    CostingStrategies, LayerGenerator, PredicateCache, SuccessorsLookupTable,
+};
 use aaru::route::Graph;
 use criterion::criterion_main;
 use geo::{coord, LineString};
+use itertools::assert_equal;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use tracing_subscriber::fmt::format;
 use wkt::{ToWkt, TryFromWkt};
 
 struct MapMatchScenario {
@@ -42,9 +46,13 @@ const MATCH_CASES: [GraphArea; 2] = [
     },
 ];
 
+const LAYER_CASES: [(); 1] = [()];
+
 fn target_benchmark(c: &mut criterion::Criterion) {
-    let mut group = c.benchmark_group("match");
-    group.significance_level(0.1).sample_size(30);
+    let mut match_group = c.benchmark_group("match");
+    let mut layer_group = c.benchmark_group("layer_gen");
+
+    match_group.significance_level(0.1).sample_size(30);
 
     let lookup = Arc::new(Mutex::new(PredicateCache::default()));
 
@@ -52,8 +60,25 @@ fn target_benchmark(c: &mut criterion::Criterion) {
         let path = Path::new(ga.source_file).as_os_str().to_ascii_lowercase();
         let graph = Graph::new(path).expect("Graph must be created");
 
+        let costing = CostingStrategies::default();
+
         ga.matches.iter().for_each(|sc| {
-            group.bench_function(format!("match: {}", sc.name), |b| {
+            layer_group.bench_function(format!("layer-gen: {}", sc.name), |b| {
+                b.iter(|| {
+                    let coordinates: LineString<f64> =
+                        LineString::try_from_wkt_str(sc.input_linestring)
+                            .expect("Linestring must parse successfully.");
+
+                    let points = coordinates.into_points();
+
+                    let generator = LayerGenerator::new(&graph, &costing);
+                    let (layers, _) = generator.with_points(points);
+
+                    assert_eq!(layers.layers.len(), points.len())
+                })
+            });
+
+            match_group.bench_function(format!("match: {}", sc.name), |b| {
                 b.iter(|| {
                     let coordinates: LineString<f64> =
                         LineString::try_from_wkt_str(sc.input_linestring)
@@ -81,7 +106,8 @@ fn target_benchmark(c: &mut criterion::Criterion) {
         });
     });
 
-    group.finish();
+    match_group.finish();
+    layer_group.finish();
 }
 
 criterion::criterion_group!(targeted_benches, target_benchmark);

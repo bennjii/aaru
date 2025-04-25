@@ -90,7 +90,7 @@ where
     /// to search for projected nodes within said radius from
     /// the position on the input point.
     pub fn with_points(&self, input: Vec<Point>) -> (Layers, Candidates) {
-        debug_time!("layer `with_points` generation");
+        debug_time!("layer `with_points` generation"); // 300ms (!!)
         let candidates = Candidates::default();
 
         // In parallel, create each layer, and collect into a single structure.

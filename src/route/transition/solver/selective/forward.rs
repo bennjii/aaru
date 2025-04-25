@@ -94,8 +94,6 @@ impl SelectiveForwardSolver {
         T: TransitionStrategy + Send + Sync,
         'b: 'a,
     {
-        debug_time!("SelectiveForwardSolver::reach (mother-function)");
-
         let graph_ref = Arc::clone(&transition.candidates.graph);
         let successors = graph_ref
             .read()
@@ -120,11 +118,10 @@ impl SelectiveForwardSolver {
             return Box::new(std::iter::once((end, CandidateEdge::zero())));
         }
 
+        // Note: `reachable` ~= free, `reach` ~= 0.1ms (some overhead- how?)
+
         Box::new(
-            self
-                // TODO: Supply context to the reachability function in order to reuse routes
-                //       already made. Plus, consider working as contraction hierarchies
-                .reachable(context, source, successors.as_slice())
+            self.reachable(context, source, successors.as_slice())
                 .unwrap_or_default()
                 .into_iter()
                 .filter_map(move |reachable| {
@@ -183,8 +180,6 @@ impl Solver for SelectiveForwardSolver {
         // Note: Parent is OsmEntryId::NULL, which will not be within the map,
         //       indicating the root element.
         let predicate_map = {
-            debug_time!("reachability predicate map");
-
             self.predicate
                 .lock()
                 .unwrap()
@@ -192,8 +187,6 @@ impl Solver for SelectiveForwardSolver {
         };
 
         let reachable = {
-            debug_time!("reachable creation");
-
             targets
                 .iter()
                 .filter_map(|target| {
@@ -212,17 +205,6 @@ impl Solver for SelectiveForwardSolver {
 
                             let source_percentage = source_candidate.percentage(ctx.map)?;
                             let target_percentage = candidate.percentage(ctx.map)?;
-
-                            // debug!(
-                            //     "Found movement with {source_percentage} to {target_percentage} which goes {}.",
-                            //     if tracking_forward { "Forward" } else { "Backward" },
-                            // );
-                            // debug!("=> {} : CandidateSource={:?}, CandidateTarget={:?}",
-                            //     candidate.position.wkt_string(), candidate.edge.source, candidate.edge.target
-                            // );
-                            // debug!("=> {} : SourceCandidateSource={:?}, SourceCandidateTarget={:?}",
-                            //     source_candidate.position.wkt_string(), source_candidate.edge.source, source_candidate.edge.target
-                            // );
 
                             return if tracking_forward && source_percentage <= target_percentage {
                                 // We are moving forward, it is simply the distance between the nodes
