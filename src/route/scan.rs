@@ -109,22 +109,6 @@ impl Scan for Graph {
             .map(move |(point, edge)| (point, edge, Haversine.distance(point, source)))
             .filter(|(_, _, d)| *d < filter_distance)
             .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
-
-        // let mut nodes = {
-        //     let hl = {
-        //         self.nearest_projected_nodes(&source, search_distance)
-        //             .collect::<Vec<_>>()
-        //     }; // ~ 5-20ms
-        //
-        //     hl // ~ 0.05ms
-        //         .into_iter()
-        //         .map(move |(point, edge)| (point, edge, Haversine.distance(point, source))) // Not culprit.
-        //         .filter(|(_, _, d)| *d < filter_distance) // Not culprit.
-        //         .collect::<Vec<_>>()
-        // };
-        //
-        // nodes.sort_by(|(_, _, a), (_, _, b)| a.total_cmp(b));
-        // nodes.into_iter()
     }
 
     #[inline]

@@ -190,14 +190,18 @@ impl Graph {
         start_time = Instant::now();
 
         let hash = RwLock::new(HashMap::new());
-        let filtered = index
-            .to_owned()
-            .into_par_iter()
-            .filter(|v| graph.contains_node(v.id))
-            .inspect(|e| {
-                hash.write().unwrap().insert(e.id, *e);
-            })
-            .collect();
+        let filtered = {
+            let mut writer = hash.write().unwrap();
+
+            index
+                .to_owned()
+                .into_iter()
+                .filter(|v| graph.contains_node(v.id))
+                .inspect(|e| {
+                    writer.insert(e.id, *e);
+                })
+                .collect()
+        };
 
         debug!("HashMap creation took: {:?}", start_time.elapsed());
         start_time = Instant::now();
