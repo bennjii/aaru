@@ -62,7 +62,7 @@ where
         let generator = LayerGenerator::new(map, &heuristics);
 
         // Generate the layers and candidates.
-        let (layers, candidates) = generator.with_points(points);
+        let (layers, candidates) = generator.with_points(&points);
 
         Transition {
             map,

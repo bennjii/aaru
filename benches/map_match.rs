@@ -29,11 +29,11 @@ const MATCH_CASES: [GraphArea; 2] = [
                 input_linestring: VENTURA_TRIP,
                 expected_linestring: VENTURA_MATCHED,
             },
-            // MapMatchScenario {
-            //     name: "LAX_LYNWOOD",
-            //     input_linestring: LAX_LYNWOOD_TRIP,
-            //     expected_linestring: LAX_LYNWOOD_MATCHED,
-            // },
+            MapMatchScenario {
+                name: "LAX_LYNWOOD",
+                input_linestring: LAX_LYNWOOD_TRIP,
+                expected_linestring: LAX_LYNWOOD_MATCHED,
+            },
         ],
     },
     GraphArea {
@@ -56,16 +56,15 @@ fn target_benchmark(c: &mut criterion::Criterion) {
         let costing = CostingStrategies::default();
 
         ga.matches.iter().for_each(|sc| {
+            let coordinates: LineString<f64> = LineString::try_from_wkt_str(sc.input_linestring)
+                .expect("Linestring must parse successfully.");
+
             group.bench_function(format!("layer-gen: {}", sc.name), |b| {
                 b.iter(|| {
-                    let coordinates: LineString<f64> =
-                        LineString::try_from_wkt_str(sc.input_linestring)
-                            .expect("Linestring must parse successfully.");
-
-                    let points = coordinates.into_points();
+                    let points = coordinates.clone().into_points();
 
                     let generator = LayerGenerator::new(&graph, &costing);
-                    let (layers, _) = generator.with_points(points.clone());
+                    let (layers, _) = generator.with_points(&points);
 
                     assert_eq!(layers.layers.len(), points.len())
                 })
@@ -73,12 +72,8 @@ fn target_benchmark(c: &mut criterion::Criterion) {
 
             group.bench_function(format!("match: {}", sc.name), |b| {
                 b.iter(|| {
-                    let coordinates: LineString<f64> =
-                        LineString::try_from_wkt_str(sc.input_linestring)
-                            .expect("Linestring must parse successfully.");
-
                     let result = graph
-                        .map_match(coordinates, Arc::clone(&lookup))
+                        .map_match(coordinates.clone(), Arc::clone(&lookup))
                         .expect("Match must complete successfully");
 
                     let linestring = result

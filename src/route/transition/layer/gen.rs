@@ -89,7 +89,7 @@ where
     /// Takes a projection distance (`distance`), for which
     /// to search for projected nodes within said radius from
     /// the position on the input point.
-    pub fn with_points(&self, input: Vec<Point>) -> (Layers, Candidates) {
+    pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates) {
         debug_time!("layer `with_points` generation"); // 300ms (!!)
         let candidates = Candidates::default();
 
@@ -102,7 +102,7 @@ where
                 let nodes = self
                     .map
                     // We'll do a best-effort search (square) radius
-                    .edge_distinct_nearest_projected_nodes_sorted(origin, self.search_distance)
+                    .edge_distinct_nearest_projected_nodes_sorted(*origin, self.search_distance)
                     .take(25)
                     .take_while(|(_, _, d)| *d < self.filter_distance)
                     .enumerate()
@@ -136,7 +136,10 @@ where
                         .collect::<Vec<CandidateId>>()
                 };
 
-                Layer { nodes, origin }
+                Layer {
+                    nodes,
+                    origin: *origin,
+                }
             })
             .collect::<Layers>();
 
