@@ -90,7 +90,6 @@ impl Scan for Graph {
         {
             // PROBLEM
             let p1 = {
-                debug_time!("nearest_projected_nodes filter P1 {id}");
                 let hashmap = self.hash.read().unwrap();
 
                 nodes
@@ -105,7 +104,6 @@ impl Scan for Graph {
             };
 
             {
-                debug_time!("nearest_projected_nodes filter P2 {id}");
                 p1.into_iter()
                     .filter_map(move |(linestring, edge)| {
                         // We locate the point upon the linestring,
