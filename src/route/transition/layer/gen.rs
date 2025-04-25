@@ -98,31 +98,40 @@ where
             .into_par_iter()
             .enumerate()
             .map(|(layer_id, origin)| {
+                debug_time!("individual layer generation (!!)");
+
                 // Generate an individual layer
-                let nodes = self
-                    .map
-                    // We'll do a best-effort search (square) radius
-                    .edge_distinct_nearest_projected_nodes_sorted(*origin, self.search_distance)
-                    .take(25)
-                    .take_while(|(_, _, d)| *d < self.filter_distance)
-                    .enumerate()
-                    .map(|(node_id, (position, edge, distance))| {
-                        // We have the actual projected position, and it's associated edge.
-                        // Therefore, we can use the Emission costing function to calculate
-                        // the associated emission cost of this candidate.
-                        let emission = self
-                            .heuristics
-                            .emission(EmissionContext::new(&position, &origin, distance));
+                let nodes = {
+                    debug_time!("node generation");
 
-                        let location = CandidateLocation { layer_id, node_id };
-                        let candidate = Candidate::new(edge, position, emission, location);
+                    self.map
+                        // We'll do a best-effort search (square) radius
+                        .edge_distinct_nearest_projected_nodes_sorted(
+                            *origin,
+                            self.search_distance,
+                            self.filter_distance,
+                        )
+                        .take(25)
+                        .enumerate()
+                        .map(|(node_id, (position, edge, distance))| {
+                            // We have the actual projected position, and it's associated edge.
+                            // Therefore, we can use the Emission costing function to calculate
+                            // the associated emission cost of this candidate.
+                            let emission = self
+                                .heuristics
+                                .emission(EmissionContext::new(&position, &origin, distance));
 
-                        let candidate_reference = CandidateRef::new(emission);
-                        (candidate, candidate_reference)
-                    })
-                    .collect::<Vec<_>>();
+                            let location = CandidateLocation { layer_id, node_id };
+                            let candidate = Candidate::new(edge, position, emission, location);
+
+                            let candidate_reference = CandidateRef::new(emission);
+                            (candidate, candidate_reference)
+                        })
+                        .collect::<Vec<_>>()
+                };
 
                 // Inner-Scope for the graph, dropped on close.
+                // Note: Contention here is negligible, runtime = free.
                 let nodes = {
                     let mut graph = candidates.graph.write().unwrap();
                     nodes

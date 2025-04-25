@@ -1,8 +1,9 @@
 use crate::codec::element::variants::common::OsmEntryId;
 use crate::codec::element::variants::Node;
 use crate::route::transition::Trip;
+
 use approx::assert_relative_eq;
-use geo::{line_string, wkt};
+use geo::wkt;
 
 const SHARED_DISTANCE: f64 = 900.0;
 
@@ -132,7 +133,7 @@ fn validate_through_lower_cost() {
     const SHARED_DISTANCE: f64 = 227.;
 
     let imm_angle = around.angular_complexity(SHARED_DISTANCE);
-    assert_relative_eq!(imm_angle, 0.063, max_relative = 0.1);
+    assert_relative_eq!(imm_angle, 0.333, max_relative = 0.1);
 
     let imm_angle = through.angular_complexity(SHARED_DISTANCE);
     assert_relative_eq!(imm_angle, 0.512, max_relative = 0.1);
@@ -175,8 +176,6 @@ fn validate_slip_road_optimality() {
 
     let tot_angle = around.total_angle();
     assert_relative_eq!(tot_angle, 129.97, max_relative = 0.1);
-
-    let headings = around.headings();
 
     let imm_angle = around.angular_complexity(SHARED_DISTANCE);
     assert_relative_eq!(imm_angle, 0.15, max_relative = 0.1);

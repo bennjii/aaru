@@ -58,7 +58,6 @@ where
 
 mod successor {
     use geo::Haversine;
-    use log::debug;
     use petgraph::Direction;
 
     use crate::codec::element::variants::OsmEntryId;
@@ -71,8 +70,6 @@ mod successor {
 
     impl Calculable<OsmEntryId, SuccessorWeights> for SuccessorsCache {
         fn calculate(&mut self, ctx: &RoutingContext, key: OsmEntryId) -> SuccessorWeights {
-            debug!("cache miss");
-
             // Calc. once
             let source = ctx.map.get_position(&key).unwrap();
 

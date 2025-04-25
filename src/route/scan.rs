@@ -3,6 +3,7 @@ use geo::{
     Point,
 };
 use itertools::Itertools;
+use measure_time::debug_time;
 use petgraph::Direction;
 use rstar::AABB;
 
@@ -34,14 +35,16 @@ pub trait Scan {
     fn nearest_projected_nodes_sorted(
         &self,
         point: Point,
-        distance: f64,
+        search_distance: f64,
+        filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)>;
 
     /// Finds all **distinct** edges within a square radius of the target position.
     fn edge_distinct_nearest_projected_nodes_sorted(
         &self,
         point: Point,
-        distance: f64,
+        search_distance: f64,
+        filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)>;
 }
 
@@ -77,6 +80,7 @@ impl Scan for Graph {
     ) -> impl Iterator<Item = (Point, Edge)> {
         self.nearest_edges(point, distance)
             .filter_map(|edge| {
+                debug_time!("create linestring entry");
                 let hashmap = self.hash.read().unwrap();
                 let src = hashmap.get(&edge.source)?;
                 let trg = hashmap.get(&edge.target)?;
@@ -84,9 +88,12 @@ impl Scan for Graph {
                 Some((line_string![src.position.0, trg.position.0], edge))
             })
             .filter_map(move |(linestring, edge)| {
+                debug_time!("interpolate_entry");
+
                 // We locate the point upon the linestring,
                 // and then project that fractional (%)
                 // upon the linestring to obtain a point
+
                 linestring
                     .line_locate_point(point)
                     .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
@@ -98,10 +105,12 @@ impl Scan for Graph {
     fn nearest_projected_nodes_sorted(
         &self,
         source: Point,
-        distance: f64,
+        search_distance: f64,
+        filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)> {
-        self.nearest_projected_nodes(&source, distance)
+        self.nearest_projected_nodes(&source, search_distance)
             .map(move |(point, edge)| (point, edge, Haversine.distance(point, source)))
+            .filter(|(_, _, d)| *d < filter_distance)
             .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
     }
 
@@ -109,7 +118,8 @@ impl Scan for Graph {
     fn edge_distinct_nearest_projected_nodes_sorted(
         &self,
         point: Point,
-        distance: f64,
+        search_distance: f64,
+        filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)> {
         // let mut edges_covered = BTreeSet::<DirectionAwareEdgeId>::new();
 
@@ -117,7 +127,7 @@ impl Scan for Graph {
         // such that we only keep the closest node for every way, and considering direction a
         // WayID as a composite of the underlying map ID and the direction of the points within
         // the way.
-        self.nearest_projected_nodes_sorted(point, distance)
+        self.nearest_projected_nodes_sorted(point, search_distance, filter_distance)
         // TODO: Revisit - Has problems creating *correct* routes.
         // .filter(move |(_, Edge { id, .. })| edges_covered.insert(*id))
     }
