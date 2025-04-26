@@ -93,7 +93,7 @@ itertools = "0.14.0"
 
 # GeoRust
 geo = "0.30.0"
-wkt = "0.12.0"
+wkt = "0.13.0"
 measure_time = "0.9.0"
 rustc-hash = "2.1.1"
 indexmap = "2.9.0"
@@ -104,7 +104,7 @@ prost-build = { version = "0.13.3" }
 
 [dev-dependencies]
 osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
-criterion = { version = "2.7.2", features = [
+criterion = { version = "2.10.1", features = [
     "async_tokio",
 ], package = "codspeed-criterion-compat" }
 
