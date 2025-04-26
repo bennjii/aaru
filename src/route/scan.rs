@@ -76,13 +76,11 @@ impl Scan for Graph {
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge)> {
-        let hashmap = self.hash.read().unwrap();
-
         // Total overhead of this function is negligible.
         self.nearest_edges(point, distance)
             .filter_map(move |edge| {
-                let src = hashmap.get(&edge.source)?;
-                let trg = hashmap.get(&edge.target)?;
+                let src = self.hash.get(&edge.source)?;
+                let trg = self.hash.get(&edge.target)?;
 
                 Some((LineString::new(vec![src.position.0, trg.position.0]), edge))
             })

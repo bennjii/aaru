@@ -43,7 +43,7 @@ const MAX_WEIGHT: Weight = u32::MAX as Weight;
 pub struct Graph {
     pub(crate) graph: GraphStructure,
     pub(crate) index: RTree<Node>,
-    pub(crate) hash: RwLock<HashMap<NodeIx, Node>>,
+    pub(crate) hash: HashMap<NodeIx, Node>,
 }
 
 impl Default for Graph {
@@ -51,14 +51,14 @@ impl Default for Graph {
         Self {
             graph: GraphStructure::default(),
             index: RTree::default(),
-            hash: RwLock::new(HashMap::new()),
+            hash: HashMap::new(),
         }
     }
 }
 
 impl Debug for Graph {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Graph with Nodes: {}", self.hash.read().unwrap().len())
+        write!(f, "Graph with Nodes: {}", self.hash.len())
     }
 }
 
@@ -68,16 +68,12 @@ impl Graph {
     }
 
     pub fn size(&self) -> usize {
-        self.hash.read().unwrap().len()
+        self.hash.len()
     }
 
     #[inline]
     pub fn get_position(&self, node_index: &NodeIx) -> Option<Point<f64>> {
-        self.hash
-            .read()
-            .ok()?
-            .get(node_index)
-            .map(|point| point.position)
+        self.hash.get(node_index).map(|point| point.position)
     }
 
     pub fn resolve_line(&self, node_index: &[NodeIx]) -> Vec<Point<f64>> {
@@ -189,16 +185,14 @@ impl Graph {
         debug!("Graphical ingestion took: {:?}", start_time.elapsed());
         start_time = Instant::now();
 
-        let hash = RwLock::new(HashMap::new());
+        let mut hash = HashMap::new();
         let filtered = {
-            let mut writer = hash.write().unwrap();
-
             index
                 .to_owned()
                 .into_iter()
                 .filter(|v| graph.contains_node(v.id))
                 .inspect(|e| {
-                    writer.insert(e.id, *e);
+                    hash.insert(e.id, *e);
                 })
                 .collect()
         };
@@ -256,10 +250,9 @@ impl Graph {
             |_| 0 as Weight,
         )?;
 
-        let hashmap = self.hash.read().ok()?;
         let route = path
             .iter()
-            .filter_map(|v| hashmap.get(v).copied())
+            .filter_map(|v| self.hash.get(v).copied())
             .collect();
 
         Some((score, route))
