@@ -18,9 +18,10 @@ use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rstar::RTree;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHasher};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use std::hash::BuildHasherDefault;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
@@ -35,7 +36,8 @@ pub type EdgeIx = OsmEntryId;
 
 pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
-pub type GraphStructure = DiGraphMap<NodeIx, (Weight, DirectionAwareEdgeId)>;
+pub type GraphStructure =
+    DiGraphMap<NodeIx, (Weight, DirectionAwareEdgeId), BuildHasherDefault<FxHasher>>;
 
 const MAX_WEIGHT: Weight = u32::MAX as Weight;
 

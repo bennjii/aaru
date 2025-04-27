@@ -1,6 +1,5 @@
 use geo::{
-    Destination, Distance, Euclidean, Geodesic, Haversine, InterpolatableLine, Line,
-    LineLocatePoint, Point,
+    Destination, Distance, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point,
 };
 use itertools::Itertools;
 use petgraph::Direction;

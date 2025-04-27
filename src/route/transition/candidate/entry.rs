@@ -67,6 +67,7 @@ pub struct Edge {
 }
 
 impl<'a> From<(NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))> for Edge {
+    #[inline]
     fn from((source, target, edge): (NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))) -> Self {
         Edge::new(source, target, edge.0, edge.1)
     }
