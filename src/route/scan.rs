@@ -58,9 +58,16 @@ impl Scan for Graph {
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
     #[inline]
     fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge> {
-        self.square_scan(point, distance)
-            .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
-            .map(Edge::from)
+        let mut edges = Vec::with_capacity(64);
+        for node in self.square_scan(point, distance) {
+            edges.extend(
+                self.graph
+                    .edges_directed(node.id, Direction::Outgoing)
+                    .map(Edge::from),
+            );
+        }
+
+        edges.into_iter()
     }
 
     #[inline]

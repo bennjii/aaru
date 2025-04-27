@@ -40,7 +40,7 @@ pub mod common {
     #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
     pub struct OsmEntryId {
         pub identifier: u64,
-        variant: MemberType,
+        // variant: MemberType,
     }
 
     impl Default for OsmEntryId {
@@ -53,14 +53,14 @@ pub mod common {
         pub const fn new(id: u64, variant: MemberType) -> OsmEntryId {
             OsmEntryId {
                 identifier: id,
-                variant,
+                // variant,
             }
         }
 
         pub const fn null() -> OsmEntryId {
             OsmEntryId {
                 identifier: u64::MAX,
-                variant: MemberType::Node,
+                // variant: MemberType::Node,
             }
         }
 
@@ -72,7 +72,7 @@ pub mod common {
         pub const fn as_node(identifier: u64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
-                variant: MemberType::Node,
+                // variant: MemberType::Node,
             }
         }
 
@@ -80,7 +80,7 @@ pub mod common {
         pub const fn as_way(identifier: u64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
-                variant: MemberType::Way,
+                // variant: MemberType::Way,
             }
         }
     }
@@ -91,7 +91,7 @@ pub mod common {
         fn add(self, other: u64) -> Self::Output {
             OsmEntryId {
                 identifier: self.identifier + other,
-                variant: self.variant,
+                // variant: self.variant,
             }
         }
     }
@@ -101,7 +101,7 @@ pub mod common {
         fn from(value: u64) -> Self {
             OsmEntryId {
                 identifier: value,
-                variant: MemberType::Node,
+                // variant: MemberType::Node,
             }
         }
     }
