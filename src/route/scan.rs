@@ -2,6 +2,7 @@ use geo::{
     Destination, Distance, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point,
 };
 use itertools::Itertools;
+use petgraph::visit::IntoEdgeReferences;
 use petgraph::Direction;
 use rstar::AABB;
 
@@ -105,8 +106,15 @@ impl Scan for Graph {
         filter_distance: f64,
     ) -> impl Iterator<Item = (Point, Edge, f64)> {
         self.nearest_projected_nodes(&source, search_distance)
-            .map(move |(point, edge)| (point, edge, Haversine.distance(point, source)))
-            .filter(|(_, _, d)| *d < filter_distance)
+            .filter_map(move |(point, edge)| {
+                let distance = Haversine.distance(point, source);
+
+                if distance < filter_distance {
+                    Some((point, edge, distance))
+                } else {
+                    None
+                }
+            })
             .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
     }
 

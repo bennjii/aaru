@@ -105,7 +105,7 @@ where
                 let nodes = {
                     self.map
                         // We'll do a best-effort search (square) radius
-                        .edge_distinct_nearest_projected_nodes_sorted(
+                        .nearest_projected_nodes_sorted(
                             *origin,
                             self.search_distance,
                             self.filter_distance,
@@ -118,7 +118,7 @@ where
                             // the associated emission cost of this candidate.
                             let emission = self
                                 .heuristics
-                                .emission(EmissionContext::new(&position, &origin, distance));
+                                .emission(EmissionContext::new(&position, origin, distance));
 
                             let location = CandidateLocation { layer_id, node_id };
                             let candidate = Candidate::new(edge, position, emission, location);
