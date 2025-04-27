@@ -8,7 +8,8 @@ use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
 use crate::route::transition::{
-    entry, CostingStrategies, DirectionAwareEdgeId, FatEdge, PredicateCache, SelectiveForwardSolver,
+    entry, CostingStrategies, DirectionAwareEdgeId, Edge, FatEdge, PredicateCache,
+    SelectiveForwardSolver,
 };
 use crate::route::Scan;
 
@@ -33,8 +34,6 @@ pub type Weight = u32;
 // TODO: Convert `type X = Y` to `struct X(Y)` for type enforcement. (TypeName pattern)
 pub type NodeIx = OsmEntryId;
 pub type EdgeIx = OsmEntryId;
-
-pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
 
 pub type GraphStructure =
     DiGraphMap<NodeIx, (Weight, DirectionAwareEdgeId), BuildHasherDefault<FxHasher>>;
@@ -139,8 +138,8 @@ impl Graph {
         info!("Ingesting...");
 
         let global_graph = Mutex::new(GraphStructure::new());
-        let (nodes, edges): (Vec<Node>, Vec<entry::Edge>) = reader.par_red(
-            |mut trees: (Vec<Node>, Vec<entry::Edge>), element: ProcessedElement| {
+        let (nodes, edges): (Vec<Node>, Vec<Edge>) = reader.par_red(
+            |mut trees: (Vec<Node>, Vec<Edge>), element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         // If way is not traversable (/ is not road)
@@ -162,21 +161,15 @@ impl Graph {
                                 let direction_aware = DirectionAwareEdgeId::new(way.id());
                                 let mut lock = global_graph.lock().unwrap();
 
-                                lock.add_edge(a.id, b.id, (weight, direction_aware.forward()));
-                                trees.1.push(entry::Edge::from((
-                                    a.id,
-                                    b.id,
-                                    &(weight, direction_aware.forward()),
-                                )));
+                                let w = (weight, direction_aware.forward());
+                                trees.1.push(Edge::from((a.id, b.id, &w)));
+                                lock.add_edge(a.id, b.id, w);
 
                                 // If way is bidi, add opposite edge with a DirAw backward.
                                 if bidirectional {
-                                    lock.add_edge(b.id, a.id, (weight, direction_aware.backward()));
-                                    trees.1.push(entry::Edge::from((
-                                        a.id,
-                                        b.id,
-                                        &(weight, direction_aware.backward()),
-                                    )));
+                                    let w = (weight, direction_aware.backward());
+                                    trees.1.push(Edge::from((b.id, a.id, &w)));
+                                    lock.add_edge(b.id, a.id, w);
                                 }
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
