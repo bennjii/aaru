@@ -39,7 +39,7 @@ pub mod common {
 
     #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
     pub struct OsmEntryId {
-        pub identifier: i64,
+        pub identifier: u64,
         variant: MemberType,
     }
 
@@ -50,7 +50,7 @@ pub mod common {
     }
 
     impl OsmEntryId {
-        pub const fn new(id: i64, variant: MemberType) -> OsmEntryId {
+        pub const fn new(id: u64, variant: MemberType) -> OsmEntryId {
             OsmEntryId {
                 identifier: id,
                 variant,
@@ -59,17 +59,17 @@ pub mod common {
 
         pub const fn null() -> OsmEntryId {
             OsmEntryId {
-                identifier: -1,
+                identifier: u64::MAX,
                 variant: MemberType::Node,
             }
         }
 
         pub fn is_null(&self) -> bool {
-            self.identifier == -1
+            self.identifier == u64::MAX
         }
 
         #[inline]
-        pub const fn as_node(identifier: i64) -> OsmEntryId {
+        pub const fn as_node(identifier: u64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
                 variant: MemberType::Node,
@@ -77,7 +77,7 @@ pub mod common {
         }
 
         #[inline]
-        pub const fn as_way(identifier: i64) -> OsmEntryId {
+        pub const fn as_way(identifier: u64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
                 variant: MemberType::Way,
@@ -85,10 +85,10 @@ pub mod common {
         }
     }
 
-    impl Add<i64> for OsmEntryId {
+    impl Add<u64> for OsmEntryId {
         type Output = OsmEntryId;
 
-        fn add(self, other: i64) -> Self::Output {
+        fn add(self, other: u64) -> Self::Output {
             OsmEntryId {
                 identifier: self.identifier + other,
                 variant: self.variant,
@@ -96,9 +96,9 @@ pub mod common {
         }
     }
 
-    impl From<i64> for OsmEntryId {
+    impl From<u64> for OsmEntryId {
         // Defaults to Node variant
-        fn from(value: i64) -> Self {
+        fn from(value: u64) -> Self {
             OsmEntryId {
                 identifier: value,
                 variant: MemberType::Node,
@@ -113,6 +113,7 @@ pub mod common {
     }
 
     impl Hash for OsmEntryId {
+        #[inline]
         fn hash<H: Hasher>(&self, state: &mut H) {
             self.identifier.hash(state);
         }
@@ -186,7 +187,10 @@ pub mod common {
                 })
                 .into_iter()
                 // All nodes in a Way are `Node` types, therefore navigable.
-                .map(|(role, id, variant)| Reference::new(OsmEntryId::new(id, variant), role))
+                // We cast the ID to a u64 since that is the ID-type
+                .map(|(role, id, variant)| {
+                    Reference::new(OsmEntryId::new(id as u64, variant), role)
+                })
                 .collect::<Vec<_>>()
                 .into()
         }

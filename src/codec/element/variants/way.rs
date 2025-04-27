@@ -33,7 +33,7 @@ impl Way {
     #[inline]
     pub fn from_raw(value: &osm::Way, block: &PrimitiveBlock) -> Self {
         Way {
-            id: OsmEntryId::as_way(value.id),
+            id: OsmEntryId::as_way(value.id as u64),
             refs: value.references(block),
             tags: value.tags(block),
         }
