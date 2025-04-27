@@ -18,6 +18,7 @@ use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rstar::RTree;
+use rustc_hash::FxHashMap;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
@@ -43,7 +44,7 @@ const MAX_WEIGHT: Weight = u32::MAX as Weight;
 pub struct Graph {
     pub(crate) graph: GraphStructure,
     pub(crate) index: RTree<Node>,
-    pub(crate) hash: HashMap<NodeIx, Node>,
+    pub(crate) hash: FxHashMap<NodeIx, Node>,
 }
 
 impl Default for Graph {
@@ -51,7 +52,7 @@ impl Default for Graph {
         Self {
             graph: GraphStructure::default(),
             index: RTree::default(),
-            hash: HashMap::new(),
+            hash: FxHashMap::default(),
         }
     }
 }
@@ -185,7 +186,7 @@ impl Graph {
         debug!("Graphical ingestion took: {:?}", start_time.elapsed());
         start_time = Instant::now();
 
-        let mut hash = HashMap::new();
+        let mut hash = FxHashMap::default();
         let filtered = {
             index
                 .to_owned()
