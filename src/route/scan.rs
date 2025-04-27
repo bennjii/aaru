@@ -1,5 +1,6 @@
 use geo::{
-    Destination, Distance, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point,
+    Destination, Distance, Euclidean, Geodesic, Haversine, InterpolatableLine, Line,
+    LineLocatePoint, Point,
 };
 use itertools::Itertools;
 use petgraph::Direction;
@@ -76,23 +77,18 @@ impl Scan for Graph {
         distance: f64,
     ) -> impl Iterator<Item = (Point, Edge)> {
         // Total overhead of this function is negligible.
-        self.nearest_edges(point, distance)
-            .filter_map(move |edge| {
-                let src = self.hash.get(&edge.source)?;
-                let trg = self.hash.get(&edge.target)?;
+        self.nearest_edges(point, distance).filter_map(move |edge| {
+            let src = self.hash.get(&edge.source)?;
+            let trg = self.hash.get(&edge.target)?;
+            let line = Line::new(src.position, trg.position);
 
-                Some((Line::new(src.position, trg.position), edge))
-            })
-            .filter_map(move |(linestring, edge)| {
-                // We locate the point upon the linestring,
-                // and then project that fractional (%)
-                // upon the linestring to obtain a point
-
-                linestring
-                    .line_locate_point(point)
-                    .map(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
-                    .map(|point| (point, edge))
-            })
+            // We locate the point upon the linestring,
+            // and then project that fractional (%)
+            // upon the linestring to obtain a point
+            line.line_locate_point(point)
+                .map(|frac| line.point_at_ratio_from_start(&Haversine, frac))
+                .map(|point| (point, edge))
+        })
     }
 
     #[inline]
