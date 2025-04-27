@@ -25,26 +25,12 @@ jobs:
         with:
           tool: protoc@${{ env.PROTOC_VERSION }}
 
-      - name: Rust Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Toolchain, Cache and Codspeed
         uses: moonrepo/setup-rust@v1
         with:
           channel: stable
           cache-target: release
           bins: cargo-codspeed
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
 
       - name: 🔨Build
         run: cargo codspeed build
