@@ -12,9 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bufbuild/buf-action@v1
         with:
           lfs: false
+
+      - uses: bufbuild/buf-action@v1
+        with:
           token: ${{ secrets.BUF_TOKEN }}
           setup_only: false
           github_token: ${{ secrets.GITHUB_TOKEN }}
