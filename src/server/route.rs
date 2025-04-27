@@ -184,7 +184,7 @@ impl RouterService for RouteService {
 
         let all_valids = self
             .graph
-            .square_scan(&point, request.search_radius)
+            .nearest_nodes(&point, request.search_radius)
             .map(|p| p.position.wkt_string())
             .collect::<Vec<_>>()
             .join(", ");
