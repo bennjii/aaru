@@ -14,6 +14,7 @@ use crate::server::route::router_service::{
     ClosestSnappedPointResponse, Coordinate, MapMatchRequest, MapMatchResponse,
 };
 use geo::LineString;
+use rayon::iter::ParallelIterator;
 use router_service::router_service_server::RouterService;
 #[cfg(feature = "tracing")]
 use tracing::Level;

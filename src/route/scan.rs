@@ -1,6 +1,5 @@
 use geo::{
-    Destination, Distance, Geodesic, Haversine, InterpolatableLine, LineLocatePoint, LineString,
-    Point,
+    Destination, Distance, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point,
 };
 use itertools::Itertools;
 use petgraph::Direction;
@@ -82,7 +81,7 @@ impl Scan for Graph {
                 let src = self.hash.get(&edge.source)?;
                 let trg = self.hash.get(&edge.target)?;
 
-                Some((LineString::new(vec![src.position.0, trg.position.0]), edge))
+                Some((Line::new(src.position, trg.position), edge))
             })
             .filter_map(move |(linestring, edge)| {
                 // We locate the point upon the linestring,
@@ -91,7 +90,7 @@ impl Scan for Graph {
 
                 linestring
                     .line_locate_point(point)
-                    .and_then(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
+                    .map(|frac| linestring.point_at_ratio_from_start(&Haversine, frac))
                     .map(|point| (point, edge))
             })
     }
