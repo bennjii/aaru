@@ -90,7 +90,6 @@ where
     /// to search for projected nodes within said radius from
     /// the position on the input point.
     pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates) {
-        debug_time!("layer `with_points` generation"); // 300ms (!!)
         let candidates = Candidates::default();
 
         // In parallel, create each layer, and collect into a single structure.
@@ -98,7 +97,7 @@ where
             .into_par_iter()
             .enumerate()
             .map(|(layer_id, origin)| {
-                debug_time!("individual layer generation (!!)");
+                debug_time!("individual layer generation (!!)"); // 0.1 - 1.5ms
 
                 // Generate an individual layer
                 // Function takes about 10ms to compute.

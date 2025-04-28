@@ -153,7 +153,7 @@ impl Candidates {
 impl Default for Candidates {
     fn default() -> Self {
         let graph = Arc::new(RwLock::new(Graph::new()));
-        let lookup = HashMap::new();
+        let lookup = HashMap::default();
 
         Candidates {
             graph,

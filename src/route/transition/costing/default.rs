@@ -56,12 +56,9 @@ pub mod emission {
         const ZETA: f64 = 0.5;
         const BETA: f64 = -10.0; // TODO: Maybe allow dynamic parameters based on the GPS drift-?
 
-        #[inline]
+        #[inline(always)]
         fn calculate(&self, context: EmissionContext<'a>) -> Option<Self::Cost> {
-            // Value in range [0, 1] (1=Low Cost, 0=High Cost)
-            let relative_to_error = (DEFAULT_EMISSION_ERROR / context.distance).clamp(0.0, 1.0);
-
-            Some(relative_to_error.recip().powf(1.5))
+            Some(context.distance.sqrt() * context.distance)
         }
     }
 }
@@ -211,10 +208,12 @@ pub mod costing {
         T: TransitionStrategy,
         E: EmissionStrategy,
     {
+        #[inline(always)]
         fn emission(&self, context: EmissionContext) -> u32 {
             self.emission.cost(context)
         }
 
+        #[inline(always)]
         fn transition(&self, context: TransitionContext) -> u32 {
             self.transition.cost(context)
         }
