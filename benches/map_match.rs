@@ -68,12 +68,11 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                 .expect("Match must complete successfully");
 
             group.bench_function(format!("layer-gen: {}", sc.name), |b| {
+                let points = coordinates.clone().into_points();
+                let generator = LayerGenerator::new(&graph, &costing);
+
                 b.iter(|| {
-                    let points = coordinates.clone().into_points();
-
-                    let generator = LayerGenerator::new(&graph, &costing);
                     let (layers, _) = generator.with_points(&points);
-
                     assert_eq!(layers.layers.len(), points.len())
                 })
             });
