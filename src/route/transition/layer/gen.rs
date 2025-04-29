@@ -122,7 +122,8 @@ where
                                 .emission(EmissionContext::new(&position, origin, distance));
 
                             let location = CandidateLocation { layer_id, node_id };
-                            let candidate = Candidate::new(edge, position, emission, location);
+                            let candidate =
+                                Candidate::new(edge.thin(), position, emission, location);
 
                             let candidate_reference = CandidateRef::new(emission);
                             (candidate, candidate_reference)

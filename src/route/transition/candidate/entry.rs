@@ -84,6 +84,7 @@ pub struct FatEdge {
 }
 
 impl FatEdge {
+    #[inline]
     pub fn thin(&self) -> Edge {
         Edge {
             source: self.source.id,
