@@ -8,8 +8,7 @@ use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
 use crate::route::transition::graph::Transition;
 use crate::route::transition::{
-    entry, CostingStrategies, DirectionAwareEdgeId, Edge, FatEdge, PredicateCache,
-    SelectiveForwardSolver,
+    CostingStrategies, DirectionAwareEdgeId, Edge, FatEdge, PredicateCache, SelectiveForwardSolver,
 };
 use crate::route::Scan;
 
@@ -17,14 +16,13 @@ use geo::{LineString, Point};
 use log::{debug, info};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rstar::RTree;
 use rustc_hash::{FxHashMap, FxHasher};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::BuildHasherDefault;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 #[cfg(feature = "tracing")]
 use tracing::Level;

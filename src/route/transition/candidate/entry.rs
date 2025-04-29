@@ -3,10 +3,10 @@ use crate::route::transition::RoutingContext;
 use crate::route::Graph;
 
 use crate::codec::element::variants::Node;
-use geo::{Distance, Euclidean, Haversine, LineLocatePoint, LineString, Point};
+use geo::{Distance, Haversine, LineLocatePoint, LineString, Point};
 use pathfinding::num_traits::Zero;
 use petgraph::Direction;
-use rstar::{Envelope, AABB};
+use rstar::AABB;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::Add;

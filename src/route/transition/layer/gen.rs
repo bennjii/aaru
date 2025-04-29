@@ -94,43 +94,56 @@ where
 
         // In parallel, create each layer, and collect into a single structure.
         let layers = input
-            .into_par_iter()
+            .into_iter()
             .enumerate()
             .map(|(layer_id, origin)| {
-                debug_time!("individual layer generation (!!)"); // 0.1 - 1.5ms
+                // debug_time!("{layer_id}: individual layer generation (!!)"); // 0.1 - 5.0ms
 
                 // Generate an individual layer
                 // Function takes about 10ms to compute.
                 let nodes = {
-                    self.map
-                        // We'll do a best-effort search (square) radius
-                        .nearest_projected_nodes_sorted(
-                            *origin,
-                            self.search_distance,
-                            self.filter_distance,
-                        )
-                        .take(25)
-                        .enumerate()
-                        .map(|(node_id, (position, edge, distance))| {
-                            // We have the actual projected position, and it's associated edge.
-                            // Therefore, we can use the Emission costing function to calculate
-                            // the associated emission cost of this candidate.
-                            let emission = self
-                                .heuristics
-                                .emission(EmissionContext::new(&position, origin, distance));
+                    let nodes = {
+                        // debug_time!("{layer_id}: find all");
 
-                            let location = CandidateLocation { layer_id, node_id };
-                            let candidate = Candidate::new(edge, position, emission, location);
+                        self.map
+                            // We'll do a best-effort search (square) radius
+                            .nearest_projected_nodes_sorted(
+                                *origin,
+                                self.search_distance,
+                                self.filter_distance,
+                            )
+                            .take(25)
+                            .collect::<Vec<_>>()
+                    };
 
-                            let candidate_reference = CandidateRef::new(emission);
-                            (candidate, candidate_reference)
-                        })
-                        .collect::<Vec<_>>()
+                    {
+                        // debug_time!("{layer_id}: process all");
+
+                        nodes
+                            .into_iter()
+                            .enumerate()
+                            .map(|(node_id, (position, edge, distance))| {
+                                // We have the actual projected position, and it's associated edge.
+                                // Therefore, we can use the Emission costing function to calculate
+                                // the associated emission cost of this candidate.
+                                let emission = self
+                                    .heuristics
+                                    .emission(EmissionContext::new(&position, origin, distance));
+
+                                let location = CandidateLocation { layer_id, node_id };
+                                let candidate = Candidate::new(edge, position, emission, location);
+
+                                let candidate_reference = CandidateRef::new(emission);
+                                (candidate, candidate_reference)
+                            })
+                            .collect::<Vec<_>>()
+                    }
                 };
 
                 // Inner-Scope for the graph, dropped on close.
                 // Note: Contention here is negligible, runtime = free.
                 let nodes = {
+                    // debug_time!("{layer_id}: write all");
                     let mut graph = candidates.graph.write().unwrap();
                     nodes
                         .into_iter()
@@ -148,8 +161,8 @@ where
                     origin: *origin,
                 }
             })
-            .collect::<Layers>();
+            .collect::<Vec<Layer>>();
 
-        (layers, candidates)
+        (Layers { layers }, candidates)
     }
 }

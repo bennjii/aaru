@@ -83,11 +83,11 @@ impl Node {
                         prior_node
                             .position
                             .add(point! { x: lng, y: lat }.mul(scaling_factor)),
-                        prior_node.id + (*id) as u64,
+                        prior_node.id + *id,
                     ),
                     None => Node::new(
                         point! { x: lng, y: lat }.mul(scaling_factor),
-                        OsmEntryId::from(*id as u64),
+                        OsmEntryId::from(*id),
                     ),
                 };
 
@@ -101,7 +101,7 @@ impl Node {
 impl From<&osm::Node> for Node {
     fn from(value: &osm::Node) -> Self {
         Node {
-            id: OsmEntryId::as_node(value.id as u64),
+            id: OsmEntryId::as_node(value.id),
             position: point! { x: value.lon as f64, y: value.lat as f64 },
         }
     }

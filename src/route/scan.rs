@@ -2,8 +2,6 @@ use geo::{
     Destination, Distance, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point,
 };
 use itertools::Itertools;
-use petgraph::visit::IntoEdgeReferences;
-use petgraph::Direction;
 use rstar::AABB;
 
 use crate::codec::element::variants::Node;
