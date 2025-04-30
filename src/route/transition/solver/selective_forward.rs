@@ -177,6 +177,7 @@ impl Solver for SelectiveForwardSolver {
                 .lock()
                 .unwrap()
                 .query(&ctx, source_candidate.edge.target)
+                .clone()
         };
 
         let reachable = {
