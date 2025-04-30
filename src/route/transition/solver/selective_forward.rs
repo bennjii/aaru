@@ -6,14 +6,14 @@ use std::cell::RefCell;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
+use crate::codec::element::variants::OsmEntryId;
+use crate::route::transition::graph::{MatchError, Transition};
+use crate::route::transition::*;
 use geo::{Distance, Haversine};
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::*;
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
-
-use crate::route::transition::graph::{MatchError, Transition};
-use crate::route::transition::*;
 
 type ProcessedReachable = (CandidateId, Reachable);
 
@@ -81,7 +81,7 @@ impl SelectiveForwardSolver {
         context: RoutingContext<'b>,
         (start, end): (CandidateId, CandidateId),
         source: &CandidateId,
-    ) -> Box<dyn Iterator<Item = (CandidateId, CandidateEdge)> + 'b>
+    ) -> Vec<(CandidateId, CandidateEdge)>
     where
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy + Send + Sync,
@@ -98,69 +98,71 @@ impl SelectiveForwardSolver {
         // #[cold]
         if *source == start {
             // No cost to reach a first node.
-            return Box::new(
-                successors
-                    .into_iter()
-                    .map(|candidate| (candidate, CandidateEdge::zero())),
-            );
+            return successors
+                .into_iter()
+                .map(|candidate| (candidate, CandidateEdge::zero()))
+                .collect::<Vec<_>>();
         }
 
         // Fast-track to the finish line
         if successors.contains(&end) {
             debug!("End-Successors: {:?}", successors);
-            return Box::new(std::iter::once((end, CandidateEdge::zero())));
+            return vec![(end, CandidateEdge::zero())];
         }
 
         // Note: `reachable` ~= free, `reach` ~= 0.1ms (some overhead- how?)
 
-        Box::new(
-            self.reachable(context, source, successors.as_slice())
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(move |reachable| {
-                    let source_layer = context.candidate(&reachable.source)?.location.layer_id;
-                    let target_layer = context.candidate(&reachable.target)?.location.layer_id;
+        self.reachable(context, source, successors.as_slice())
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(move |reachable| {
+                let source_layer = context.candidate(&reachable.source)?.location.layer_id;
+                let target_layer = context.candidate(&reachable.target)?.location.layer_id;
 
-                    let sl = transition.layers.layers.get(source_layer)?;
-                    let tl = transition.layers.layers.get(target_layer)?;
+                let sl = transition.layers.layers.get(source_layer)?;
+                let tl = transition.layers.layers.get(target_layer)?;
 
-                    let layer_width = Haversine.distance(sl.origin, tl.origin);
+                let layer_width = Haversine.distance(sl.origin, tl.origin);
 
-                    let transition_cost = transition.heuristics.transition(TransitionContext {
-                        optimal_path: Trip::new_with_map(transition.map, &reachable.path),
-                        map_path: &reachable.path,
-                        requested_resolution_method: reachable.resolution_method,
+                let transition_cost = transition.heuristics.transition(TransitionContext {
+                    optimal_path: Trip::new_with_map(transition.map, &reachable.path),
+                    map_path: &reachable.path,
+                    requested_resolution_method: reachable.resolution_method,
 
-                        source_candidate: &reachable.source,
-                        target_candidate: &reachable.target,
-                        routing_context: context,
+                    source_candidate: &reachable.source,
+                    target_candidate: &reachable.target,
+                    routing_context: context,
 
-                        layer_width,
-                    });
+                    layer_width,
+                });
 
-                    let emission_cost = transition
-                        .candidates
-                        .candidate(&reachable.target)
-                        .map_or(u32::MAX, |v| v.emission);
+                let emission_cost = transition
+                    .candidates
+                    .candidate(&reachable.target)
+                    .map_or(u32::MAX, |v| v.emission);
 
-                    let transition = (transition_cost as f64 * 0.6) as u32;
-                    let emission = (emission_cost as f64 * 0.4) as u32;
+                let transition = (transition_cost as f64 * 0.6) as u32;
+                let emission = (emission_cost as f64 * 0.4) as u32;
 
-                    let return_value = (
-                        reachable.target,
-                        CandidateEdge::new(emission.saturating_add(transition)),
-                    );
+                let return_value = (
+                    reachable.target,
+                    CandidateEdge::new(emission.saturating_add(transition)),
+                );
 
-                    self.reachable_hash
-                        .borrow_mut()
-                        .insert(reachable.hash(), reachable);
-                    Some(return_value)
-                }),
-        )
+                self.reachable_hash
+                    .borrow_mut()
+                    .insert(reachable.hash(), reachable);
+                Some(return_value)
+            })
+            .collect::<Vec<_>>()
     }
-}
 
-impl Solver for SelectiveForwardSolver {
+    /// Derives which candidates are reachable by the source candidate.
+    ///
+    /// Provides a slice of target candidate IDs, `targets`. The solver
+    /// will use these to procure all candidates which are reachable,
+    /// and the path of routable entries ([`OsmEntryId`]) which are used
+    /// to reach the target.
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
@@ -226,14 +228,14 @@ impl Solver for SelectiveForwardSolver {
 
         Some(reachable)
     }
+}
 
+impl Solver for SelectiveForwardSolver {
     fn solve<E, T>(&self, mut transition: Transition<E, T>) -> Result<Collapse, MatchError>
     where
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy + Send + Sync,
     {
-        info!("Solving...");
-
         let (start, end) = {
             // Compute cost ~= free
             transition
@@ -242,34 +244,19 @@ impl Solver for SelectiveForwardSolver {
                 .ok_or(MatchError::CollapseFailure)?
         };
 
-        debug!(
-            "Start={start:?}. End={end:?}. Candidates: {:?}",
-            transition.candidates
-        );
+        debug!("Attached Ends");
+        transition.candidates.weave(&transition.layers);
+        debug!("Weaved all candidate layers.");
 
-        {
-            // ~1ms
-            debug_time!("candidate weave");
-            transition.candidates.weave(&transition.layers);
-        }
+        info!("Solving: Start={start:?}. End={end:?}. ");
+        let context = transition.context();
 
-        debug!("Linked / Weaved all layers!");
-
-        let context = RoutingContext {
-            candidates: &transition.candidates,
-            map: transition.map,
-        };
-
-        // TLDR: For every candidate, generate their reachable elements, then run the solver overtop.
+        // Note: For every candidate, generate their reachable elements, then run the solver overtop.
         //       This means we can do it in parallel, which is more efficient - however will have to
         //       compute for *every* candidate, not just the likely ones, which will lead to poor
         //       scalability for really long-routes.
         //
-        // => As a side note, being able to compute the reachable for candidates and then somehow
-        //    cache them will lead to incredible performance when revisiting a segment if you were
-        //    to route a trip in real-time, since it would re-use the hot-cache for all nodes that
-        //    were common to the last trip, meaning you'd only have to calculate one more layer,
-        //    which means the overhead is more reliable and consistent.
+        //       This behaviour can be implemented using the `AllForwardSolver` going forward.
 
         let Some((path, cost)) = astar(
             &start,
@@ -281,7 +268,6 @@ impl Solver for SelectiveForwardSolver {
         };
 
         info!("Total cost of solve: {}", cost.weight);
-
         let reached = path
             .windows(2)
             .filter_map(|nodes| {

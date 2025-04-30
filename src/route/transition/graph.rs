@@ -5,7 +5,7 @@ use crate::route::transition::candidate::{Candidate, Candidates, Collapse};
 use crate::route::transition::costing::emission::EmissionStrategy;
 use crate::route::transition::costing::transition::TransitionStrategy;
 use crate::route::transition::layer::{LayerGenerator, Layers};
-use crate::route::transition::{CostingStrategies, Solver};
+use crate::route::transition::{CostingStrategies, RoutingContext, Solver};
 use crate::route::Graph;
 use geo::LineString;
 use log::debug;
@@ -69,6 +69,13 @@ where
             candidates,
             layers,
             heuristics,
+        }
+    }
+
+    pub fn context(&self) -> RoutingContext {
+        RoutingContext {
+            candidates: &self.candidates,
+            map: self.map,
         }
     }
 
