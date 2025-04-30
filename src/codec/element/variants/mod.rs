@@ -17,6 +17,8 @@ pub mod common {
 
     use crate::codec::{relation::MemberType, PrimitiveBlock};
 
+    const OSM_NULL_SENTINEL: i64 = -1i64;
+
     const VALID_ROADWAYS: [&str; 16] = [
         "motorway",
         "motorway_link",
@@ -40,7 +42,7 @@ pub mod common {
     #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
     pub struct OsmEntryId {
         pub identifier: i64,
-        variant: MemberType,
+        // variant: MemberType,
     }
 
     impl Default for OsmEntryId {
@@ -53,26 +55,26 @@ pub mod common {
         pub const fn new(id: i64, variant: MemberType) -> OsmEntryId {
             OsmEntryId {
                 identifier: id,
-                variant,
+                // variant,
             }
         }
 
         pub const fn null() -> OsmEntryId {
             OsmEntryId {
-                identifier: -1,
-                variant: MemberType::Node,
+                identifier: OSM_NULL_SENTINEL,
+                // variant: MemberType::Node,
             }
         }
 
         pub fn is_null(&self) -> bool {
-            self.identifier == -1
+            self.identifier == OSM_NULL_SENTINEL
         }
 
         #[inline]
         pub const fn as_node(identifier: i64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
-                variant: MemberType::Node,
+                // variant: MemberType::Node,
             }
         }
 
@@ -80,7 +82,7 @@ pub mod common {
         pub const fn as_way(identifier: i64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
-                variant: MemberType::Way,
+                // variant: MemberType::Way,
             }
         }
     }
@@ -91,7 +93,7 @@ pub mod common {
         fn add(self, other: i64) -> Self::Output {
             OsmEntryId {
                 identifier: self.identifier + other,
-                variant: self.variant,
+                // variant: self.variant,
             }
         }
     }
@@ -101,7 +103,7 @@ pub mod common {
         fn from(value: i64) -> Self {
             OsmEntryId {
                 identifier: value,
-                variant: MemberType::Node,
+                // variant: MemberType::Node,
             }
         }
     }
@@ -113,6 +115,7 @@ pub mod common {
     }
 
     impl Hash for OsmEntryId {
+        #[inline]
         fn hash<H: Hasher>(&self, state: &mut H) {
             self.identifier.hash(state);
         }

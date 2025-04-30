@@ -2,9 +2,11 @@ use crate::route::graph::{EdgeIx, NodeIx, Weight};
 use crate::route::transition::RoutingContext;
 use crate::route::Graph;
 
+use crate::codec::element::variants::Node;
 use geo::{Distance, Haversine, LineLocatePoint, LineString, Point};
 use pathfinding::num_traits::Zero;
 use petgraph::Direction;
+use rstar::AABB;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::Add;
@@ -67,8 +69,37 @@ pub struct Edge {
 }
 
 impl<'a> From<(NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))> for Edge {
+    #[inline]
     fn from((source, target, edge): (NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))) -> Self {
         Edge::new(source, target, edge.0, edge.1)
+    }
+}
+
+pub struct FatEdge {
+    pub source: Node,
+    pub target: Node,
+
+    pub weight: Weight,
+    pub id: DirectionAwareEdgeId,
+}
+
+impl FatEdge {
+    #[inline]
+    pub fn thin(&self) -> Edge {
+        Edge {
+            source: self.source.id,
+            target: self.target.id,
+            id: self.id,
+            weight: self.weight,
+        }
+    }
+}
+
+impl rstar::RTreeObject for FatEdge {
+    type Envelope = AABB<Point>;
+
+    fn envelope(&self) -> Self::Envelope {
+        AABB::from_corners(self.target.position, self.source.position)
     }
 }
 

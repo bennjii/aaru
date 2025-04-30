@@ -90,7 +90,6 @@ where
     /// to search for projected nodes within said radius from
     /// the position on the input point.
     pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates) {
-        debug_time!("layer `with_points` generation"); // 300ms (!!)
         let candidates = Candidates::default();
 
         // In parallel, create each layer, and collect into a single structure.
@@ -98,15 +97,16 @@ where
             .into_par_iter()
             .enumerate()
             .map(|(layer_id, origin)| {
-                debug_time!("individual layer generation (!!)");
+                debug_time!("{layer_id}: individual layer generation (!!)"); // 0.1 - 5.0ms
 
                 // Generate an individual layer
+                // Function takes about 10ms to compute.
                 let nodes = {
-                    debug_time!("node generation");
+                    debug_time!("{layer_id}: gen all");
 
                     self.map
                         // We'll do a best-effort search (square) radius
-                        .edge_distinct_nearest_projected_nodes_sorted(
+                        .nearest_projected_nodes_sorted(
                             *origin,
                             self.search_distance,
                             self.filter_distance,
@@ -119,10 +119,11 @@ where
                             // the associated emission cost of this candidate.
                             let emission = self
                                 .heuristics
-                                .emission(EmissionContext::new(&position, &origin, distance));
+                                .emission(EmissionContext::new(&position, origin, distance));
 
                             let location = CandidateLocation { layer_id, node_id };
-                            let candidate = Candidate::new(edge, position, emission, location);
+                            let candidate =
+                                Candidate::new(edge.thin(), position, emission, location);
 
                             let candidate_reference = CandidateRef::new(emission);
                             (candidate, candidate_reference)

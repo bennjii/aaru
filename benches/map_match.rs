@@ -3,10 +3,11 @@ use aaru::codec::consts::{
 };
 use aaru::route::transition::{CostingStrategies, LayerGenerator, PredicateCache};
 use aaru::route::Graph;
-use criterion::criterion_main;
+use criterion::{black_box, criterion_main};
 use geo::{coord, LineString};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use wkt::{ToWkt, TryFromWkt};
 
 struct MapMatchScenario {
@@ -59,13 +60,19 @@ fn target_benchmark(c: &mut criterion::Criterion) {
             let coordinates: LineString<f64> = LineString::try_from_wkt_str(sc.input_linestring)
                 .expect("Linestring must parse successfully.");
 
+            let _ = graph
+                .map_match(
+                    black_box(coordinates.clone()),
+                    black_box(Arc::clone(&lookup)),
+                )
+                .expect("Match must complete successfully");
+
             group.bench_function(format!("layer-gen: {}", sc.name), |b| {
+                let points = coordinates.clone().into_points();
+                let generator = LayerGenerator::new(&graph, &costing);
+
                 b.iter(|| {
-                    let points = coordinates.clone().into_points();
-
-                    let generator = LayerGenerator::new(&graph, &costing);
                     let (layers, _) = generator.with_points(&points);
-
                     assert_eq!(layers.layers.len(), points.len())
                 })
             });

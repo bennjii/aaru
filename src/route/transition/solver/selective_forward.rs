@@ -234,8 +234,7 @@ impl Solver for SelectiveForwardSolver {
         info!("Solving...");
 
         let (start, end) = {
-            debug_time!("attach candidate ends");
-
+            // Compute cost ~= free
             transition
                 .candidates
                 .attach_ends(&transition.layers)
@@ -248,6 +247,7 @@ impl Solver for SelectiveForwardSolver {
         );
 
         {
+            // ~1ms
             debug_time!("candidate weave");
             transition.candidates.weave(&transition.layers);
         }
