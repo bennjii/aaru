@@ -145,20 +145,45 @@ mod predicate {
 
             Dijkstra
                 .reach(&key, move |node| {
-                    self.metadata.successors.query(ctx, *node).to_vec()
+                    ArcIter::new(self.metadata.successors.query(ctx, *node))
                 })
                 .take_while(|p| {
                     // Bounded by the threshold distance (centimeters)
                     (p.total_cost.1 as f64) < threshold
                 })
-                .map(|predicate| {
-                    (
-                        predicate.node,
-                        (predicate.parent.unwrap_or_default(), predicate.total_cost),
-                    )
+                .map(|pre| {
+                    let parent = pre.parent.unwrap_or_default();
+                    (pre.node, (parent, pre.total_cost))
                 })
-                .collect::<FxHashMap<OsmEntryId, (OsmEntryId, WeightAndDistance)>>()
+                .collect::<Predicates>()
         }
+    }
+}
+
+/// Iterator wrapper that keeps the Arc alive while yielding `&T`
+struct ArcIter<T> {
+    data: Arc<Vec<T>>,
+    index: usize,
+}
+
+impl<'a, T> ArcIter<T> {
+    #[inline(always)]
+    fn new(data: Arc<Vec<T>>) -> Self {
+        ArcIter { data, index: 0 }
+    }
+}
+
+impl<'a, T> Iterator for ArcIter<T>
+where
+    T: Copy,
+{
+    type Item = T;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = *self.data.get(self.index)?;
+        self.index += 1;
+        Some(item)
     }
 }
 

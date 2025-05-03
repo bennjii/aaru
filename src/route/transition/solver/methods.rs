@@ -41,19 +41,6 @@ impl Reachable {
 }
 
 pub trait Solver {
-    /// Derives which candidates are reachable by the source candidate.
-    ///
-    /// Provides a slice of target candidate IDs, `targets`. The solver
-    /// will use these to procure all candidates which are reachable,
-    /// and the path of routable entries ([`OsmEntryId`]) which are used
-    /// to reach the target.
-    fn reachable<'a>(
-        &self,
-        ctx: RoutingContext<'a>,
-        source: &CandidateId,
-        targets: &'a [CandidateId],
-    ) -> Option<Vec<Reachable>>;
-
     /// Refines a single node within an initial layer to all nodes in the
     /// following layer with their respective emission and transition
     /// probabilities in the hidden markov model.

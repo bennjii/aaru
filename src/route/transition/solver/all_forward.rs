@@ -23,6 +23,7 @@ type ProcessedReachable = (CandidateId, Reachable);
 /// A Upper-Bounded Dijkstra (UBD) algorithm.
 ///
 /// TODO: Docs
+#[deprecated(since = "0.2.0", note = "Use SelectiveForward instead")]
 pub struct AllForwardSolver {
     /// The threshold by which the solver is bounded, in meters.
     threshold_distance: f64,
@@ -142,9 +143,7 @@ impl AllForwardSolver {
             .par_bridge()
             .into_par_iter()
     }
-}
 
-impl Solver for AllForwardSolver {
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
@@ -189,7 +188,9 @@ impl Solver for AllForwardSolver {
 
         Some(reachable)
     }
+}
 
+impl Solver for AllForwardSolver {
     fn solve<E, T>(&self, transition: Transition<E, T>) -> Result<Collapse, MatchError>
     where
         E: EmissionStrategy + Send + Sync,
