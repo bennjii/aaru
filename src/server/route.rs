@@ -2,10 +2,12 @@ use geo::{coord, point, Distance, Haversine, Point};
 use log::{debug, info};
 use std::cmp::Ordering;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use tonic::{Request, Response, Status};
 
 use router_service::{MatchedRoute, RouteRequest, RouteResponse};
 
+use crate::route::transition::PredicateCache;
 use crate::route::{Graph, Scan};
 use crate::server::route::router_service::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,
@@ -26,6 +28,7 @@ pub mod router_service {
 #[derive(Debug)]
 pub struct RouteService {
     graph: Graph,
+    lookup: Arc<Mutex<PredicateCache>>,
 }
 
 impl RouteService {
@@ -33,7 +36,10 @@ impl RouteService {
         let path = Path::new(file);
         let graph = Graph::new(path.as_os_str().to_ascii_lowercase())?;
 
-        Ok(RouteService { graph })
+        Ok(RouteService {
+            graph,
+            lookup: Arc::new(Mutex::new(PredicateCache::default())),
+        })
     }
 }
 
@@ -92,7 +98,7 @@ impl RouterService for RouteService {
 
         let result = self
             .graph
-            .map_match(coordinates)
+            .map_match(coordinates, Arc::clone(&self.lookup))
             .map_err(|err| Status::internal(format!("{:?}", err)))?;
 
         let snapped_shape = result
@@ -125,7 +131,7 @@ impl RouterService for RouteService {
 
         Ok(Response::new(MapMatchResponse {
             // TODO: Vector to allow trip-splitting in the future.
-            matchings: vec![matching],
+            matches: vec![matching],
             // TODO: Aggregate all the errored trips.
             warnings: vec![],
         }))
@@ -177,7 +183,7 @@ impl RouterService for RouteService {
 
         let all_valids = self
             .graph
-            .square_scan(&point, request.search_radius)
+            .nearest_nodes(&point, request.search_radius)
             .map(|p| p.position.wkt_string())
             .collect::<Vec<_>>()
             .join(", ");
@@ -202,8 +208,8 @@ impl RouterService for RouteService {
 
         // Get the closest of the discovered points
         nearest_points.sort_by(|(a, _), (b, _)| {
-            let dist_to_a = Haversine::distance(point, *a);
-            let dist_to_b = Haversine::distance(point, *b);
+            let dist_to_a = Haversine.distance(point, *a);
+            let dist_to_b = Haversine.distance(point, *b);
             dist_to_a.partial_cmp(&dist_to_b).unwrap_or(Ordering::Equal)
         });
 

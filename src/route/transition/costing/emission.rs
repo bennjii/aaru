@@ -16,13 +16,21 @@ pub struct EmissionContext<'a> {
     /// This belongs to the un-matched trip, as the position
     /// which must be matched upon the network.
     pub source_position: &'a geo::Point,
+
+    /// The distance (in meters) between the source and candidate positions using [`geo::Haversine`].
+    ///
+    /// Note: This is given as it is used in the processing step, and if it were
+    /// used during the costing stage it is more optimal to pass it on rather than
+    /// calculate it twice.
+    pub distance: f64,
 }
 
 impl<'a> EmissionContext<'a> {
-    pub fn new(candidate: &'a geo::Point, source: &'a geo::Point) -> Self {
+    pub fn new(candidate: &'a geo::Point, source: &'a geo::Point, distance: f64) -> Self {
         Self {
             candidate_position: candidate,
             source_position: source,
+            distance,
         }
     }
 }

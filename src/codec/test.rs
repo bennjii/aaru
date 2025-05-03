@@ -87,38 +87,3 @@ fn parallel_iterate_blocks_each() {
 
     assert_eq!(elements, (237, 1));
 }
-
-#[test]
-fn compare_to_osmpbf() {
-    use osmpbf::{BlobReader, BlobType};
-
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
-    let reader = BlobReader::from_path(path).unwrap();
-
-    println!("Counting...");
-
-    let mut primitive_blocks = 0;
-    let mut header_blocks = 0;
-
-    for block in reader {
-        match block {
-            Ok(b) => match b.get_type() {
-                BlobType::OsmHeader => {
-                    if b.to_headerblock().is_ok() {
-                        header_blocks += 1;
-                    }
-                }
-                BlobType::OsmData => {
-                    if b.to_primitiveblock().is_ok() {
-                        primitive_blocks += 1;
-                    }
-                }
-                _ => {}
-            },
-            Err(_) => {}
-        }
-    }
-
-    assert_eq!(header_blocks, 1);
-    assert_eq!(primitive_blocks, 237);
-}

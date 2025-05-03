@@ -1,22 +1,22 @@
-use geo::{line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, Point};
-use petgraph::Direction;
+use geo::{
+    Destination, Distance, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point,
+};
+use itertools::Itertools;
 use rstar::AABB;
 
+use crate::codec::element::variants::Node;
+use crate::route::transition::{Edge, FatEdge};
+use crate::route::Graph;
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
-use crate::codec::element::variants::Node;
-use crate::route::transition::Edge;
-use crate::route::Graph;
-
 pub trait Scan {
     /// TODO: Docs
-    fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node>;
+    fn nearest_nodes(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node>;
 
     /// TODO: Docs r.e. distinct.
-    ///
-    /// Finds all **distinct** edges within a square radius of the target position.
-    fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge>;
+    /// Finds all edges within a set square radius
+    fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = &FatEdge>;
 
     /// Finds the nearest node to a lat/lng position
     fn nearest_node(&self, point: Point) -> Option<&Node>;
@@ -26,14 +26,21 @@ pub trait Scan {
         &self,
         point: &Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)>;
+    ) -> impl Iterator<Item = (Point, &FatEdge)>;
+
+    fn nearest_projected_nodes_sorted(
+        &self,
+        point: Point,
+        search_distance: f64,
+        filter_distance: f64,
+    ) -> impl Iterator<Item = (Point, &FatEdge, f64)>;
 }
 
 impl Scan for Graph {
     #[inline]
-    fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node> {
-        let bottom_right = Geodesic::destination(*point, 135.0, distance);
-        let top_left = Geodesic::destination(*point, 315.0, distance);
+    fn nearest_nodes(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node> {
+        let bottom_right = Geodesic.destination(*point, 135.0, distance);
+        let top_left = Geodesic.destination(*point, 315.0, distance);
 
         let bbox = AABB::from_corners(top_left, bottom_right);
         self.index().locate_in_envelope(&bbox)
@@ -41,15 +48,15 @@ impl Scan for Graph {
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
     #[inline]
-    fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge> {
-        // let mut edges_covered = BTreeSet::<EdgeIx>::new();
+    fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = &FatEdge> {
+        let bottom_right = Geodesic.destination(*point, 135.0, distance);
+        let top_left = Geodesic.destination(*point, 315.0, distance);
 
-        self.square_scan(point, distance)
-            .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
-            .map(Edge::from)
-        // .filter(move |Edge { id, .. }| !edges_covered.insert(*id))
+        let bbox = AABB::from_corners(top_left, bottom_right);
+        self.index_edge().locate_in_envelope(&bbox)
     }
 
+    #[inline]
     fn nearest_node(&self, point: Point) -> Option<&Node> {
         self.index.nearest_neighbor(&point)
     }
@@ -60,23 +67,37 @@ impl Scan for Graph {
         &self,
         point: &Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)> {
-        self.nearest_edges(point, distance)
-            .filter_map(|edge| {
-                let hashmap = self.hash.read().unwrap();
-                let src = hashmap.get(&edge.source)?;
-                let trg = hashmap.get(&edge.target)?;
+    ) -> impl Iterator<Item = (Point, &FatEdge)> {
+        // Total overhead of this function is negligible.
+        self.nearest_edges(point, distance).filter_map(move |edge| {
+            let line = Line::new(edge.source.position, edge.target.position);
 
-                Some((line_string![src.position.0, trg.position.0], edge))
+            // We locate the point upon the linestring,
+            // and then project that fractional (%)
+            // upon the linestring to obtain a point
+            line.line_locate_point(point)
+                .map(|frac| line.point_at_ratio_from_start(&Haversine, frac))
+                .map(|point| (point, edge))
+        })
+    }
+
+    #[inline]
+    fn nearest_projected_nodes_sorted(
+        &self,
+        source: Point,
+        search_distance: f64,
+        filter_distance: f64,
+    ) -> impl Iterator<Item = (Point, &FatEdge, f64)> {
+        self.nearest_projected_nodes(&source, search_distance)
+            .filter_map(move |(point, edge)| {
+                let distance = Haversine.distance(point, source);
+
+                if distance < filter_distance {
+                    Some((point, edge, distance))
+                } else {
+                    None
+                }
             })
-            .filter_map(move |(linestring, edge)| {
-                // We locate the point upon the linestring,
-                // and then project that fractional (%)
-                // upon the linestring to obtain a point
-                linestring
-                    .line_locate_point(point)
-                    .and_then(|frac| linestring.line_interpolate_point(frac))
-                    .map(|point| (point, edge))
-            })
+            .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
     }
 }
