@@ -6,7 +6,7 @@ use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
 use crate::route::error::RouteError;
 use crate::route::transition::candidate::Collapse;
-use crate::route::transition::graph::Transition;
+pub(crate) use crate::route::transition::graph::Transition;
 use crate::route::transition::{
     CostingStrategies, DirectionAwareEdgeId, Edge, FatEdge, PredicateCache, SelectiveForwardSolver,
 };
