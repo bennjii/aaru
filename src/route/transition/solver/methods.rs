@@ -54,11 +54,15 @@ pub trait Solver {
         targets: &'a [CandidateId],
     ) -> Option<Vec<Reachable>>;
 
-    /// Refines a single node within an initial layer to all nodes in the
-    /// following layer with their respective emission and transition
-    /// probabilities in the hidden markov model.
+    /// Solves a transition graph, returning consuming the graph by ownership
+    /// and returning a collapsed graph containing the resolved candidates and
+    /// optimal route.
     ///
-    /// Based on the method used in FMM / MM2
+    /// It may return a match error which is encountered for various reasons.
+    /// This may be due to insufficient candidates for a given node in the sequence,
+    /// or due to blown-out costings. There are other reasons this may occur given
+    /// the functionality is statistical and therefore prone to out-of-bound failures
+    /// which are less deterministic than a brute-force model.
     fn solve<E, T>(&self, transition: Transition<E, T>) -> Result<Collapse, MatchError>
     where
         E: EmissionStrategy + Send + Sync,

@@ -6,7 +6,8 @@ use crate::route::transition::{
 };
 use crate::route::{Graph, Scan};
 
-use geo::Point;
+use geo::{Distance, Haversine, Point};
+use itertools::Itertools;
 use measure_time::debug_time;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
@@ -106,11 +107,17 @@ where
 
                     self.map
                         // We'll do a best-effort search (square) radius
-                        .nearest_projected_nodes_sorted(
-                            *origin,
-                            self.search_distance,
-                            self.filter_distance,
-                        )
+                        .nearest_projected_nodes(origin, self.search_distance)
+                        .filter_map(|(point, edge)| {
+                            let distance = Haversine.distance(point, *origin);
+
+                            if distance < self.filter_distance {
+                                Some((point, edge, distance))
+                            } else {
+                                None
+                            }
+                        })
+                        .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
                         .take(25)
                         .enumerate()
                         .map(|(node_id, (position, edge, distance))| {

@@ -1,39 +1,57 @@
-use geo::{
-    Destination, Distance, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point,
-};
-use itertools::Itertools;
+use geo::{Destination, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point};
 use rstar::AABB;
 
 use crate::codec::element::variants::Node;
-use crate::route::transition::{Edge, FatEdge};
+use crate::route::transition::FatEdge;
 use crate::route::Graph;
+
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
+/// Trait containing utility functions to find nodes and edges upon a root structure.
 pub trait Scan {
-    /// TODO: Docs
+    /// A function which returns an unsorted iterator of [`Node`] references which are within
+    /// the provided `distance` of the input [point](Point).
+    ///
+    /// ### Node
+    /// This function implements a square-scan.
+    ///
+    /// Therefore, it bounds the search to be within a square-radius of the origin. Therefore,
+    /// it may not select every node within the supplied distance, or it may select more nodes.
+    /// This resolution method is however significantly cheaper than a circular scan, so a wider
+    /// or shorter search radius may be required in some use-cases.
     fn nearest_nodes(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node>;
 
-    /// TODO: Docs r.e. distinct.
-    /// Finds all edges within a set square radius
+    /// A function which returns an unsorted iterator of [`FatEdge`] references which are within
+    /// the provided `distance` of the input [point](Point).
+    ///
+    /// ### Node
+    /// This function implements a square-scan.
+    ///
+    /// Therefore, it bounds the search to be within a square-radius of the origin. Therefore,
+    /// it may not select every node within the supplied distance, or it may select more nodes.
+    /// This resolution method is however significantly cheaper than a circular scan, so a wider
+    /// or shorter search radius may be required in some use-cases.
     fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = &FatEdge>;
 
-    /// Finds the nearest node to a lat/lng position
+    /// Searches for, and returns a reference to nearest node from the origin [point](Point).
+    /// This node may not exist, and therefore the return type is optional.
     fn nearest_node(&self, point: Point) -> Option<&Node>;
 
-    /// TODO: Docs
+    /// Returns an iterator over [`Projected`] nodes on each edge within the specified `distance`.
+    /// It does so using the [`Scan::nearest_edges`] function.
+    ///
+    /// ### Note
+    /// This is achieved by creating a line from every edge in the iteration, and finding
+    /// the closest point upon that line to the source [point](Point).
+    /// This is a bounded projection.
+    ///
+    /// [`Projected`]: https://en.wikipedia.org/wiki/Projection_(linear_algebra)
     fn nearest_projected_nodes(
         &self,
         point: &Point,
         distance: f64,
     ) -> impl Iterator<Item = (Point, &FatEdge)>;
-
-    fn nearest_projected_nodes_sorted(
-        &self,
-        point: Point,
-        search_distance: f64,
-        filter_distance: f64,
-    ) -> impl Iterator<Item = (Point, &FatEdge, f64)>;
 }
 
 impl Scan for Graph {
@@ -79,25 +97,5 @@ impl Scan for Graph {
                 .map(|frac| line.point_at_ratio_from_start(&Haversine, frac))
                 .map(|point| (point, edge))
         })
-    }
-
-    #[inline]
-    fn nearest_projected_nodes_sorted(
-        &self,
-        source: Point,
-        search_distance: f64,
-        filter_distance: f64,
-    ) -> impl Iterator<Item = (Point, &FatEdge, f64)> {
-        self.nearest_projected_nodes(&source, search_distance)
-            .filter_map(move |(point, edge)| {
-                let distance = Haversine.distance(point, source);
-
-                if distance < filter_distance {
-                    Some((point, edge, distance))
-                } else {
-                    None
-                }
-            })
-            .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
     }
 }

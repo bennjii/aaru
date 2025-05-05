@@ -111,9 +111,12 @@ impl Trip {
     /// use aaru::route::transition::Trip;
     ///
     /// let positions = vec![
-    ///     Node::new(Point::new(-122.4194, 37.7749), OsmEntryId::null()), // San Francisco
-    ///     Node::new(Point::new(-118.2437, 34.0522), OsmEntryId::null()), // Los Angeles
-    ///     Node::new(Point::new(-115.1398, 36.1699), OsmEntryId::null()), // Las Vegas
+    ///     // San Francisco (SF)
+    ///     Node::new(Point::new(-122.4194, 37.7749), OsmEntryId::null()),
+    ///     // Los Angeles (LA)
+    ///     Node::new(Point::new(-118.2437, 34.0522), OsmEntryId::null()),
+    ///     // Las Vegas (LV)
+    ///     Node::new(Point::new(-115.1398, 36.1699), OsmEntryId::null()),
     /// ];
     ///
     /// // [heading SF → LA, heading LA → LV]
@@ -181,7 +184,20 @@ impl Trip {
     /// the angles of two trips on a given distance to understand which one had
     /// more turning.
     ///
-    /// TODO: Consult use of distance in heuristic
+    /// The distance parameter provided is used to grade complexity against a constant
+    /// heuristic. The distance is used to emulate a "worst traversal" across the distance
+    /// such that the provided trip can be compared to have been better or worse than
+    /// this theoretically worst trip.
+    ///
+    /// ### Example
+    ///
+    /// As an example [`DefaultTransitionCost`], uses this heuristic to grade the trip
+    /// between two candidates against the distance between the candidates, `d`.
+    ///
+    /// The trips themselves have distances `d1`, `d2`, `d3`, and so on. These values are not `d`,
+    /// but can be graded against `d` as a common distance such that the heuristic can
+    /// understand if the trip taken between the two nodes is theoretically simple or
+    /// theoretically complex.
     pub fn angular_complexity(&self, distance: f64) -> f64 {
         const U_TURN: f64 = 179.;
         const DIST_BETWEEN_ZIGZAG: f64 = 100.0; // 100m minimum
