@@ -38,7 +38,7 @@ impl FromParallelIterator<Layer> for Layers {
 }
 
 const DEFAULT_SEARCH_DISTANCE: f64 = 1_000.0; // 1km (1_000m)
-const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 100m
+const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 250m
 
 /// Generates the layers within the transition graph.
 ///
@@ -65,8 +65,13 @@ where
     /// are far apart.
     filter_distance: f64,
 
+    /// The costing heuristics required to generate the layers.
+    ///
+    /// This is required as a caching technique since the costs for a candidate
+    /// need only be calculated once.
     heuristics: &'a CostingStrategies<E, T>,
 
+    /// The routing map used to pull candidates from, and provide layout context.
     map: &'a Graph,
 }
 
@@ -75,6 +80,7 @@ where
     E: EmissionStrategy + Send + Sync,
     T: TransitionStrategy + Send + Sync,
 {
+    /// Creates a [`LayerGenerator`] from a map and costing heuristics.
     pub fn new(map: &'a Graph, heuristics: &'a CostingStrategies<E, T>) -> Self {
         LayerGenerator {
             map,
@@ -85,11 +91,8 @@ where
         }
     }
 
-    /// TODO: Docs
-    ///
-    /// Takes a projection distance (`distance`), for which
-    /// to search for projected nodes within said radius from
-    /// the position on the input point.
+    /// Utilises the configured search and filter distances to produce
+    /// the candidates and layers required to match the initial input.
     pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates) {
         let candidates = Candidates::default();
 
