@@ -9,6 +9,11 @@ pub enum ResolutionMethod {
     DistanceOnly,
 }
 
+/// Defines a [target](#field.target) element reachable from some given
+/// [source](#field.source) through a known [path](#field.path).
+///
+/// It requests itself to be resolved in the heuristic-layer by a given
+/// [resolution_method](#field.resolution_method).
 #[derive(Clone)]
 pub struct Reachable {
     pub source: CandidateId,
@@ -19,6 +24,9 @@ pub struct Reachable {
 }
 
 impl Reachable {
+    /// Creates a new reachable element, supplied a source, target and path.
+    ///
+    /// This assumes the default resolution method.
     pub fn new(source: CandidateId, target: CandidateId, path: Vec<OsmEntryId>) -> Self {
         Self {
             source,
@@ -28,6 +36,8 @@ impl Reachable {
         }
     }
 
+    /// Consumes and modifies a reachable element to request the
+    /// [`DistanceOnly`](ResolutionMethod::DistanceOnly) option.
     pub fn distance_only(self) -> Self {
         Self {
             resolution_method: ResolutionMethod::DistanceOnly,
@@ -35,11 +45,18 @@ impl Reachable {
         }
     }
 
+    /// Converts a reachable element into a (source, target) index pair
+    /// used for hashing the structure as a path lookup between the
+    /// source and target.
     pub fn hash(&self) -> (usize, usize) {
         (self.source.index(), self.target.index())
     }
 }
 
+/// Defines a structure which can be supplied to the [`Transition::solve`] function
+/// in order to solve the transition graph.
+///
+/// Functionality is implemented using the [`Solver::solve`] method.
 pub trait Solver {
     /// Refines a single node within an initial layer to all nodes in the
     /// following layer with their respective emission and transition

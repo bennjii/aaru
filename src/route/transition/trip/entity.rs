@@ -1,11 +1,14 @@
-use crate::codec::element::variants::{Node, OsmEntryId};
+use crate::codec::element::variants::Node;
+use crate::route::graph::NodeIx;
 use crate::route::Graph;
 use geo::{Bearing, Distance, Haversine, LineString};
 
-/// `Trip`
+/// Utilities to calculate metadata of a trip.
+/// A trip is composed of a collection of [`Node`] entries.
 ///
-/// Utilities to calculate metadata from trips (Collection of [`Node`]s).
-/// Can be created from a slice of nodes.
+/// These entries contain positioning data which are used
+/// to provide utilities such as conversions into a [`LineString`],
+/// finding the total travelled angle, and finding the trips summative length.
 #[derive(Clone, Debug)]
 pub struct Trip(Vec<Node>);
 
@@ -20,12 +23,14 @@ impl Trip {
         Self(nodes.into_iter().collect::<Vec<_>>())
     }
 
+    /// Converts a trip into a [`LineString`].
     pub(crate) fn linestring(&self) -> LineString {
         self.0.iter().map(|v| v.position).collect::<LineString>()
     }
 
-    /// TODO: This should be done lazily, since we may not need the points but possibly OK as is.
-    pub fn new_with_map(map: &Graph, nodes: &[OsmEntryId]) -> Self {
+    // TODO: This should be done lazily, since we may not need the points but possibly OK as is.
+    /// Creates a new trip from a slice of [`NodeIx`]s, and a map to lookup their location.
+    pub fn new_with_map(map: &Graph, nodes: &[NodeIx]) -> Self {
         let resolved = map.resolve_line(nodes);
 
         let nodes = resolved
