@@ -53,7 +53,7 @@ pub mod common {
     }
 
     impl OsmEntryId {
-        pub const fn new(id: i64, variant: MemberType) -> OsmEntryId {
+        pub const fn new(id: i64, _variant: MemberType) -> OsmEntryId {
             OsmEntryId {
                 identifier: id,
                 // variant,

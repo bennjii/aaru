@@ -13,7 +13,7 @@ pub trait Scan {
     /// A function which returns an unsorted iterator of [`Node`] references which are within
     /// the provided `distance` of the input [point](Point).
     ///
-    /// ### Node
+    /// ### Note
     /// This function implements a square-scan.
     ///
     /// Therefore, it bounds the search to be within a square-radius of the origin. Therefore,
@@ -25,7 +25,7 @@ pub trait Scan {
     /// A function which returns an unsorted iterator of [`FatEdge`] references which are within
     /// the provided `distance` of the input [point](Point).
     ///
-    /// ### Node
+    /// ### Note
     /// This function implements a square-scan.
     ///
     /// Therefore, it bounds the search to be within a square-radius of the origin. Therefore,

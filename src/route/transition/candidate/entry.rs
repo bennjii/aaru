@@ -1,5 +1,5 @@
 use crate::route::graph::{EdgeIx, NodeIx, Weight};
-use crate::route::transition::{ResolutionMethod, RoutingContext};
+use crate::route::transition::RoutingContext;
 use crate::route::Graph;
 
 use crate::codec::element::variants::Node;
@@ -107,7 +107,7 @@ impl<'a> From<(NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))> for Edge {
 /// A helper method, [`FatEdge::thin`] is provided to downsize to an [`Edge`]. Note this process
 /// is lossy if no data source containing the original node is present.
 ///
-/// ### Node
+/// ### Note
 ///
 /// As it is large, this should only be used transitively
 /// like in [`Scan::nearest_edges`](crate::route::Scan::nearest_edges).
@@ -248,7 +248,7 @@ impl Candidate {
 ///
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(transparent)]
-pub(crate) struct CandidateEdge {
+pub struct CandidateEdge {
     pub weight: u32,
 }
 
