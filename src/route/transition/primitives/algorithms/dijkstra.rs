@@ -58,8 +58,6 @@ pub struct DijkstraReachableItem {
     pub node: Node,
     /// The previous node that the current node came from.
     /// If the node is the first node, there will be no parent.
-    ///
-    /// Note: Uses 0 as a sentinel for "no-parent"
     pub parent: Option<Node>,
     /// The total cost from the starting node.
     pub total_cost: Cost,
@@ -68,7 +66,7 @@ pub struct DijkstraReachableItem {
 impl<FN, IN> Iterator for DijkstraReachable<FN>
 where
     FN: FnMut(&Node) -> IN,
-    IN: IntoIterator<Item = (Node, Cost)>,
+    IN: Iterator<Item = (Node, Cost)>,
 {
     type Item = DijkstraReachableItem;
 
@@ -138,7 +136,7 @@ impl Dijkstra {
     pub fn reach<FN, IN>(&self, start: &Node, successors: FN) -> DijkstraReachable<FN>
     where
         FN: FnMut(&Node) -> IN,
-        IN: IntoIterator<Item = (Node, Cost)>,
+        IN: Iterator<Item = (Node, Cost)>,
     {
         let mut to_see: BinaryHeap<SmallestHolder> = BinaryHeap::with_capacity(256);
         to_see.push(SmallestHolder {
