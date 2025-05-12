@@ -1,13 +1,18 @@
 use crate::route::transition::primitives::CumulativeFraction;
+
 use pathfinding::num_traits::Zero;
 use std::cmp::Ordering;
 use std::ops::Add;
 
+/// Represents a thin structure storing the weight and distance associated with a candidate
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Copy, Clone, Hash, Debug)]
 pub struct WeightAndDistance(pub CumulativeFraction, pub u32);
 
 impl WeightAndDistance {
+    /// A representation method which allows distinguishment between structures
+    /// on a given `f(weight, distance) = sqrt(weight) * distance` function,
+    /// returning a `u32` representation of the structure.
     #[inline]
     pub fn repr(&self) -> u32 {
         ((self.0.value() as f64).sqrt() * self.1 as f64) as u32

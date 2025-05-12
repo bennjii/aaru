@@ -145,7 +145,7 @@ pub mod transition {
                         [a, b] => context.routing_context.edge(a, b),
                         _ => None,
                     })
-                    .map(|(weight, _)| *weight as f64)
+                    .map(|Edge { weight, .. }| weight as f64)
                     .collect::<Vec<_>>();
 
                 weights.iter().sum::<f64>() / weights.len() as f64

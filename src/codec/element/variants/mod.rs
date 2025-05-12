@@ -40,6 +40,7 @@ pub mod common {
     ];
 
     #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
+    #[repr(transparent)]
     pub struct OsmEntryId {
         pub identifier: i64,
         // variant: MemberType,
@@ -52,7 +53,7 @@ pub mod common {
     }
 
     impl OsmEntryId {
-        pub const fn new(id: i64, variant: MemberType) -> OsmEntryId {
+        pub const fn new(id: i64, _variant: MemberType) -> OsmEntryId {
             OsmEntryId {
                 identifier: id,
                 // variant,

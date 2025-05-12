@@ -92,7 +92,7 @@ where
 
                 let mut pushed = false;
 
-                let index = match self.parents.entry(successor.clone()) {
+                let index = match self.parents.entry(successor) {
                     Entry::Vacant(e) => {
                         let n = e.index();
                         e.insert((index, new_cost));
@@ -147,7 +147,7 @@ impl Dijkstra {
         let mut parents: FxIndexMap<Node, (usize, Cost)> =
             FxIndexMap::with_capacity_and_hasher(64, BuildHasherDefault::<FxHasher>::default());
 
-        parents.insert(start.clone(), (usize::MAX, Zero::zero()));
+        parents.insert(*start, (usize::MAX, Zero::zero()));
         let seen = FxHashSet::default();
 
         DijkstraReachable {

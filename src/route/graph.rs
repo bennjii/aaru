@@ -1,15 +1,11 @@
-use super::transition::graph::MatchError;
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::common::OsmEntryId;
 use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
+
 use crate::route::error::RouteError;
-use crate::route::transition::candidate::Collapse;
-use crate::route::transition::graph::Transition;
-use crate::route::transition::{
-    CostingStrategies, DirectionAwareEdgeId, Edge, FatEdge, PredicateCache, SelectiveForwardSolver,
-};
+use crate::route::transition::*;
 use crate::route::Scan;
 
 use geo::{LineString, Point};
@@ -45,17 +41,6 @@ pub struct Graph {
     pub(crate) index: RTree<Node>,
     pub(crate) index_edge: RTree<FatEdge>,
     pub(crate) hash: FxHashMap<NodeIx, Node>,
-}
-
-impl Default for Graph {
-    fn default() -> Self {
-        Self {
-            graph: GraphStructure::default(),
-            index: RTree::default(),
-            index_edge: RTree::default(),
-            hash: FxHashMap::default(),
-        }
-    }
 }
 
 impl Debug for Graph {
@@ -199,8 +184,8 @@ impl Graph {
         let mut hash = FxHashMap::default();
         let filtered = {
             nodes
-                .to_owned()
-                .into_iter()
+                .iter()
+                .copied()
                 .filter(|v| graph.contains_node(v.id))
                 .inspect(|e| {
                     hash.insert(e.id, *e);
@@ -210,8 +195,7 @@ impl Graph {
 
         let fat = {
             edges
-                .to_owned()
-                .into_iter()
+                .iter()
                 .flat_map(|edge| {
                     Some(FatEdge {
                         source: *hash.get(&edge.source)?,

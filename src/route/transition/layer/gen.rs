@@ -1,12 +1,8 @@
-use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
-use crate::route::transition::layer::Layer;
-use crate::route::transition::CandidateLocation;
-use crate::route::transition::{
-    Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
-};
+use crate::route::transition::*;
 use crate::route::{Graph, Scan};
 
-use geo::Point;
+use geo::{Distance, Haversine, Point};
+use itertools::Itertools;
 use measure_time::debug_time;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
@@ -37,7 +33,7 @@ impl FromParallelIterator<Layer> for Layers {
 }
 
 const DEFAULT_SEARCH_DISTANCE: f64 = 1_000.0; // 1km (1_000m)
-const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 100m
+const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 250m
 
 /// Generates the layers within the transition graph.
 ///
@@ -64,8 +60,13 @@ where
     /// are far apart.
     filter_distance: f64,
 
+    /// The costing heuristics required to generate the layers.
+    ///
+    /// This is required as a caching technique since the costs for a candidate
+    /// need only be calculated once.
     heuristics: &'a CostingStrategies<E, T>,
 
+    /// The routing map used to pull candidates from, and provide layout context.
     map: &'a Graph,
 }
 
@@ -74,6 +75,7 @@ where
     E: EmissionStrategy + Send + Sync,
     T: TransitionStrategy + Send + Sync,
 {
+    /// Creates a [`LayerGenerator`] from a map and costing heuristics.
     pub fn new(map: &'a Graph, heuristics: &'a CostingStrategies<E, T>) -> Self {
         LayerGenerator {
             map,
@@ -84,11 +86,8 @@ where
         }
     }
 
-    /// TODO: Docs
-    ///
-    /// Takes a projection distance (`distance`), for which
-    /// to search for projected nodes within said radius from
-    /// the position on the input point.
+    /// Utilises the configured search and filter distances to produce
+    /// the candidates and layers required to match the initial input.
     pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates) {
         let candidates = Candidates::default();
 
@@ -106,11 +105,17 @@ where
 
                     self.map
                         // We'll do a best-effort search (square) radius
-                        .nearest_projected_nodes_sorted(
-                            *origin,
-                            self.search_distance,
-                            self.filter_distance,
-                        )
+                        .nearest_projected_nodes(origin, self.search_distance)
+                        .filter_map(|(point, edge)| {
+                            let distance = Haversine.distance(point, *origin);
+
+                            if distance < self.filter_distance {
+                                Some((point, edge, distance))
+                            } else {
+                                None
+                            }
+                        })
+                        .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
                         .take(25)
                         .enumerate()
                         .map(|(node_id, (position, edge, distance))| {
