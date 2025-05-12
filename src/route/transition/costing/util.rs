@@ -56,6 +56,9 @@ where
     Transition: TransitionStrategy,
     Emission: EmissionStrategy,
 {
+    /// The emission costing function, returning a u32 cost value.
     fn emission(&self, context: EmissionContext) -> u32;
+
+    /// The emission costing function, returning a u32 cost value.
     fn transition(&self, context: TransitionContext) -> u32;
 }

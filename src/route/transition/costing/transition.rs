@@ -33,7 +33,8 @@ pub struct TransitionContext<'a> {
     /// The length between the layer nodes
     pub layer_width: f64,
 
-    // TODO: Docs
+    /// The requested [resolution method](ResolutionMethod) by which the transition costing function
+    /// should attempt to cost (resolve) the two candidates.
     pub requested_resolution_method: ResolutionMethod,
 }
 
@@ -79,21 +80,21 @@ impl TransitionLengths {
 }
 
 impl TransitionContext<'_> {
-    /// TODO: Docs
+    /// Obtains the source [candidate](Candidate) from the context.
     pub fn source_candidate(&self) -> Candidate {
         self.routing_context
             .candidate(self.source_candidate)
             .expect("source candidate not found in routing context")
     }
 
-    /// TODO: Docs
+    /// Obtains the target [candidate](Candidate) from the context.
     pub fn target_candidate(&self) -> Candidate {
         self.routing_context
             .candidate(self.target_candidate)
             .expect("target candidate not found in routing context")
     }
 
-    /// Returns the (Source, Target) candidate
+    /// Returns a [candidate](Candidate) pair of (source, target)
     pub fn candidates(&self) -> (Candidate, Candidate) {
         (self.source_candidate(), self.target_candidate())
     }
@@ -117,6 +118,7 @@ impl TransitionContext<'_> {
         }
     }
 
+    /// Returns the [`TransitionLengths`] of the context.
     pub fn lengths(&self) -> Option<TransitionLengths> {
         let (source, target) = self.candidates();
         let offset = self.total_offset(&source, &target)?;
