@@ -13,6 +13,5 @@ pub mod weight_and_distance;
 pub use weight_and_distance::WeightAndDistance;
 
 pub mod cumulative;
-
 #[doc(inline)]
 pub use cumulative::CumulativeFraction;

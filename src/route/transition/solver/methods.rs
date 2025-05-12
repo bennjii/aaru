@@ -1,5 +1,4 @@
 use crate::codec::element::variants::OsmEntryId;
-use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::*;
 
 #[derive(Debug, Default, Copy, Clone)]

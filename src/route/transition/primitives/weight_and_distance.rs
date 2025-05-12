@@ -1,4 +1,5 @@
 use crate::route::transition::primitives::CumulativeFraction;
+
 use pathfinding::num_traits::Zero;
 use std::cmp::Ordering;
 use std::ops::Add;

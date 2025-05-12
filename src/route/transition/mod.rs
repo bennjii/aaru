@@ -17,6 +17,8 @@ pub use candidate::*;
 #[doc(hidden)]
 pub use costing::*;
 #[doc(hidden)]
+pub use graph::*;
+#[doc(hidden)]
 pub use layer::*;
 #[doc(hidden)]
 pub use primitives::*;

@@ -37,7 +37,7 @@ where
     /// This, therefore does not require [`V`] to be `Clone`. However, it
     /// consumes an owned value of the key, [`K`], which is required for the
     /// call to the [`Calculable::calculate`] function.
-    pub fn query<'a>(&mut self, ctx: &RoutingContext<'a>, key: K) -> Arc<V> {
+    pub fn query(&mut self, ctx: &RoutingContext, key: K) -> Arc<V> {
         if let Some(value) = self.map.get(&key) {
             return Arc::clone(value);
         }
@@ -147,7 +147,6 @@ mod successor {
 
 mod predicate {
     use crate::route::graph::NodeIx;
-    use crate::route::transition::primitives::Dijkstra;
     use crate::route::transition::*;
 
     use super::*;
@@ -212,14 +211,14 @@ struct ArcIter<T> {
     index: usize,
 }
 
-impl<'a, T> ArcIter<T> {
+impl<T> ArcIter<T> {
     #[inline(always)]
     fn new(data: Arc<Vec<T>>) -> Self {
         ArcIter { data, index: 0 }
     }
 }
 
-impl<'a, T> Iterator for ArcIter<T>
+impl<T> Iterator for ArcIter<T>
 where
     T: Copy,
 {

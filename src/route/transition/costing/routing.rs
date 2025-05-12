@@ -1,6 +1,5 @@
 use crate::route::graph::NodeIx;
-use crate::route::transition::candidate::{Candidate, CandidateId, Candidates};
-use crate::route::transition::Edge;
+use crate::route::transition::*;
 use crate::route::Graph;
 
 /// A base context provided to costing methods.
