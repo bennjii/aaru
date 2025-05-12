@@ -40,6 +40,7 @@ pub mod common {
     ];
 
     #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
+    #[repr(transparent)]
     pub struct OsmEntryId {
         pub identifier: i64,
         // variant: MemberType,
