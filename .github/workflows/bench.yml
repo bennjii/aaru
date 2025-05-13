@@ -32,11 +32,6 @@ jobs:
           cache-target: release
           bins: cargo-codspeed
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-
       - name: 🔨Build
         run: cargo codspeed build
 

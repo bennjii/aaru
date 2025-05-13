@@ -8,8 +8,12 @@ pub mod graph;
 pub mod scan;
 #[doc(hidden)]
 mod test;
+#[doc(hidden)]
 pub mod transition;
+
 #[doc(inline)]
 pub use graph::Graph;
 #[doc(inline)]
 pub use scan::Scan;
+#[doc(inline)]
+pub use transition::graph::Transition;

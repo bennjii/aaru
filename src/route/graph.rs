@@ -1,25 +1,24 @@
-use super::transition::graph::MatchError;
 use crate::codec::element::item::ProcessedElement;
 use crate::codec::element::processed_iterator::ProcessedElementIterator;
 use crate::codec::element::variants::common::OsmEntryId;
 use crate::codec::element::variants::Node;
 use crate::codec::parallel::Parallel;
+
 use crate::route::error::RouteError;
-use crate::route::transition::candidate::Collapse;
-use crate::route::transition::graph::Transition;
-use crate::route::transition::{CostingStrategies, SelectiveForwardSolver};
+use crate::route::transition::*;
 use crate::route::Scan;
 
 use geo::{LineString, Point};
 use log::{debug, info};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rstar::RTree;
+use rustc_hash::{FxHashMap, FxHasher};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use std::hash::BuildHasherDefault;
 use std::path::PathBuf;
-use std::sync::{Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 #[cfg(feature = "tracing")]
 use tracing::Level;
@@ -30,33 +29,23 @@ pub type Weight = u32;
 pub type NodeIx = OsmEntryId;
 pub type EdgeIx = OsmEntryId;
 
-pub type Edge<'a> = (NodeIx, NodeIx, &'a Weight);
+pub type GraphStructure =
+    DiGraphMap<NodeIx, (Weight, DirectionAwareEdgeId), BuildHasherDefault<FxHasher>>;
 
-pub type GraphStructure = DiGraphMap<NodeIx, (Weight, EdgeIx)>;
-
-const MAX_WEIGHT: Weight = 255 as Weight;
+const MAX_WEIGHT: Weight = u32::MAX as Weight;
 
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
 pub struct Graph {
     pub(crate) graph: GraphStructure,
     pub(crate) index: RTree<Node>,
-    pub(crate) hash: RwLock<HashMap<NodeIx, Node>>,
-}
-
-impl Default for Graph {
-    fn default() -> Self {
-        Self {
-            graph: GraphStructure::default(),
-            index: RTree::default(),
-            hash: RwLock::new(HashMap::new()),
-        }
-    }
+    pub(crate) index_edge: RTree<FatEdge>,
+    pub(crate) hash: FxHashMap<NodeIx, Node>,
 }
 
 impl Debug for Graph {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Graph with Nodes: {}", self.hash.read().unwrap().len())
+        write!(f, "Graph with Nodes: {}", self.hash.len())
     }
 }
 
@@ -65,17 +54,17 @@ impl Graph {
         &self.index
     }
 
+    pub fn index_edge(&self) -> &RTree<FatEdge> {
+        &self.index_edge
+    }
+
     pub fn size(&self) -> usize {
-        self.hash.read().unwrap().len()
+        self.hash.len()
     }
 
     #[inline]
     pub fn get_position(&self, node_index: &NodeIx) -> Option<Point<f64>> {
-        self.hash
-            .read()
-            .ok()?
-            .get(node_index)
-            .map(|point| point.position)
+        self.hash.get(node_index).map(|point| point.position)
     }
 
     pub fn resolve_line(&self, node_index: &[NodeIx]) -> Vec<Point<f64>> {
@@ -91,6 +80,7 @@ impl Graph {
 
         // TODO: Base this dynamically on geospacial properties and roading shape
 
+        // Primary roadways
         weights.insert("motorway", 1);
         weights.insert("motorway_link", 2);
         weights.insert("trunk", 3);
@@ -101,9 +91,16 @@ impl Graph {
         weights.insert("secondary_link", 8);
         weights.insert("tertiary", 9);
         weights.insert("tertiary_link", 10);
-        weights.insert("unclassified", 11);
-        weights.insert("residential", 12);
-        weights.insert("living_street", 13);
+
+        // Residential
+        weights.insert("residential", 11);
+        weights.insert("unclassified", 12);
+
+        // Misc / Service. (Shouldn't be impossible to traverse, just difficult.)
+        weights.insert("living_street", 50);
+        weights.insert("service", 51);
+        weights.insert("busway", 52);
+        weights.insert("road", 53);
 
         Ok(weights)
     }
@@ -124,13 +121,13 @@ impl Graph {
         info!("Ingesting...");
 
         let global_graph = Mutex::new(GraphStructure::new());
-        let index: Vec<Node> = reader.par_red(
-            |mut tree: Vec<Node>, element: ProcessedElement| {
+        let (nodes, edges): (Vec<Node>, Vec<Edge>) = reader.par_red(
+            |mut trees: (Vec<Node>, Vec<Edge>), element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         // If way is not traversable (/ is not road)
                         if way.tags().road_tag().is_none() {
-                            return tree;
+                            return trees;
                         }
 
                         // Get the weight from the weight table
@@ -139,16 +136,23 @@ impl Graph {
                             None => MAX_WEIGHT,
                         };
 
-                        let one_way = way.tags().one_way();
-                        let roundabout = way.tags().roundabout();
-                        let weight = (weight, way.id());
+                        let bidirectional = !way.tags().unidirectional();
 
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
                             if let [a, b] = edge {
-                                global_graph.lock().unwrap().add_edge(a.id, b.id, weight);
-                                if !one_way && !roundabout {
-                                    global_graph.lock().unwrap().add_edge(b.id, a.id, weight);
+                                let direction_aware = DirectionAwareEdgeId::new(way.id());
+                                let mut lock = global_graph.lock().unwrap();
+
+                                let w = (weight, direction_aware.forward());
+                                trees.1.push(Edge::from((a.id, b.id, &w)));
+                                lock.add_edge(a.id, b.id, w);
+
+                                // If way is bidi, add opposite edge with a DirAw backward.
+                                if bidirectional {
+                                    let w = (weight, direction_aware.backward());
+                                    trees.1.push(Edge::from((b.id, a.id, &w)));
+                                    lock.add_edge(b.id, a.id, w);
                                 }
                             } else {
                                 debug!("Edge windowing produced odd-sized entry: {:?}", edge);
@@ -157,18 +161,19 @@ impl Graph {
                     }
                     ProcessedElement::Node(node) => {
                         // Add the node to the graph
-                        tree.push(node);
+                        trees.0.push(node);
                     }
                     _ => {}
                 }
 
-                tree
+                trees
             },
             |mut a_tree, b_tree| {
-                a_tree.extend(b_tree);
+                a_tree.0.extend(b_tree.0);
+                a_tree.1.extend(b_tree.1);
                 a_tree
             },
-            Vec::new,
+            || (Vec::new(), Vec::new()),
         );
 
         let graph = global_graph.into_inner().unwrap();
@@ -176,38 +181,60 @@ impl Graph {
         debug!("Graphical ingestion took: {:?}", start_time.elapsed());
         start_time = Instant::now();
 
-        let hash = RwLock::new(HashMap::new());
-        let filtered = index
-            .to_owned()
-            .into_par_iter()
-            .filter(|v| graph.contains_node(v.id))
-            .inspect(|e| {
-                hash.write().unwrap().insert(e.id, *e);
-            })
-            .collect();
+        let mut hash = FxHashMap::default();
+        let filtered = {
+            nodes
+                .iter()
+                .copied()
+                .filter(|v| graph.contains_node(v.id))
+                .inspect(|e| {
+                    hash.insert(e.id, *e);
+                })
+                .collect()
+        };
+
+        let fat = {
+            edges
+                .iter()
+                .flat_map(|edge| {
+                    Some(FatEdge {
+                        source: *hash.get(&edge.source)?,
+                        target: *hash.get(&edge.target)?,
+                        id: edge.id,
+                        weight: edge.weight,
+                    })
+                })
+                .collect()
+        };
 
         debug!("HashMap creation took: {:?}", start_time.elapsed());
         start_time = Instant::now();
 
         let tree = RTree::bulk_load(filtered);
+        let tree_edge = RTree::bulk_load(fat);
         debug!("RTree bulk load took: {:?}", start_time.elapsed());
 
         info!(
             "Finished. Ingested {:?} nodes from {:?} nodes total in {}ms",
             tree.size(),
-            index.len(),
+            nodes.len(),
             fixed_start_time.elapsed().as_millis()
         );
 
         Ok(Graph {
             graph,
             index: tree,
+            index_edge: tree_edge,
             hash,
         })
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(&self, linestring: LineString) -> Result<Collapse, MatchError> {
+    pub fn map_match(
+        &self,
+        linestring: LineString,
+        cache: Arc<Mutex<PredicateCache>>,
+    ) -> Result<Collapse, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         let costing = CostingStrategies::default();
@@ -217,7 +244,7 @@ impl Graph {
 
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
-        transition.solve(SelectiveForwardSolver::default())
+        transition.solve(SelectiveForwardSolver::default().use_cache(cache))
     }
 
     pub(crate) fn route_nodes(
@@ -235,10 +262,9 @@ impl Graph {
             |_| 0 as Weight,
         )?;
 
-        let hashmap = self.hash.read().ok()?;
         let route = path
             .iter()
-            .filter_map(|v| hashmap.get(v).copied())
+            .filter_map(|v| self.hash.get(v).copied())
             .collect();
 
         Some((score, route))

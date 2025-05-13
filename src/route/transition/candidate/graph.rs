@@ -1,6 +1,5 @@
-use crate::route::transition::candidate::collapse::Collapse;
-use crate::route::transition::candidate::{Candidate, CandidateEdge, CandidateId, CandidateRef};
-use crate::route::transition::layer::{Layer, Layers};
+use crate::route::transition::*;
+
 use pathfinding::num_traits::{ConstZero, Zero};
 use petgraph::prelude::EdgeRef;
 use petgraph::{Directed, Graph};
@@ -153,7 +152,7 @@ impl Candidates {
 impl Default for Candidates {
     fn default() -> Self {
         let graph = Arc::new(RwLock::new(Graph::new()));
-        let lookup = HashMap::new();
+        let lookup = HashMap::default();
 
         Candidates {
             graph,

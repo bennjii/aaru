@@ -1,39 +1,64 @@
-use geo::{line_string, Destination, Geodesic, LineInterpolatePoint, LineLocatePoint, Point};
-use petgraph::Direction;
+use geo::{Destination, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point};
 use rstar::AABB;
+
+use crate::codec::element::variants::Node;
+use crate::route::transition::FatEdge;
+use crate::route::Graph;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
-use crate::codec::element::variants::Node;
-use crate::route::transition::Edge;
-use crate::route::Graph;
-
+/// Trait containing utility functions to find nodes and edges upon a root structure.
 pub trait Scan {
-    /// TODO: Docs
-    fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node>;
-
-    /// TODO: Docs r.e. distinct.
+    /// A function which returns an unsorted iterator of [`Node`] references which are within
+    /// the provided `distance` of the input [point](Point).
     ///
-    /// Finds all **distinct** edges within a square radius of the target position.
-    fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge>;
+    /// ### Note
+    /// This function implements a square-scan.
+    ///
+    /// Therefore, it bounds the search to be within a square-radius of the origin. Therefore,
+    /// it may not select every node within the supplied distance, or it may select more nodes.
+    /// This resolution method is however significantly cheaper than a circular scan, so a wider
+    /// or shorter search radius may be required in some use-cases.
+    fn nearest_nodes(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node>;
 
-    /// Finds the nearest node to a lat/lng position
+    /// A function which returns an unsorted iterator of [`FatEdge`] references which are within
+    /// the provided `distance` of the input [point](Point).
+    ///
+    /// ### Note
+    /// This function implements a square-scan.
+    ///
+    /// Therefore, it bounds the search to be within a square-radius of the origin. Therefore,
+    /// it may not select every node within the supplied distance, or it may select more nodes.
+    /// This resolution method is however significantly cheaper than a circular scan, so a wider
+    /// or shorter search radius may be required in some use-cases.
+    fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = &FatEdge>;
+
+    /// Searches for, and returns a reference to nearest node from the origin [point](Point).
+    /// This node may not exist, and therefore the return type is optional.
     fn nearest_node(&self, point: Point) -> Option<&Node>;
 
-    /// TODO: Docs
+    /// Returns an iterator over [`Projected`] nodes on each edge within the specified `distance`.
+    /// It does so using the [`Scan::nearest_edges`] function.
+    ///
+    /// ### Note
+    /// This is achieved by creating a line from every edge in the iteration, and finding
+    /// the closest point upon that line to the source [point](Point).
+    /// This is a bounded projection.
+    ///
+    /// [`Projected`]: https://en.wikipedia.org/wiki/Projection_(linear_algebra)
     fn nearest_projected_nodes(
         &self,
         point: &Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)>;
+    ) -> impl Iterator<Item = (Point, &FatEdge)>;
 }
 
 impl Scan for Graph {
     #[inline]
-    fn square_scan(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node> {
-        let bottom_right = Geodesic::destination(*point, 135.0, distance);
-        let top_left = Geodesic::destination(*point, 315.0, distance);
+    fn nearest_nodes(&self, point: &Point, distance: f64) -> impl Iterator<Item = &Node> {
+        let bottom_right = Geodesic.destination(*point, 135.0, distance);
+        let top_left = Geodesic.destination(*point, 315.0, distance);
 
         let bbox = AABB::from_corners(top_left, bottom_right);
         self.index().locate_in_envelope(&bbox)
@@ -41,15 +66,15 @@ impl Scan for Graph {
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
     #[inline]
-    fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = Edge> {
-        // let mut edges_covered = BTreeSet::<EdgeIx>::new();
+    fn nearest_edges(&self, point: &Point, distance: f64) -> impl Iterator<Item = &FatEdge> {
+        let bottom_right = Geodesic.destination(*point, 135.0, distance);
+        let top_left = Geodesic.destination(*point, 315.0, distance);
 
-        self.square_scan(point, distance)
-            .flat_map(|node| self.graph.edges_directed(node.id, Direction::Outgoing))
-            .map(Edge::from)
-        // .filter(move |Edge { id, .. }| !edges_covered.insert(*id))
+        let bbox = AABB::from_corners(top_left, bottom_right);
+        self.index_edge().locate_in_envelope(&bbox)
     }
 
+    #[inline]
     fn nearest_node(&self, point: Point) -> Option<&Node> {
         self.index.nearest_neighbor(&point)
     }
@@ -60,23 +85,17 @@ impl Scan for Graph {
         &self,
         point: &Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, Edge)> {
-        self.nearest_edges(point, distance)
-            .filter_map(|edge| {
-                let hashmap = self.hash.read().unwrap();
-                let src = hashmap.get(&edge.source)?;
-                let trg = hashmap.get(&edge.target)?;
+    ) -> impl Iterator<Item = (Point, &FatEdge)> {
+        // Total overhead of this function is negligible.
+        self.nearest_edges(point, distance).filter_map(move |edge| {
+            let line = Line::new(edge.source.position, edge.target.position);
 
-                Some((line_string![src.position.0, trg.position.0], edge))
-            })
-            .filter_map(move |(linestring, edge)| {
-                // We locate the point upon the linestring,
-                // and then project that fractional (%)
-                // upon the linestring to obtain a point
-                linestring
-                    .line_locate_point(point)
-                    .and_then(|frac| linestring.line_interpolate_point(frac))
-                    .map(|point| (point, edge))
-            })
+            // We locate the point upon the linestring,
+            // and then project that fractional (%)
+            // upon the linestring to obtain a point
+            line.line_locate_point(point)
+                .map(|frac| line.point_at_ratio_from_start(&Haversine, frac))
+                .map(|point| (point, edge))
+        })
     }
 }

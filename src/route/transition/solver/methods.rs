@@ -1,47 +1,71 @@
 use crate::codec::element::variants::OsmEntryId;
-use crate::route::transition::graph::{MatchError, Transition};
 use crate::route::transition::*;
 
+#[derive(Debug, Default, Copy, Clone)]
+pub enum ResolutionMethod {
+    #[default]
+    Standard,
+    DistanceOnly,
+}
+
+/// Defines a [target](#field.target) element reachable from some given
+/// [source](#field.source) through a known [path](#field.path).
+///
+/// It requests itself to be resolved in the heuristic-layer by a given
+/// [resolution_method](#field.resolution_method).
 #[derive(Clone)]
 pub struct Reachable {
     pub source: CandidateId,
     pub target: CandidateId,
     pub path: Vec<OsmEntryId>,
+
+    pub(crate) resolution_method: ResolutionMethod,
 }
 
 impl Reachable {
+    /// Creates a new reachable element, supplied a source, target and path.
+    ///
+    /// This assumes the default resolution method.
     pub fn new(source: CandidateId, target: CandidateId, path: Vec<OsmEntryId>) -> Self {
         Self {
             source,
             target,
             path,
+            resolution_method: Default::default(),
         }
     }
 
+    /// Consumes and modifies a reachable element to request the
+    /// [`DistanceOnly`](ResolutionMethod::DistanceOnly) option.
+    pub fn distance_only(self) -> Self {
+        Self {
+            resolution_method: ResolutionMethod::DistanceOnly,
+            ..self
+        }
+    }
+
+    /// Converts a reachable element into a (source, target) index pair
+    /// used for hashing the structure as a path lookup between the
+    /// source and target.
     pub fn hash(&self) -> (usize, usize) {
         (self.source.index(), self.target.index())
     }
 }
 
+/// Defines a structure which can be supplied to the [`Transition::solve`] function
+/// in order to solve the transition graph.
+///
+/// Functionality is implemented using the [`Solver::solve`] method.
 pub trait Solver {
-    /// Derives which candidates are reachable by the source candidate.
-    ///
-    /// Provides a slice of target candidate IDs, `targets`. The solver
-    /// will use these to procure all candidates which are reachable,
-    /// and the path of routable entries ([`OsmEntryId`]) which are used
-    /// to reach the target.
-    fn reachable<'a>(
-        &self,
-        ctx: RoutingContext<'a>,
-        source: &CandidateId,
-        targets: &'a [CandidateId],
-    ) -> Option<Vec<Reachable>>;
-
     /// Refines a single node within an initial layer to all nodes in the
     /// following layer with their respective emission and transition
     /// probabilities in the hidden markov model.
     ///
-    /// Based on the method used in FMM / MM2
+    /// It may return a match error which is encountered for various reasons.
+    /// This may be due to insufficient candidates for a given node in the sequence,
+    /// or due to blown-out costings. There are other reasons this may occur given
+    /// the functionality is statistical and therefore prone to out-of-bound failures
+    /// which are less deterministic than a brute-force model.
     fn solve<E, T>(&self, transition: Transition<E, T>) -> Result<Collapse, MatchError>
     where
         E: EmissionStrategy + Send + Sync,

@@ -42,7 +42,7 @@ message MapMatchRequest {
 // EdgeInfo
 //
 // Describes the edges within the graph that was transitioned.
-// This allows for the evaluation of features such as those derrived
+// This allows for the evaluation of features such as those derived
 // from street names, consistency of edge transitions, etc.
 //
 // The edge is described by the following diagram:
@@ -99,7 +99,7 @@ message MatchedRoute {
 }
 
 message MapMatchResponse {
-  repeated MatchedRoute matchings = 1;
+  repeated MatchedRoute matches = 1;
   repeated string warnings = 2;
 }
 

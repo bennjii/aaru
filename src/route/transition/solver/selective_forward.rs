@@ -1,24 +1,17 @@
-use crate::codec::element::variants::OsmEntryId;
-use crate::route::graph::NodeIx;
-use crate::route::transition::candidate::CandidateId;
-use crate::route::transition::graph::{MatchError, Transition};
-use crate::route::transition::solver::methods::{Reachable, Solver};
-use crate::route::transition::{
-    CandidateEdge, Collapse, Costing, EmissionStrategy, RoutingContext, TransitionContext,
-    TransitionStrategy, Trip,
-};
+use crate::route::transition::*;
+
+use log::{debug, info};
+
+use rustc_hash::FxHashMap;
+use std::cell::RefCell;
+use std::hash::Hash;
+use std::sync::{Arc, Mutex};
 
 use geo::{Distance, Haversine};
-use log::{debug, info};
 use pathfinding::num_traits::Zero;
-use pathfinding::prelude::{dijkstra, dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::*;
 use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::sync::Arc;
-
-const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
 type ProcessedReachable = (CandidateId, Reachable);
 
@@ -26,62 +19,26 @@ type ProcessedReachable = (CandidateId, Reachable);
 ///
 /// TODO: Docs
 pub struct SelectiveForwardSolver {
-    /// The threshold by which the solver is bounded, in centimeters.
-    threshold_distance: f64,
+    // Internally holds a successors cache
+    predicate: Arc<Mutex<PredicateCache>>,
+    reachable_hash: RefCell<FxHashMap<(usize, usize), Reachable>>,
 }
 
 impl Default for SelectiveForwardSolver {
     fn default() -> Self {
         Self {
-            threshold_distance: DEFAULT_THRESHOLD,
+            predicate: Arc::new(Mutex::new(PredicateCache::default())),
+            reachable_hash: RefCell::new(FxHashMap::default()),
         }
     }
 }
 
 impl SelectiveForwardSolver {
-    /// Returns all the nodes reachable by the solver in an iterator, measured in distance
-    fn reachable_iterator<'a>(
-        ctx: RoutingContext<'a>,
-        start: &'a NodeIx,
-    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a> {
-        dijkstra_reach(start, |node| {
-            // Calc. once
-            let source = ctx.map.get_position(node).unwrap();
-
-            ctx.map
-                .graph
-                .edges_directed(*node, Direction::Outgoing)
-                .map(|(_, next, _w)| {
-                    (
-                        next,
-                        if *node != next {
-                            let target = ctx.map.get_position(&next).unwrap();
-
-                            // In centimeters (1m = 100cm)
-                            (Haversine::distance(source, target) * 100f64) as u32
-                        } else {
-                            // Total accrued distance
-                            0u32
-                        },
-                    )
-                })
-                .collect::<Vec<_>>()
-        })
-    }
-
-    /// TODO: Docs
-    ///
-    /// Supplies an offset, which represents the initial distance
-    /// taken in travelling initial edges, in meters.
-    fn bounded_iterator<'a, 'b>(
-        &'b self,
-        ctx: RoutingContext<'a>,
-        start: &'a NodeIx,
-    ) -> impl Iterator<Item = DijkstraReachableItem<NodeIx, u32>> + use<'a, 'b> {
-        Self::reachable_iterator(ctx, start).take_while(move |p| {
-            // Bounded by the threshold distance (centimeters)
-            (p.total_cost as f64) < self.threshold_distance
-        })
+    pub fn use_cache(self, cache: Arc<Mutex<PredicateCache>>) -> Self {
+        Self {
+            predicate: cache,
+            ..self
+        }
     }
 
     /// Creates a path from the source up the parent map until no more parents
@@ -94,7 +51,7 @@ impl SelectiveForwardSolver {
     pub(crate) fn path_builder<N, C>(
         source: &N,
         target: &N,
-        parents: &HashMap<N, (N, C)>,
+        parents: &FxHashMap<N, (N, C)>,
     ) -> Option<Vec<N>>
     where
         N: Eq + Hash + Copy,
@@ -116,17 +73,17 @@ impl SelectiveForwardSolver {
         None
     }
 
-    fn reach<E, T>(
-        &self,
-        transition: &Transition<E, T>,
-        context: RoutingContext,
+    fn reach<'a, 'b, E, T>(
+        &'b self,
+        transition: &'b Transition<'b, E, T>,
+        context: RoutingContext<'b>,
         (start, end): (CandidateId, CandidateId),
-        reachable_hash: &mut HashMap<(usize, usize), Reachable>,
         source: &CandidateId,
     ) -> Vec<(CandidateId, CandidateEdge)>
     where
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy + Send + Sync,
+        'b: 'a,
     {
         let graph_ref = Arc::clone(&transition.candidates.graph);
         let successors = graph_ref
@@ -151,30 +108,24 @@ impl SelectiveForwardSolver {
             return vec![(end, CandidateEdge::zero())];
         }
 
-        let reached = self
-            // TODO: Supply context to the reachability function in order to reuse routes
-            //       already made. Plus, consider working as contraction hierarchies
-            .reachable(context, source, successors.as_slice())
+        // Note: `reachable` ~= free, `reach` ~= 0.1ms (some overhead- how?)
+
+        self.reachable(context, source, successors.as_slice())
             .unwrap_or_default()
             .into_iter()
-            .map(|reachable| {
-                let trip = Trip::new_with_map(transition.map, reachable.path.as_slice());
+            .filter_map(move |reachable| {
+                let source_layer = context.candidate(&reachable.source)?.location.layer_id;
+                let target_layer = context.candidate(&reachable.target)?.location.layer_id;
 
-                let source = context.candidate(&reachable.source);
-                let target = context.candidate(&reachable.target);
+                let sl = transition.layers.layers.get(source_layer)?;
+                let tl = transition.layers.layers.get(target_layer)?;
 
-                let source_layer = source.unwrap().location.layer_id;
-                let target_layer = target.unwrap().location.layer_id;
-
-                let sl = transition.layers.layers.get(source_layer).unwrap();
-                let tl = transition.layers.layers.get(target_layer).unwrap();
-
-                let layer_width = Haversine::distance(sl.origin, tl.origin);
+                let layer_width = Haversine.distance(sl.origin, tl.origin);
 
                 let transition_cost = transition.heuristics.transition(TransitionContext {
-                    // TODO: Remove clone after debugging.
-                    optimal_path: trip.clone(),
-                    map_path: reachable.path.clone(),
+                    optimal_path: Trip::new_with_map(transition.map, &reachable.path),
+                    map_path: &reachable.path,
+                    requested_resolution_method: reachable.resolution_method,
 
                     source_candidate: &reachable.source,
                     target_candidate: &reachable.target,
@@ -188,24 +139,28 @@ impl SelectiveForwardSolver {
                     .candidate(&reachable.target)
                     .map_or(u32::MAX, |v| v.emission);
 
-                let transition = (transition_cost as f64 * 0.8) as u32;
-                let emission = (emission_cost as f64 * 0.2) as u32;
+                let transition = (transition_cost as f64 * 0.6) as u32;
+                let emission = (emission_cost as f64 * 0.4) as u32;
 
                 let return_value = (
                     reachable.target,
                     CandidateEdge::new(emission.saturating_add(transition)),
                 );
 
-                reachable_hash.insert(reachable.hash(), reachable);
-                return_value
+                self.reachable_hash
+                    .borrow_mut()
+                    .insert(reachable.hash(), reachable);
+                Some(return_value)
             })
-            .collect::<Vec<_>>();
-
-        reached
+            .collect::<Vec<_>>()
     }
-}
 
-impl Solver for SelectiveForwardSolver {
+    /// Derives which candidates are reachable by the source candidate.
+    ///
+    /// Provides a slice of target candidate IDs, `targets`. The solver
+    /// will use these to procure all candidates which are reachable,
+    /// and the path of routable entries ([`OsmEntryId`]) which are used
+    /// to reach the target.
     fn reachable<'a>(
         &self,
         ctx: RoutingContext<'a>,
@@ -217,85 +172,108 @@ impl Solver for SelectiveForwardSolver {
         // Upper-Bounded reachable map containing a Child:Parent relation
         // Note: Parent is OsmEntryId::NULL, which will not be within the map,
         //       indicating the root element.
-        let predicate_map = self
-            .bounded_iterator(ctx, &source_candidate.edge.target)
-            .map(|predicate| {
-                let parent = predicate.parent.unwrap_or(OsmEntryId::null());
-                (predicate.node, (parent, predicate.total_cost))
-            })
-            .collect::<HashMap<OsmEntryId, (OsmEntryId, u32)>>();
+        let predicate_map = {
+            self.predicate
+                .lock()
+                .unwrap()
+                .query(&ctx, source_candidate.edge.target)
+                .clone()
+        };
 
-        let reachable = targets
-            .iter()
-            .filter_map(|target| {
-                // Get the candidate information of the target found
-                let candidate = ctx.candidate(target)?;
+        let reachable = {
+            targets
+                .iter()
+                .filter_map(|target| {
+                    // Get the candidate information of the target found
+                    let candidate = ctx.candidate(target)?;
 
-                // Generate the path to this target using the predicate map
-                let path_to_target = Self::path_builder(
-                    &candidate.edge.source,
-                    &source_candidate.edge.target,
-                    &predicate_map,
-                )?;
+                    // Both candidates are on the same edge
+                    'stmt: {
+                        if candidate.edge.id.index() == source_candidate.edge.id.index() {
+                            let common_source =
+                                candidate.edge.source == source_candidate.edge.source;
+                            let common_target =
+                                candidate.edge.target == source_candidate.edge.target;
 
-                Some(Reachable::new(*source, *target, path_to_target))
-            })
-            .collect::<Vec<_>>();
+                            let tracking_forward = common_source && common_target;
+
+                            let source_percentage = source_candidate.percentage(ctx.map)?;
+                            let target_percentage = candidate.percentage(ctx.map)?;
+
+                            return if tracking_forward && source_percentage <= target_percentage {
+                                // We are moving forward, it is simply the distance between the nodes
+                                Some(Reachable::new(*source, *target, vec![]).distance_only())
+                            } else {
+                                // We are going "backwards", behaviour becomes dependent on
+                                // the directionality of the edge. However, to return across the
+                                // node is an independent transition, and is not covered.
+                                break 'stmt;
+                            };
+                        }
+                    }
+
+                    // Generate the path to this target using the predicate map
+                    let path_to_target = Self::path_builder(
+                        &candidate.edge.source,
+                        &source_candidate.edge.target,
+                        &predicate_map,
+                    )?;
+
+                    Some(Reachable::new(*source, *target, path_to_target))
+                })
+                .collect::<Vec<_>>()
+        };
 
         Some(reachable)
     }
+}
 
+impl Solver for SelectiveForwardSolver {
     fn solve<E, T>(&self, mut transition: Transition<E, T>) -> Result<Collapse, MatchError>
     where
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy + Send + Sync,
     {
-        info!("Solving...");
-
-        let (start, end) = transition
-            .candidates
-            .attach_ends(&transition.layers)
-            .ok_or(MatchError::CollapseFailure)?;
-
-        debug!(
-            "Start={start:?}. End={end:?}. Candidates: {:?}",
-            transition.candidates
-        );
-
-        transition.candidates.weave(&transition.layers);
-
-        debug!("Linked / Weaved all layers!");
-
-        let context = RoutingContext {
-            candidates: &transition.candidates,
-            map: transition.map,
+        let (start, end) = {
+            // Compute cost ~= free
+            transition
+                .candidates
+                .attach_ends(&transition.layers)
+                .ok_or(MatchError::CollapseFailure)?
         };
 
-        let mut reachable_hash: HashMap<(usize, usize), Reachable> = HashMap::new();
-        let Some((path, cost)) = dijkstra(
+        debug!("Attached Ends");
+        transition.candidates.weave(&transition.layers);
+        debug!("Weaved all candidate layers.");
+
+        info!("Solving: Start={start:?}. End={end:?}. ");
+        let context = transition.context();
+
+        // Note: For every candidate, generate their reachable elements, then run the solver overtop.
+        //       This means we can do it in parallel, which is more efficient - however will have to
+        //       compute for *every* candidate, not just the likely ones, which will lead to poor
+        //       scalability for really long-routes.
+        //
+        //       This behaviour can be implemented using the `AllForwardSolver` going forward.
+
+        let Some((path, cost)) = astar(
             &start,
-            |source| {
-                self.reach(
-                    &transition,
-                    context,
-                    (start, end),
-                    &mut reachable_hash,
-                    source,
-                )
-            },
-            // |_| CandidateEdge::zero(),
+            |source| self.reach(&transition, context, (start, end), source),
+            |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
             return Err(MatchError::CollapseFailure);
         };
 
-        debug!("Total cost of solve: {}", cost.weight);
-
+        info!("Total cost of solve: {}", cost.weight);
         let reached = path
             .windows(2)
             .filter_map(|nodes| {
                 if let [a, b] = nodes {
-                    reachable_hash.get(&(a.index(), b.index())).cloned()
+                    self.reachable_hash
+                        .borrow()
+                        .get(&(a.index(), b.index()))
+                        .cloned()
                 } else {
                     None
                 }

@@ -3,9 +3,23 @@ use crate::route::transition::Reachable;
 use crate::route::Graph;
 use geo::LineString;
 
+/// The collapsed solution to a transition graph.
 pub struct Collapse {
+    /// The solved cost of the collapsed route.
+    /// This value is not actionable by the consumer but rather indicative of how confident
+    /// the system is in the route chosen.
     pub cost: u32,
+
+    /// The route as a vector of [`CandidateId`]s.
+    /// To obtain the list of [`Candidate`]s, use [`Collapse::matched`]
     pub route: Vec<CandidateId>,
+
+    /// The interpolated nodes of the collapsed route.
+    /// This exists as a vector of [`Reachable`] nodes which represent each layer transition.
+    /// Each node contains the interpolated path between the candidates in those layers.
+    ///
+    /// To obtain the geographic representation of this interpolation,
+    /// use the [`Collapse::interpolated`] method.
     pub interpolated: Vec<Reachable>,
 
     candidates: Candidates,
@@ -26,13 +40,11 @@ impl Collapse {
         }
     }
 
-    fn edge_omni(&self, a: &CandidateId, b: &CandidateId) -> Option<CandidateEdge> {
-        self.candidates
-            .edge(a, b)
-            .or_else(|| self.candidates.edge(b, a))
-    }
-
-    /// TODO: Docs
+    /// Returns the vector of [`Candidate`]s involved in a match.
+    /// Each candidate represents the matched position of every input node.
+    ///
+    /// This includes further information such as the edge it matched to,
+    /// costing and the identifier for the candidate.
     pub fn matched(&self) -> Vec<Candidate> {
         self.route
             .iter()
@@ -41,7 +53,8 @@ impl Collapse {
             .collect::<Vec<_>>()
     }
 
-    /// Returns the interpolated route from the collapse as a linestring
+    /// Returns the interpolated route from the collapse as a [`LineString`].
+    /// This can therefore be used to show the expected turn decisions made by the provided input.
     pub fn interpolated(&self, map: &Graph) -> LineString {
         self.interpolated
             .iter()

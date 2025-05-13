@@ -1,16 +1,11 @@
-use crate::route::transition::candidate::{Candidate, CandidateId, CandidateRef, Candidates};
-use crate::route::transition::layer::Layer;
-use crate::route::transition::CandidateLocation;
-use crate::route::transition::{
-    Costing, CostingStrategies, EmissionContext, EmissionStrategy, TransitionStrategy,
-};
+use crate::route::transition::*;
 use crate::route::{Graph, Scan};
 
-use geo::{Distance, Haversine, MultiPoint, Point};
-use log::info;
+use geo::{Distance, Haversine, Point};
+use itertools::Itertools;
+use measure_time::debug_time;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::prelude::{FromParallelIterator, IntoParallelIterator};
-use wkt::ToWkt;
 
 #[derive(Default)]
 pub struct Layers {
@@ -37,8 +32,8 @@ impl FromParallelIterator<Layer> for Layers {
     }
 }
 
-const DEFAULT_SEARCH_DISTANCE: f64 = 5_000.0; // 5km
-const DEFAULT_FILTER_DISTANCE: f64 = 50.0;
+const DEFAULT_SEARCH_DISTANCE: f64 = 1_000.0; // 1km (1_000m)
+const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 250m
 
 /// Generates the layers within the transition graph.
 ///
@@ -65,8 +60,13 @@ where
     /// are far apart.
     filter_distance: f64,
 
+    /// The costing heuristics required to generate the layers.
+    ///
+    /// This is required as a caching technique since the costs for a candidate
+    /// need only be calculated once.
     heuristics: &'a CostingStrategies<E, T>,
 
+    /// The routing map used to pull candidates from, and provide layout context.
     map: &'a Graph,
 }
 
@@ -75,6 +75,7 @@ where
     E: EmissionStrategy + Send + Sync,
     T: TransitionStrategy + Send + Sync,
 {
+    /// Creates a [`LayerGenerator`] from a map and costing heuristics.
     pub fn new(map: &'a Graph, heuristics: &'a CostingStrategies<E, T>) -> Self {
         LayerGenerator {
             map,
@@ -85,12 +86,9 @@ where
         }
     }
 
-    /// TODO: Docs
-    ///
-    /// Takes a projection distance (`distance`), for which
-    /// to search for projected nodes within said radius from
-    /// the position on the input point.
-    pub fn with_points(&self, input: Vec<Point>) -> (Layers, Candidates) {
+    /// Utilises the configured search and filter distances to produce
+    /// the candidates and layers required to match the initial input.
+    pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates) {
         let candidates = Candidates::default();
 
         // In parallel, create each layer, and collect into a single structure.
@@ -98,47 +96,48 @@ where
             .into_par_iter()
             .enumerate()
             .map(|(layer_id, origin)| {
+                debug_time!("{layer_id}: individual layer generation (!!)"); // 0.1 - 5.0ms
+
                 // Generate an individual layer
-                info!(
-                    "Generating layer {} (Point={})",
-                    layer_id,
-                    origin.wkt_string()
-                );
+                // Function takes about 10ms to compute.
+                let nodes = {
+                    debug_time!("{layer_id}: gen all");
 
-                let mut projected = self
-                    .map
-                    // We'll do a best-effort search (square) radius
-                    .nearest_projected_nodes(&origin, self.search_distance)
-                    .collect::<Vec<_>>();
+                    self.map
+                        // We'll do a best-effort search (square) radius
+                        .nearest_projected_nodes(origin, self.search_distance)
+                        .filter_map(|(point, edge)| {
+                            let distance = Haversine.distance(point, *origin);
 
-                // TODO: Formalize take over filter
-                projected.sort_by(|(a, _), (b, _)| {
-                    Haversine::distance(*a, origin).total_cmp(&Haversine::distance(*b, origin))
-                });
+                            if distance < self.filter_distance {
+                                Some((point, edge, distance))
+                            } else {
+                                None
+                            }
+                        })
+                        .sorted_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
+                        .take(25)
+                        .enumerate()
+                        .map(|(node_id, (position, edge, distance))| {
+                            // We have the actual projected position, and it's associated edge.
+                            // Therefore, we can use the Emission costing function to calculate
+                            // the associated emission cost of this candidate.
+                            let emission = self
+                                .heuristics
+                                .emission(EmissionContext::new(&position, origin, distance));
 
-                let nodes = projected
-                    .into_iter()
-                    .take(50)
-                    .enumerate()
-                    .map(|(node_id, (position, edge))| {
-                        // We have the actual projected position, and it's associated edge.
-                        // Therefore, we can use the Emission costing function to calculate
-                        // the associated emission cost of this candidate.
-                        let emission = self
-                            .heuristics
-                            // TODO: This will calculate the distance between TWICE since we do it above.
-                            //    => Investigate if we can save this value and supply it to the ctx.
-                            .emission(EmissionContext::new(&position, &origin));
+                            let location = CandidateLocation { layer_id, node_id };
+                            let candidate =
+                                Candidate::new(edge.thin(), position, emission, location);
 
-                        let location = CandidateLocation { layer_id, node_id };
-                        let candidate = Candidate::new(edge, position, emission, location);
-
-                        let candidate_reference = CandidateRef::new(emission);
-                        (candidate, candidate_reference)
-                    })
-                    .collect::<Vec<(Candidate, CandidateRef)>>();
+                            let candidate_reference = CandidateRef::new(emission);
+                            (candidate, candidate_reference)
+                        })
+                        .collect::<Vec<_>>()
+                };
 
                 // Inner-Scope for the graph, dropped on close.
+                // Note: Contention here is negligible, runtime = free.
                 let nodes = {
                     let mut graph = candidates.graph.write().unwrap();
                     nodes
@@ -152,17 +151,12 @@ where
                         .collect::<Vec<CandidateId>>()
                 };
 
-                Layer { nodes, origin }
+                Layer {
+                    nodes,
+                    origin: *origin,
+                }
             })
             .collect::<Layers>();
-
-        let mut points = vec![];
-        candidates.lookup.scan(|_, candidate| {
-            points.push(candidate.position);
-        });
-
-        let mp = points.into_iter().collect::<MultiPoint>();
-        info!("All Candidates ({}): {}", mp.len(), mp.wkt_string());
 
         (layers, candidates)
     }

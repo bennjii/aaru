@@ -1,9 +1,8 @@
 pub mod emission {
     use crate::route::transition::*;
-    use geo::{Distance, Haversine};
 
-    /// 10 meters (85th% GPS error)
-    const DEFAULT_EMISSION_ERROR: f64 = 10.0;
+    /// 1 meter (1/10th of the 85th% GPS error)
+    const DEFAULT_EMISSION_ERROR: f64 = 1.0;
 
     /// Calculates the emission cost of a candidate relative
     /// to its source node.
@@ -54,17 +53,12 @@ pub mod emission {
     impl<'a> Strategy<EmissionContext<'a>> for DefaultEmissionCost {
         type Cost = f64;
 
-        const ZETA: f64 = 1.0;
-        const BETA: f64 = -10.0;
+        const ZETA: f64 = 0.5;
+        const BETA: f64 = -10.0; // TODO: Maybe allow dynamic parameters based on the GPS drift-?
 
+        #[inline(always)]
         fn calculate(&self, context: EmissionContext<'a>) -> Option<Self::Cost> {
-            let distance =
-                Haversine::distance(*context.source_position, *context.candidate_position);
-
-            // Value in range [0, 1] (1=Low Cost, 0=High Cost)
-            let relative_to_error = (DEFAULT_EMISSION_ERROR / distance).clamp(0.0, 1.0);
-
-            Some(relative_to_error.recip().sqrt())
+            Some(context.distance.sqrt() * context.distance)
         }
     }
 }
@@ -130,6 +124,7 @@ pub mod transition {
         const ZETA: f64 = 1.0;
         const BETA: f64 = -1.0;
 
+        #[inline]
         fn calculate(&self, context: TransitionContext<'a>) -> Option<Self::Cost> {
             // Find the transition lengths (shortest path, trip length)
             let lengths = context.lengths()?;
@@ -137,21 +132,27 @@ pub mod transition {
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let deviance = lengths.deviance();
 
-            // TODO: Consider including the map weighting as well.
-            let avg_weight = context
-                .map_path
-                .windows(2)
-                .filter_map(|node| match node {
-                    [a, b] => context.routing_context.edge(a, b),
-                    _ => None,
-                })
-                .map(|(weight, _)| *weight as f64)
-                .sum::<f64>()
-                / context.map_path.iter().len() as f64;
+            // We calculate by weight, not by distinction of edges since this
+            // would not uphold the invariants we intend. For example, that would
+            // penalise the use of slip-roads which contain different WayIDs, despite
+            // being the more-optimal path to take.
+            let avg_weight = {
+                let weights = context
+                    .map_path
+                    .windows(2)
+                    .filter_map(|node| match node {
+                        [a, b] if a.identifier == b.identifier => None,
+                        [a, b] => context.routing_context.edge(a, b),
+                        _ => None,
+                    })
+                    .map(|Edge { weight, .. }| weight as f64)
+                    .collect::<Vec<_>>();
+
+                weights.iter().sum::<f64>() / weights.len() as f64
+            };
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
-            // Defines the no. edges traversed (fewer distinct edge id's, the better)
-            let distinct_cost = (1.0 / avg_weight).sqrt().clamp(0.0, 1.0);
+            let distinct_cost = (1.0 / avg_weight).powi(2).clamp(0.0, 1.0);
 
             // Value in range [0, 1] (1=Low Cost, 0=High Cost)
             let turn_cost = context
@@ -207,10 +208,12 @@ pub mod costing {
         T: TransitionStrategy,
         E: EmissionStrategy,
     {
+        #[inline(always)]
         fn emission(&self, context: EmissionContext) -> u32 {
             self.emission.cost(context)
         }
 
+        #[inline(always)]
         fn transition(&self, context: TransitionContext) -> u32 {
             self.transition.cost(context)
         }
