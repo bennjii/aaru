@@ -1,0 +1,57 @@
+syntax = "proto3";
+package routers.v1;
+
+message Coordinate {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+// EdgeInfo
+//
+// Describes the edges within the graph that was transitioned.
+// This allows for the evaluation of features such as those derived
+// from street names, consistency of edge transitions, etc.
+//
+// The edge is described by the following diagram:
+//
+//                             75%
+//                          Departure
+//                              |
+//         + ---- + ---- + ---- + ---- + End of edge
+//   Start of edge       |
+//                     Join
+//                      50%
+//
+// Where there is a `source` and `target` node within the edge,
+// with id, `id`. The edge's length is the length the matched
+// vehicle travelled, not its raw length.
+//
+// The edge contains multiple "names", which describe all the
+// possible names of the given edge, including road names.
+//
+// The `join_percent` and `depart_percent` describe the percentage
+// of the edge that the vehicle was on when it joined and departed
+// the edge, respectively, see diagram.
+//
+// The `length` is the length of the edge in the match, in meters,
+// not the length of the underlying edge.
+//
+// The final fields are largely optional, surfacing underlying data
+// attributes on the OSM edge to make analysis convenient. This
+// includes: `speed_limit`, `surface`, and `lane_count`.
+//
+message EdgeInfo {
+  uint32 id = 1;
+  uint32 source = 2;
+  uint32 target = 3;
+
+  repeated string names = 4;
+
+  uint32 join_percent = 5;
+  uint32 depart_percent = 6;
+  uint32 length = 7;
+
+  uint32 lane_count = 8;
+  uint32 speed_limit = 9;
+  string surface = 10;
+}

@@ -1,8 +1,8 @@
 use axum::extract::State;
-use axum::http::{header, Method};
+use axum::http::{Method, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::{serve, Router};
+use axum::{Router, serve};
 use dotenv::dotenv;
 use std::env;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 use aaru::tile::repositories::RepositorySet;
 use axum::http::StatusCode;
 use futures::join_all;
-use tracing::{event, Level};
+use tracing::{Level, event};
 
 async fn health_check(State(state): State<Arc<RepositorySet>>) -> Response {
     let futures: Vec<_> = state

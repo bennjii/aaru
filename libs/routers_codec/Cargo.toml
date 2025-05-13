@@ -1,0 +1,33 @@
+[package]
+name = "routers_codec"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# GeoRust
+geo = "0.30.0"
+rstar = { version = "0.12.2", features = ["serde"] }
+
+either = "1.13.0"
+rayon = "1.10.0"
+
+prost = { version = "0.13.3" }
+bytes = { version = "1.8.0", features = ["default"] } # Required for io::Cursor
+flate2 = { version = "1.0.34", features = ["zlib-ng"] }
+
+log = { version = "0.4.22", features = [] }
+test-log = { version = "0.2.16", features = ["log"] }
+
+[dev-dependencies]
+osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
+
+[build-dependencies]
+prost-build = { version = "0.13.3" }
+
+[[bench]]
+name = "codec_sweep"
+harness = false
+
+[[bench]]
+name = "codec_target"
+harness = false

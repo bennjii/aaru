@@ -1,9 +1,9 @@
 use geo::{Destination, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point};
 use rstar::AABB;
 
-use crate::codec::element::variants::Node;
-use crate::route::transition::FatEdge;
 use crate::route::Graph;
+use crate::route::transition::FatEdge;
+use codec::element::variants::Node;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;

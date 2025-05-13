@@ -1,5 +1,5 @@
-use crate::codec::element::variants::common::OsmEntryId;
 use crate::codec::element::variants::Node;
+use crate::codec::element::variants::common::OsmEntryId;
 use crate::route::transition::Trip;
 
 use approx::assert_relative_eq;

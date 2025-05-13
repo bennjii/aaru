@@ -9,29 +9,6 @@ use aaru::route::Graph;
 use std::path::{Path, PathBuf};
 use tokio::time::Instant;
 
-fn ingest_and_count() {
-    let timer = Instant::now();
-    let path = PathBuf::from(Path::new(DISTRICT_OF_COLUMBIA));
-    let reader = ProcessedElementIterator::new(path).expect("!");
-
-    let (ways, nodes) = reader.par_red(
-        |(ways, nodes), element| match element {
-            ProcessedElement::Way(_) => (ways + 1, nodes),
-            ProcessedElement::Node(_) => (ways, nodes + 1),
-            _ => (ways, nodes),
-        },
-        |(ways, nodes), (ways2, nodes2)| (ways + ways2, nodes + nodes2),
-        || (0u64, 0u64),
-    );
-
-    info!(
-        "Got {} ways and {} nodes in {}ms",
-        ways,
-        nodes,
-        timer.elapsed().as_millis()
-    );
-}
-
 fn ingest_as_full_graph() {
     let path = Path::new(DISTRICT_OF_COLUMBIA)
         .as_os_str()

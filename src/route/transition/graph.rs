@@ -1,5 +1,5 @@
-use crate::route::transition::*;
 use crate::route::Graph;
+use crate::route::transition::*;
 
 use geo::LineString;
 

@@ -1,8 +1,8 @@
-use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::WeightAndDistance;
+use codec::element::variants::OsmEntryId;
 
-use indexmap::map::Entry;
 use indexmap::IndexMap;
+use indexmap::map::Entry;
 use pathfinding::num_traits::Zero;
 use rustc_hash::{FxHashSet, FxHasher};
 use std::cmp::Ordering;

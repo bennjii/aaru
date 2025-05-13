@@ -1,10 +1,10 @@
 use aaru::codec::consts::{
     LAX_LYNWOOD_MATCHED, LAX_LYNWOOD_TRIP, LOS_ANGELES, VENTURA_MATCHED, VENTURA_TRIP, ZURICH,
 };
-use aaru::route::transition::{CostingStrategies, LayerGenerator, PredicateCache};
 use aaru::route::Graph;
+use aaru::route::transition::{CostingStrategies, LayerGenerator, PredicateCache};
 use criterion::{black_box, criterion_main};
-use geo::{coord, LineString};
+use geo::{LineString, coord};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;

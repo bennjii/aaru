@@ -3,7 +3,7 @@
 use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, LOS_ANGELES, SYDNEY};
 use crate::codec::element::variants::Node;
 use crate::route::{Graph, Scan};
-use geo::{coord, wkt, LineString, Point};
+use geo::{LineString, Point, coord, wkt};
 use std::{path::Path, time::Instant};
 use wkt::ToWkt;
 

@@ -1,6 +1,6 @@
-use crate::codec::element::variants::Node;
-use crate::route::graph::NodeIx;
 use crate::route::Graph;
+use crate::route::graph::NodeIx;
+use codec::element::variants::Node;
 use geo::{Bearing, Distance, Haversine, LineString};
 
 /// Utilities to calculate metadata of a trip.

@@ -1,9 +1,9 @@
-use crate::codec::element::variants::OsmEntryId;
 use crate::route::graph::NodeIx;
 use crate::route::transition::*;
+use codec::element::variants::OsmEntryId;
 
 use geo::{Distance, Haversine};
-use pathfinding::prelude::{dijkstra_reach, DijkstraReachableItem};
+use pathfinding::prelude::{DijkstraReachableItem, dijkstra_reach};
 use petgraph::Direction;
 use rayon::iter::{IntoParallelIterator, ParallelBridge};
 use rayon::{iter::ParallelIterator, slice::ParallelSlice};

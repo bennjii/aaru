@@ -1,5 +1,3 @@
-#![doc = include_str!("../../docs/route.md")]
-
 #[doc(hidden)]
 pub mod error;
 #[doc(hidden)]

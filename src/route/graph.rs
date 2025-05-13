@@ -1,12 +1,12 @@
-use crate::codec::element::item::ProcessedElement;
-use crate::codec::element::processed_iterator::ProcessedElementIterator;
-use crate::codec::element::variants::common::OsmEntryId;
-use crate::codec::element::variants::Node;
-use crate::codec::parallel::Parallel;
+use codec::element::item::ProcessedElement;
+use codec::element::processed_iterator::ProcessedElementIterator;
+use codec::element::variants::Node;
+use codec::element::variants::common::OsmEntryId;
+use codec::parallel::Parallel;
 
+use crate::route::Scan;
 use crate::route::error::RouteError;
 use crate::route::transition::*;
-use crate::route::Scan;
 
 use geo::{LineString, Point};
 use log::{debug, info};
@@ -106,13 +106,14 @@ impl Graph {
     }
 
     /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
-    pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
+    pub fn new(filename: std::ffi::OsString) -> Result<Graph, RouteError> {
         let mut start_time = Instant::now();
         let fixed_start_time = Instant::now();
 
         let path = PathBuf::from(filename);
 
-        let reader = ProcessedElementIterator::new(path)?;
+        let reader = ProcessedElementIterator::new(path)
+            .map_err(|err| RouteError::Other(format!("{:?}", err)))?;
         let weights = Graph::weights()?;
 
         debug!("Iterator warming took: {:?}", start_time.elapsed());

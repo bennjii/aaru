@@ -1,0 +1,56 @@
+[package]
+name = "routers_server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+routers = { path = "../.." }
+routers_codec = { path = "../routers_codec" }
+
+geo = "0.30.0"
+wkt = "0.13.0"
+log = { version = "0.4.22", features = [] }
+
+tokio = { version = "1.41.1", features = [
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "fs",
+]}
+
+dotenv = "0.15.0"
+
+prost = { version = "0.13.3" }
+prost-types = "0.13.4"
+
+# gRPC Server Dependencies
+tonic = { version = "0.13.0", features = [] }
+tonic-reflection = { version = "0.13.0" }
+tonic-web = { version = "0.13.0" }
+
+# HTTP Server Dependencies
+tower-http = { version = "0.6.1", features = ["cors"] }
+
+# Tracing
+tracing = { version = "0.1.40" }
+tracing-subscriber = { version = "0.3.18", features = [
+    "tracing-log",
+    "fmt",
+    "env-filter",
+] }
+tracing-opentelemetry = { version = "0.27.0" }
+
+# Open-Telemetry Modules
+opentelemetry = { version = "0.26.0" }
+opentelemetry_sdk = { version = "0.26.0", features = [
+    "rt-tokio",
+]}
+opentelemetry-otlp = { version = "0.26.0", features = ["tls"] }
+
+[build-dependencies]
+tonic-build = { version = "0.13.0", features = ["prost"] }
+prost-build = { version = "0.13.3" }
+
+[features]
+# TODO: Implement tracting optional-features
+tracing = []
