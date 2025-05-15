@@ -20,7 +20,7 @@ use tracing::Level;
 use wkt::ToWkt;
 
 pub mod router_service {
-    tonic::include_proto!("routers.v1");
+    tonic::include_proto!("api.v1");
 
     pub const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("routers_descriptor");

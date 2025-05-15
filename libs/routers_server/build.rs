@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let routers = [
-        "proto/router/v1/definition.proto",
-        "proto/router/v1/service.proto",
-        "proto/geo.proto",
+        "proto/api/v1/router/v1/definition.proto",
+        "proto/api/v1/router/v1/service.proto",
+        "proto/api/v1/geo.proto",
     ];
 
     let includes = ["proto"];
