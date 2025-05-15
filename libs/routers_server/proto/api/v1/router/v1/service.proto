@@ -1,0 +1,21 @@
+syntax = "proto3";
+package api.v1.router.v1;
+
+import "api/v1/router/v1/definition.proto";
+
+// The routing service
+service RouterService {
+  // Returns the appropriate route between the starting and ending locations.
+  rpc Route(RouteRequest) returns (RouteResponse);
+
+  // Matches an input route to a given underlying map.
+  rpc MapMatch(MapMatchRequest) returns (MapMatchResponse);
+
+  // Provides the coordinate of the closest point on the map to the input
+  rpc ClosestPoint(ClosestPointRequest) returns (ClosestPointResponse);
+
+  // Provides the closest coordinate upon the map to the input, which is interpolated.
+  // In such that the input position may exist between edges on the graph, and therefore
+  // is considered a "virtual" or "snapped" point.
+  rpc ClosestSnappedPoint(ClosestSnappedPointRequest) returns (ClosestSnappedPointResponse);
+}

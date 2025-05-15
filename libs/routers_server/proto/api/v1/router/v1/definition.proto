@@ -1,8 +1,8 @@
 syntax = "proto3";
-package routers.v1.router.v1;
+package api.v1.router.v1;
 
 import "google/protobuf/timestamp.proto";
-import "geo.proto";
+import "api/v1/geo.proto";
 
 enum Costing {
   COSTING_UNSPECIFIED = 0;
@@ -26,6 +26,11 @@ message MapMatchRequest {
   Costing costing_method = 5;
 }
 
+message MapMatchResponse {
+  repeated MatchedRoute matches = 1;
+  repeated string warnings = 2;
+}
+
 message MatchedRoute {
   repeated Coordinate snapped_shape = 1;
   repeated Coordinate interpolated = 2;
@@ -33,11 +38,6 @@ message MatchedRoute {
 
   string label = 4; // Not sure what this would be yet.
   uint32 cost = 5;
-}
-
-message MapMatchResponse {
-  repeated MatchedRoute matches = 1;
-  repeated string warnings = 2;
 }
 
 // The request message containing the user's name.
@@ -53,18 +53,18 @@ message RouteResponse {
   uint32 cost = 2;
 }
 
-// Specifies the distance and a position from which to search
-message ClosestSnappedPointRequest {
-  Coordinate point = 1;
-  double search_radius = 2;
-}
-
 message ClosestPointRequest {
   Coordinate coordinate = 1;
 }
 
 message ClosestPointResponse {
   Coordinate coordinate = 1;
+}
+
+// Specifies the distance and a position from which to search
+message ClosestSnappedPointRequest {
+  Coordinate point = 1;
+  double search_radius = 2;
 }
 
 message ClosestSnappedPointResponse {

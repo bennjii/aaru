@@ -1,5 +1,5 @@
 syntax = "proto3";
-package routers.v1;
+package api.v1;
 
 message Coordinate {
   double latitude = 1;
