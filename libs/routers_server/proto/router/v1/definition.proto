@@ -2,7 +2,7 @@ syntax = "proto3";
 package routers.v1.router.v1;
 
 import "google/protobuf/timestamp.proto";
-import "routers/v1/geo.proto";
+import "geo.proto";
 
 enum Costing {
   COSTING_UNSPECIFIED = 0;
