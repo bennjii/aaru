@@ -19,6 +19,10 @@ jobs:
         with:
           lfs: false
 
+      - run: ls -la
+      - run: ls -la src
+      - run: cat src/lib.rs
+
       - name: install protoc
         uses: taiki-e/install-action@v2
         with:
