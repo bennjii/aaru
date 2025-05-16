@@ -1,9 +1,12 @@
-use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
-use aaru::codec::{BlockItem, BlockIterator};
+use routers_codec::consts::DISTRICT_OF_COLUMBIA;
+use routers_codec::{BlockItem, BlockIterator, Parallel, ProcessedElementIterator};
+
 use criterion::criterion_main;
-use log::error;
+use log::{error, info};
 use rayon::iter::ParallelIterator;
-use std::path::PathBuf;
+use routers_codec::element::ProcessedElement;
+use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 fn iterate_blocks_each() {
     let path = PathBuf::from(DISTRICT_OF_COLUMBIA);

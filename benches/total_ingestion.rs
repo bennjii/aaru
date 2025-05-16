@@ -1,11 +1,11 @@
-use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
-use aaru::codec::element::ProcessedElement;
-use aaru::codec::{Parallel, ProcessedElementIterator};
+use codec::consts::DISTRICT_OF_COLUMBIA;
+use codec::element::ProcessedElement;
+use codec::{Parallel, ProcessedElementIterator};
 
 use criterion::criterion_main;
 use log::info;
 
-use aaru::route::Graph;
+use routers::route::Graph;
 use std::path::{Path, PathBuf};
 use tokio::time::Instant;
 
@@ -21,7 +21,6 @@ fn ingestion_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("ingestion_benchmark");
     group.significance_level(0.1).sample_size(30);
 
-    group.bench_function("ingest_and_count", |b| b.iter(|| ingest_and_count()));
     group.bench_function("ingest_as_full_graph", |b| {
         b.iter(|| ingest_as_full_graph())
     });
