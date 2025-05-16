@@ -8,7 +8,7 @@ unsafe_code = "forbid"
 [package]
 name = "routers"
 description = "Rust-Based Routing Tooling for System-Agnostic Maps."
-readme = "readme.md"
+readme = "README.md"
 version = "0.2.0"
 edition = "2024"
 license = "MIT"
