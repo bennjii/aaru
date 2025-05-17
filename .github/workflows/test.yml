@@ -39,19 +39,13 @@ jobs:
           toolchain: nightly
           override: true
 
-      - name: Install `rustfmt`
-        run: rustup component add rustfmt
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
 
-      - name: Install `clippy`
-        run: rustup component add clippy
-
-      - name: 📝 Format
+      - name: 🧪 Test
         uses: actions-rs/cargo@v1
         with:
-          command: fmt
-          args: --check
+          command: nextest
+          args: run
 
-      - name: 🔍 Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
