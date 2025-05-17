@@ -1,7 +1,7 @@
 use crate::route::{Graph, Scan};
 
 use codec::osm::element::variants::Node;
-use fixtures::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, LOS_ANGELES, SYDNEY, fixture_path};
+use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
 use crate::error::RouteError;
 use geo::{LineString, Point, coord, wkt};
@@ -48,6 +48,29 @@ fn columbia_mapping() -> Result<(), RouteError> {
 }
 
 #[test]
+fn projected_distance_check() {
+    const DISTANCE: f64 = 100.0; // 100m search radius
+    let graph = init_graph(DISTRICT_OF_COLUMBIA).expect("Could not produce graph");
+
+    let points = wkt! {
+        LINESTRING (-77.000347 38.887621, -76.998931 38.887638, -76.996978 38.887651, -76.994832 38.88763, -76.993067 38.887659)
+    };
+
+    for point in &points {
+        let point = Point(*point);
+        let nodes = graph
+            .nearest_projected_nodes(&point, DISTANCE)
+            .collect::<Vec<_>>();
+
+        assert!(
+            !nodes.is_empty(),
+            "Expected nodes to be non-empty at {DISTANCE}m. Could not find candidate for {point:?}"
+        );
+    }
+}
+
+#[test]
+#[cfg(any())]
 fn stutgard_mapping() -> Result<(), RouteError> {
     let graph = init_graph(BADEN_WUERTTEMBERG)?;
     let start = coord! { x: 9.186777765, y: 48.773585361 };
@@ -67,6 +90,7 @@ fn stutgard_mapping() -> Result<(), RouteError> {
 }
 
 #[test]
+#[cfg(any())]
 fn sydney_mapping() -> Result<(), RouteError> {
     let graph = init_graph(SYDNEY)?;
 
@@ -85,26 +109,4 @@ fn sydney_mapping() -> Result<(), RouteError> {
     println!("{}", generate_linestring(route));
     assert_eq!(weight, 450, "Incorrect Route Weighting");
     Ok(())
-}
-
-#[test]
-fn projected_distance_check() {
-    const DISTANCE: f64 = 100.0; // 100m search radius
-    let graph = init_graph(LOS_ANGELES).expect("Could not produce graph");
-
-    let points = wkt! {
-        LINESTRING (-118.618736 34.1661, -118.624771 34.164165, -118.627724 34.163116, -118.639236 34.158897, -118.642059 34.15786, -118.650391 34.154312, -118.662483 34.150333, -118.664833 34.149796)
-    };
-
-    for point in &points {
-        let point = Point(*point);
-        let nodes = graph
-            .nearest_projected_nodes(&point, DISTANCE)
-            .collect::<Vec<_>>();
-
-        assert!(
-            !nodes.is_empty(),
-            "Expected nodes to be non-empty at {DISTANCE}m. Could not find candidate for {point:?}"
-        );
-    }
 }

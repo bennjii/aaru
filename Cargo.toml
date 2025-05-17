@@ -28,12 +28,6 @@ name = "routers"
 path = "src/lib.rs"
 bench = false
 
-[profile.dev]
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3
-
 [dependencies]
 fixtures = { workspace = true }
 codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
@@ -128,5 +122,19 @@ opt-level = 3
 lto = "fat"
 
 [profile.bench]
+codegen-units = 1
 opt-level = 3
-lto = true
+lto = "fat"
+
+[profile.dev]
+opt-level = 0
+lto = "off"
+
+[profile.test]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.test.package."*"]
+opt-level = 3
