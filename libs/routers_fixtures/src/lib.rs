@@ -7,12 +7,15 @@ pub const SYDNEY: &str = "sydney.osm.pbf";
 pub const LOS_ANGELES: &str = "los-angeles.osm.pbf";
 pub const ZURICH: &str = "zurich.osm.pbf";
 
-macro_rules! fixture {
-    ($fixt:expr) => {{
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("resources")
-            .join($fixt)
-    }};
+pub mod macros {
+    #[macro_export]
+    macro_rules! fixture {
+        ($fixt:expr) => {
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("resources")
+                .join($fixt)
+        };
+    }
 }
 
 pub fn fixture_path(fixture: &str) -> PathBuf {

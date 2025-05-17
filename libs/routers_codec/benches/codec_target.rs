@@ -1,12 +1,12 @@
 use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
-use routers_codec::{BlockItem, BlockIterator, Parallel, ProcessedElementIterator};
+use routers_codec::osm::{
+    BlockItem, BlockIterator, Parallel, ProcessedElementIterator, element::ProcessedElement,
+};
 
 use criterion::criterion_main;
 use log::{error, info};
 use rayon::iter::ParallelIterator;
-use routers_codec::element::ProcessedElement;
-use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 fn iterate_blocks_each() {

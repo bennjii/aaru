@@ -634,18 +634,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
-name = "fixtures"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ee641ed7294dab290809e5a675dae1d3a48fa31e62b94974b25490194f3a96a"
-dependencies = [
- "glob",
- "proc-macro2",
- "quote",
- "syn 2.0.101",
-]
-
-[[package]]
 name = "flate2"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1936,7 +1924,6 @@ dependencies = [
  "axum-macros",
  "codspeed-criterion-compat",
  "fast_hilbert",
- "fixtures",
  "flate2",
  "geo",
  "indexmap 2.9.0",
@@ -1950,6 +1937,7 @@ dependencies = [
  "petgraph 0.8.1",
  "rayon",
  "routers_codec",
+ "routers_fixtures",
  "rstar",
  "rustc-hash",
  "scc",
@@ -1968,7 +1956,6 @@ dependencies = [
  "bytes",
  "codspeed-criterion-compat",
  "either",
- "fixtures",
  "flate2",
  "geo",
  "log",
@@ -1977,6 +1964,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rayon",
+ "routers_fixtures",
  "rstar",
  "test-log",
  "tracing",
@@ -2002,7 +1990,6 @@ name = "routers_server"
 version = "0.1.0"
 dependencies = [
  "dotenv",
- "fixtures",
  "geo",
  "log",
  "opentelemetry",
@@ -2012,6 +1999,7 @@ dependencies = [
  "prost-build",
  "prost-types",
  "routers",
+ "routers_fixtures",
  "tokio",
  "tonic 0.13.1",
  "tonic-build",

@@ -23,9 +23,9 @@ pub enum Classification {
 pub struct Clustered<T> {
     pub id: u64,
     pub points: Vec<T>,
+    pub convex_hull: Polygon,
 
     centroid: Point,
-    convex_hull: Polygon,
 }
 
 impl<T> From<Clustered<T>> for Point {
@@ -179,7 +179,7 @@ impl<T: Into<geo::Point> + Clone> TryFrom<Vec<(u32, T)>> for Cluster<T> {
 /// Example:
 /// ```rust
 /// use geo::{Point, point, coord};
-/// use aaru::geo::cluster::IntoCluster;
+/// use routers_geo::cluster::IntoCluster;
 ///
 /// fn cluster() {
 ///     let points: Vec<Point> = vec![

@@ -10,3 +10,6 @@ strum = { version = "0.26.3", features = ["phf", "derive"] }
 
 geo = "0.30.0"
 geohash = "0.13.1"
+
+[features]
+tile = []

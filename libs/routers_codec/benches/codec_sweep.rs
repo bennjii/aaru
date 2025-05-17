@@ -1,13 +1,14 @@
 use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
-use routers_codec::element::ProcessedElement;
-use routers_codec::{BlockIterator, Element, ElementIterator, Parallel, ProcessedElementIterator};
+use routers_codec::osm::{
+    BlockIterator, Element, ElementIterator, Parallel, ProcessedElementIterator,
+    element::ProcessedElement,
+};
 
 use criterion::criterion_main;
 use log::info;
 use rayon::iter::ParallelIterator;
 use std::any::Any;
-use std::path::PathBuf;
 
 fn block_iter_count() {
     let path = fixture_path(DISTRICT_OF_COLUMBIA);

@@ -9,10 +9,10 @@ members = [
 unsafe_code = "forbid"
 
 [workspace.dependencies]
-fixtures = { version = "0.1.0" }
+fixtures = { version = "0.1.0", package = "routers_fixtures" }
 
 [patch.crates-io]
-routers_fixtures = { path = "libs/routers_fixtures"}
+routers_fixtures = { path = "libs/routers_fixtures" }
 
 [package]
 name = "routers"

@@ -1,6 +1,6 @@
 use fixtures::{
     LAX_LYNWOOD_MATCHED, LAX_LYNWOOD_TRIP, LOS_ANGELES, VENTURA_MATCHED, VENTURA_TRIP, ZURICH,
-    fixture_path,
+    fixture,
 };
 
 use routers::Graph;
@@ -10,7 +10,6 @@ use criterion::{black_box, criterion_main};
 use geo::{LineString, coord};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use wkt::{ToWkt, TryFromWkt};
 
 struct MapMatchScenario {
@@ -54,7 +53,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
     let lookup = Arc::new(Mutex::new(PredicateCache::default()));
 
     MATCH_CASES.into_iter().for_each(|ga| {
-        let path = Path::new(&fixture_path(ga.source_file))
+        let path = Path::new(fixture!(ga.source_file))
             .as_os_str()
             .to_ascii_lowercase();
         let graph = Graph::new(path).expect("Graph must be created");
@@ -99,8 +98,8 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                         })
                         .collect::<LineString>();
 
-                    let _as_wkt_string = linestring.wkt_string();
-                    // assert_eq!(as_wkt_string, sc.expected_linestring);
+                    let as_wkt_string = linestring.wkt_string();
+                    assert_eq!(as_wkt_string, sc.expected_linestring);
                 })
             });
         });

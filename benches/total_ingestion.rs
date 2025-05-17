@@ -4,7 +4,7 @@ use criterion::criterion_main;
 use log::info;
 
 use routers::route::Graph;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 fn ingest_as_full_graph() {
     let path = Path::new(fixtures::fixture_path(DISTRICT_OF_COLUMBIA).as_os_str())
