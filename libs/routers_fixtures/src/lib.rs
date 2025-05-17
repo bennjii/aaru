@@ -11,9 +11,7 @@ pub mod macros {
     #[macro_export]
     macro_rules! fixture {
         ($fixt:expr) => {
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("resources")
-                .join($fixt)
+            &$crate::fixture_path($fixt)
         };
     }
 }
