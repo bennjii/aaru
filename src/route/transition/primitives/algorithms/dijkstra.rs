@@ -90,19 +90,15 @@ where
             for (successor, move_cost) in successors {
                 let new_cost = cost + move_cost;
 
-                let mut pushed = false;
-
                 let index = match self.parents.entry(successor) {
                     Entry::Vacant(e) => {
                         let n = e.index();
                         e.insert((index, new_cost));
-                        pushed = true;
                         n
                     }
                     Entry::Occupied(mut e) => {
                         if e.get().1 > new_cost {
                             e.insert((index, new_cost));
-                            pushed = true;
                             e.index()
                         } else {
                             continue;
@@ -110,12 +106,10 @@ where
                     }
                 };
 
-                if pushed {
-                    self.to_see.push(SmallestHolder {
-                        cost: new_cost,
-                        index,
-                    });
-                }
+                self.to_see.push(SmallestHolder {
+                    cost: new_cost,
+                    index,
+                });
             }
 
             return item;

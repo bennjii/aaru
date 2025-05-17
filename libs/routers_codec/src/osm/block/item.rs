@@ -13,7 +13,7 @@ use std::io::Read;
 use crate::osm::blob::item::BlobItem;
 use crate::osm::element::item::Element;
 use crate::osm::element::item::ProcessedElement;
-use crate::osm::{Blob, HeaderBlock, PrimitiveBlock, osm::blob::Data};
+use crate::osm::{Blob, HeaderBlock, PrimitiveBlock, model::blob::Data};
 
 pub enum BlockItem {
     HeaderBlock(HeaderBlock),

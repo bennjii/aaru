@@ -55,14 +55,6 @@ harness = false
 name = "codec_target"
 harness = false
 
-[profile.release]
-opt-level = 3
-lto = "fat"
-
-[profile.bench]
-opt-level = 3
-lto = true
-
 [features]
 default = ["mimalloc"]
 tracing = ["dep:tracing", "dep:tracing-subscriber"]

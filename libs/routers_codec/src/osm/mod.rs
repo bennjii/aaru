@@ -31,12 +31,12 @@ pub use block::item::BlockItem;
 #[doc(hidden)]
 pub use element::item::Element;
 #[doc(hidden)]
-pub use osm::*;
+pub use model::*;
 #[doc(inline)]
 pub use parallel::Parallel;
 
 // Protocol Buffer Includes
-pub mod osm {
+pub mod model {
     //! OpenStreetMaps Protobuf Definitions
     include!(concat!(env!("OUT_DIR"), "/osmpbf.rs"));
 }

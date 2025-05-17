@@ -108,8 +108,7 @@ mod successor {
             // Calc. once
             let source = ctx.map.get_position(&key).unwrap();
 
-            let successors = ctx
-                .map
+            ctx.map
                 .graph
                 .edges_directed(key, Direction::Outgoing)
                 .map(|(_, next, (w, _))| {
@@ -138,9 +137,7 @@ mod successor {
                         },
                     )
                 })
-                .collect::<Vec<_>>();
-
-            successors
+                .collect::<Vec<_>>()
         }
     }
 }
