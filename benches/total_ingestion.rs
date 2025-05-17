@@ -1,8 +1,5 @@
 use fixtures::DISTRICT_OF_COLUMBIA;
 
-use codec::element::ProcessedElement;
-use codec::{Parallel, ProcessedElementIterator};
-
 use criterion::criterion_main;
 use log::info;
 

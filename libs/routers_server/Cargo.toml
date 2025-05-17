@@ -7,7 +7,6 @@ edition = "2024"
 fixtures = { workspace = true }
 
 routers = { path = "../.." }
-routers_codec = { path = "../routers_codec" }
 
 geo = "0.30.0"
 wkt = "0.13.0"
