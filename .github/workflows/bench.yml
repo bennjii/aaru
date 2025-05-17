@@ -10,6 +10,7 @@ on:
 
 env:
   PROTOC_VERSION: 3.20.3
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:

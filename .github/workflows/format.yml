@@ -9,6 +9,7 @@ on:
 
 env:
   PROTOC_VERSION: 3.20.3
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
@@ -18,10 +19,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           lfs: false
-
-      - run: ls -la
-      - run: ls -la src
-      - run: cat src/lib.rs
 
       - name: install protoc
         uses: taiki-e/install-action@v2
