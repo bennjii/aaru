@@ -1960,6 +1960,7 @@ dependencies = [
  "flate2",
  "geo",
  "log",
+ "mimalloc",
  "osmpbf",
  "prost",
  "prost-build",

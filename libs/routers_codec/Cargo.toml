@@ -21,6 +21,8 @@ flate2 = { version = "1.0.34", features = ["zlib-ng"] }
 log = { version = "0.4.22", features = [] }
 test-log = { version = "0.2.16", features = ["log"] }
 
+mimalloc = { version = "0.1.43", optional = true }
+
 [dev-dependencies]
 osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
 criterion = { version = "2.10.1", features = [
@@ -45,3 +47,6 @@ lto = "fat"
 [profile.bench]
 opt-level = 3
 lto = true
+
+[features]
+default = ["mimalloc"]
