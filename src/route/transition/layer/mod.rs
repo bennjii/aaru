@@ -1,7 +1,7 @@
 #[doc(hidden)]
-pub mod gen;
+pub mod generator;
 #[doc(inline)]
-pub use gen::*;
+pub use generator::*;
 
 use crate::route::transition::candidate::CandidateId;
 use geo::Point;

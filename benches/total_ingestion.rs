@@ -1,39 +1,13 @@
-use aaru::codec::consts::DISTRICT_OF_COLUMBIA;
-use aaru::codec::element::ProcessedElement;
-use aaru::codec::{Parallel, ProcessedElementIterator};
+use fixtures::DISTRICT_OF_COLUMBIA;
 
 use criterion::criterion_main;
 use log::info;
 
-use aaru::route::Graph;
-use std::path::{Path, PathBuf};
-use tokio::time::Instant;
-
-fn ingest_and_count() {
-    let timer = Instant::now();
-    let path = PathBuf::from(Path::new(DISTRICT_OF_COLUMBIA));
-    let reader = ProcessedElementIterator::new(path).expect("!");
-
-    let (ways, nodes) = reader.par_red(
-        |(ways, nodes), element| match element {
-            ProcessedElement::Way(_) => (ways + 1, nodes),
-            ProcessedElement::Node(_) => (ways, nodes + 1),
-            _ => (ways, nodes),
-        },
-        |(ways, nodes), (ways2, nodes2)| (ways + ways2, nodes + nodes2),
-        || (0u64, 0u64),
-    );
-
-    info!(
-        "Got {} ways and {} nodes in {}ms",
-        ways,
-        nodes,
-        timer.elapsed().as_millis()
-    );
-}
+use routers::route::Graph;
+use std::path::Path;
 
 fn ingest_as_full_graph() {
-    let path = Path::new(DISTRICT_OF_COLUMBIA)
+    let path = Path::new(fixtures::fixture_path(DISTRICT_OF_COLUMBIA).as_os_str())
         .as_os_str()
         .to_ascii_lowercase();
     let graph = Graph::new(path).expect("Could not generate graph");
@@ -44,7 +18,6 @@ fn ingestion_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("ingestion_benchmark");
     group.significance_level(0.1).sample_size(30);
 
-    group.bench_function("ingest_and_count", |b| b.iter(|| ingest_and_count()));
     group.bench_function("ingest_as_full_graph", |b| {
         b.iter(|| ingest_as_full_graph())
     });

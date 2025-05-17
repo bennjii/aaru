@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 use geo::{Distance, Haversine};
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::*;
-use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
+use petgraph::prelude::EdgeRef;
 
 type ProcessedReachable = (CandidateId, Reachable);
 

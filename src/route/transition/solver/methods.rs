@@ -1,5 +1,5 @@
-use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::*;
+use codec::osm::element::variants::OsmEntryId;
 
 #[derive(Debug, Default, Copy, Clone)]
 pub enum ResolutionMethod {
