@@ -3,7 +3,7 @@
 //! tags for graph representation.
 
 use crate::osm::PrimitiveBlock;
-use crate::{osm, relation::MemberType};
+use crate::{osm, osm::relation::MemberType};
 
 use super::common::{OsmEntryId, ReferenceKey, References, Referential, Tagable, Tags};
 
@@ -33,7 +33,7 @@ impl Way {
     #[inline]
     pub fn from_raw(value: &osm::Way, block: &PrimitiveBlock) -> Self {
         Way {
-            id: OsmEntryId::as_way(value.id),
+            id: OsmEntryId::way(value.id),
             refs: value.references(block),
             tags: value.tags(block),
         }

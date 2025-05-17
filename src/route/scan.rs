@@ -3,7 +3,7 @@ use rstar::AABB;
 
 use crate::route::Graph;
 use crate::route::transition::FatEdge;
-use codec::element::variants::Node;
+use codec::osm::element::variants::Node;
 
 #[cfg(feature = "tracing")]
 use tracing::Level;

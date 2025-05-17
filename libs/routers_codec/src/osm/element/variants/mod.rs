@@ -15,7 +15,7 @@ pub mod common {
         ops::{Add, Deref},
     };
 
-    use crate::{PrimitiveBlock, relation::MemberType};
+    use crate::osm::{PrimitiveBlock, relation::MemberType};
 
     const OSM_NULL_SENTINEL: i64 = -1i64;
 
@@ -72,7 +72,7 @@ pub mod common {
         }
 
         #[inline]
-        pub const fn as_node(identifier: i64) -> OsmEntryId {
+        pub const fn node(identifier: i64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
                 // variant: MemberType::Node,
@@ -80,7 +80,7 @@ pub mod common {
         }
 
         #[inline]
-        pub const fn as_way(identifier: i64) -> OsmEntryId {
+        pub const fn way(identifier: i64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
                 // variant: MemberType::Way,

@@ -1,5 +1,5 @@
 use crate::route::transition::WeightAndDistance;
-use codec::element::variants::OsmEntryId;
+use codec::osm::element::variants::OsmEntryId;
 
 use indexmap::IndexMap;
 use indexmap::map::Entry;

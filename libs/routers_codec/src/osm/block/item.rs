@@ -10,11 +10,10 @@ use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Read;
 
-use crate::blob::item::BlobItem;
-use crate::element::item::Element;
-use crate::element::item::ProcessedElement;
-use crate::osm::blob::Data;
-use crate::osm::{Blob, HeaderBlock, PrimitiveBlock};
+use crate::osm::blob::item::BlobItem;
+use crate::osm::element::item::Element;
+use crate::osm::element::item::ProcessedElement;
+use crate::osm::{Blob, HeaderBlock, PrimitiveBlock, osm::blob::Data};
 
 pub enum BlockItem {
     HeaderBlock(HeaderBlock),

@@ -1,9 +1,9 @@
 //! The file blob iterator
 //! Supports `mmap` reading through the optional feature
 
-use crate::BlockItem;
-use crate::blob::item::BlobItem;
 use crate::osm::BlobHeader;
+use crate::osm::BlockItem;
+use crate::osm::blob::item::BlobItem;
 
 use log::trace;
 use prost::Message;

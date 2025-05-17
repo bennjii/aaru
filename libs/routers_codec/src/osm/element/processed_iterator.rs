@@ -4,32 +4,32 @@
 use rayon::iter::ParallelIterator;
 use std::path::PathBuf;
 
-use crate::block::iterator::BlockIterator;
-use crate::element::item::Element;
-use crate::error::CodecError;
-use crate::parallel::Parallel;
+use crate::osm::block::iterator::BlockIterator;
+use crate::osm::element::item::ProcessedElement;
+use crate::osm::error::CodecError;
+use crate::osm::parallel::Parallel;
 
-pub struct ElementIterator {
+pub struct ProcessedElementIterator {
     iter: BlockIterator,
 }
 
-impl ElementIterator {
-    pub fn new(path: PathBuf) -> Result<ElementIterator, CodecError> {
-        Ok(ElementIterator {
+impl ProcessedElementIterator {
+    pub fn new(path: PathBuf) -> Result<ProcessedElementIterator, CodecError> {
+        Ok(ProcessedElementIterator {
             iter: BlockIterator::new(path)?,
         })
     }
 }
 
-impl Parallel for ElementIterator {
-    type Item<'a> = Element<'a>;
+impl Parallel for ProcessedElementIterator {
+    type Item<'a> = ProcessedElement;
 
     fn for_each<F>(mut self, f: F)
     where
-        F: for<'a> Fn(Element<'a>) + Send + Sync,
+        F: Fn(ProcessedElement) + Send + Sync,
     {
         self.iter.par_iter().for_each(|mut block| {
-            block.raw_par_iter().for_each(&f);
+            block.par_iter().for_each(&f);
         })
     }
 
@@ -40,14 +40,14 @@ impl Parallel for ElementIterator {
         ident: Identity,
     ) -> T
     where
-        Map: for<'a> Fn(Element<'a>) -> T + Send + Sync,
+        Map: Fn(ProcessedElement) -> T + Send + Sync,
         Reduce: Fn(T, T) -> T + Send + Sync,
         Identity: Fn() -> T + Send + Sync,
         T: Send,
     {
         self.iter
             .par_iter()
-            .map(|mut block| block.raw_par_iter().map(&map_op).reduce(&ident, &red_op))
+            .map(|mut block| block.par_iter().map(&map_op).reduce(&ident, &red_op))
             .reduce(&ident, &red_op)
     }
 
@@ -58,7 +58,7 @@ impl Parallel for ElementIterator {
         ident: Identity,
     ) -> T
     where
-        Reduce: for<'a> Fn(T, Element<'a>) -> T + Send + Sync,
+        Reduce: Fn(T, ProcessedElement) -> T + Send + Sync,
         Identity: Fn() -> T + Send + Sync,
         Combine: Fn(T, T) -> T + Send + Sync,
         T: Send,
@@ -67,7 +67,7 @@ impl Parallel for ElementIterator {
             .par_iter()
             .map(|mut block| {
                 block
-                    .raw_par_iter()
+                    .par_iter()
                     .fold(&ident, &fold_op)
                     .reduce(&ident, &combine)
             })

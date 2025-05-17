@@ -6,8 +6,8 @@ use std::vec;
 #[cfg(feature = "tracing")]
 use tracing::debug;
 
-use crate::element::variants::{Node, Relation, Way};
 use crate::osm;
+use crate::osm::element::variants::{Node, Relation, Way};
 
 #[derive(Clone)]
 pub enum Element<'a> {

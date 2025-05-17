@@ -1,8 +1,8 @@
-use codec::element::item::ProcessedElement;
-use codec::element::processed_iterator::ProcessedElementIterator;
-use codec::element::variants::Node;
-use codec::element::variants::common::OsmEntryId;
-use codec::parallel::Parallel;
+use codec::osm::element::item::ProcessedElement;
+use codec::osm::element::processed_iterator::ProcessedElementIterator;
+use codec::osm::element::variants::Node;
+use codec::osm::element::variants::common::OsmEntryId;
+use codec::osm::parallel::Parallel;
 
 use crate::route::Scan;
 use crate::route::error::RouteError;

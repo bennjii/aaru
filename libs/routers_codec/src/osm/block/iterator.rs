@@ -1,8 +1,8 @@
 //! Iterates over `BlockItem`s in the file
 
-use crate::BlobItem;
-use crate::blob::iterator::BlobIterator;
-use crate::block::item::BlockItem;
+use crate::osm::BlobItem;
+use crate::osm::blob::iterator::BlobIterator;
+use crate::osm::block::item::BlockItem;
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fs::File;

@@ -1,6 +1,6 @@
 use crate::route::graph::NodeIx;
 use crate::route::transition::*;
-use codec::element::variants::OsmEntryId;
+use codec::osm::element::variants::OsmEntryId;
 
 use geo::{Distance, Haversine};
 use pathfinding::prelude::{DijkstraReachableItem, dijkstra_reach};

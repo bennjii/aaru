@@ -102,7 +102,7 @@ impl Node {
 impl From<&osm::Node> for Node {
     fn from(value: &osm::Node) -> Self {
         Node {
-            id: OsmEntryId::as_node(value.id),
+            id: OsmEntryId::node(value.id),
             position: point! { x: value.lon as f64, y: value.lat as f64 },
         }
     }

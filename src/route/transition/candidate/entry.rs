@@ -2,7 +2,7 @@ use crate::route::Graph;
 use crate::route::graph::{EdgeIx, NodeIx, Weight};
 use crate::route::transition::RoutingContext;
 
-use codec::element::variants::Node;
+use codec::osm::element::variants::Node;
 use geo::{Distance, Haversine, LineLocatePoint, LineString, Point};
 use pathfinding::num_traits::Zero;
 use petgraph::Direction;
