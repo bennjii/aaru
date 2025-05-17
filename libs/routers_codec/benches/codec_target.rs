@@ -1,4 +1,5 @@
-use routers_codec::consts::DISTRICT_OF_COLUMBIA;
+use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
+
 use routers_codec::{BlockItem, BlockIterator, Parallel, ProcessedElementIterator};
 
 use criterion::criterion_main;
@@ -9,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 fn iterate_blocks_each() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let iterator = BlockIterator::new(path.clone());
 
     let mut primitive_blocks = 0;
@@ -37,7 +38,7 @@ fn iterate_blocks_each() {
 }
 
 fn parallel_iterate_blocks_each() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
 
     let mut block_iter = BlockIterator::new(path).unwrap();
 
@@ -55,7 +56,7 @@ fn parallel_iterate_blocks_each() {
 fn compare_to_osmpbf() {
     use osmpbf::{BlobReader, BlobType};
 
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let reader = BlobReader::from_path(path).unwrap();
 
     let mut primitive_blocks = 0;
@@ -86,7 +87,7 @@ fn compare_to_osmpbf() {
 
 fn ingest_and_count() {
     let timer = Instant::now();
-    let path = PathBuf::from(Path::new(DISTRICT_OF_COLUMBIA));
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let reader = ProcessedElementIterator::new(path).expect("!");
 
     let (ways, nodes) = reader.par_red(

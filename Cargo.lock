@@ -1938,6 +1938,7 @@ dependencies = [
  "petgraph 0.8.1",
  "rayon",
  "routers_codec",
+ "routers_fixtures",
  "rstar",
  "rustc-hash",
  "scc",
@@ -1963,9 +1964,14 @@ dependencies = [
  "prost",
  "prost-build",
  "rayon",
+ "routers_fixtures",
  "rstar",
  "test-log",
 ]
+
+[[package]]
+name = "routers_fixtures"
+version = "0.1.0"
 
 [[package]]
 name = "routers_geo"
@@ -1992,6 +1998,7 @@ dependencies = [
  "prost-types",
  "routers",
  "routers_codec",
+ "routers_fixtures",
  "tokio",
  "tonic 0.13.1",
  "tonic-build",

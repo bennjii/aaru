@@ -1,6 +1,8 @@
-use codec::consts::{
+use fixtures::{
     LAX_LYNWOOD_MATCHED, LAX_LYNWOOD_TRIP, LOS_ANGELES, VENTURA_MATCHED, VENTURA_TRIP, ZURICH,
+    fixture_path,
 };
+
 use routers::Graph;
 use routers::transition::*;
 
@@ -52,7 +54,9 @@ fn target_benchmark(c: &mut criterion::Criterion) {
     let lookup = Arc::new(Mutex::new(PredicateCache::default()));
 
     MATCH_CASES.into_iter().for_each(|ga| {
-        let path = Path::new(ga.source_file).as_os_str().to_ascii_lowercase();
+        let path = Path::new(&fixture_path(ga.source_file))
+            .as_os_str()
+            .to_ascii_lowercase();
         let graph = Graph::new(path).expect("Graph must be created");
 
         let costing = CostingStrategies::default();

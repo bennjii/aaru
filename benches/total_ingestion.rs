@@ -1,4 +1,5 @@
-use codec::consts::DISTRICT_OF_COLUMBIA;
+use fixtures::DISTRICT_OF_COLUMBIA;
+
 use codec::element::ProcessedElement;
 use codec::{Parallel, ProcessedElementIterator};
 
@@ -7,10 +8,9 @@ use log::info;
 
 use routers::route::Graph;
 use std::path::{Path, PathBuf};
-use tokio::time::Instant;
 
 fn ingest_as_full_graph() {
-    let path = Path::new(DISTRICT_OF_COLUMBIA)
+    let path = Path::new(fixtures::fixture_path(DISTRICT_OF_COLUMBIA).as_os_str())
         .as_os_str()
         .to_ascii_lowercase();
     let graph = Graph::new(path).expect("Could not generate graph");

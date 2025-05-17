@@ -1,9 +1,15 @@
 [workspace]
 resolver = "2"
-members = ["libs/routers_codec", "libs/routers_geo", "libs/routers_server", "libs/routers_shard", "libs/routers_tiles"]
+members = [
+    "libs/routers_codec", "libs/routers_geo", "libs/routers_server",
+    "libs/routers_shard", "libs/routers_tiles", "libs/routers_fixtures"
+]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+[workspace.dependencies]
+fixtures = { path = "libs/routers_fixtures", package = "routers_fixtures" }
 
 [package]
 name = "routers"
@@ -26,6 +32,7 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
+fixtures = { workspace = true }
 codec = { path = "libs/routers_codec", package = "routers_codec" }
 
 # Algorithm

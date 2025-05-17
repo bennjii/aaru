@@ -1,11 +1,12 @@
 /target
-/resources/*
 .DS_Store
 /.idea
 .env
 *.wkt
 
 todo.md
+
+/libs/routers_fixtures/resources/*
 
 !district-of-columbia.osm.pbf
 !los-angeles.osm.pbf

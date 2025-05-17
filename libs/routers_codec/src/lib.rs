@@ -7,8 +7,6 @@ pub mod element;
 
 // Hidden modules
 #[doc(hidden)]
-pub mod consts;
-#[doc(hidden)]
 pub mod error;
 #[doc(hidden)]
 pub mod parallel;

@@ -7,7 +7,7 @@ use std::time::Instant;
 use crate::blob::iterator::BlobIterator;
 use crate::block::item::BlockItem;
 use crate::block::iterator::BlockIterator;
-use crate::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA};
+use fixtures::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
 #[test]

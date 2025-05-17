@@ -1,6 +1,7 @@
 #![cfg(test)]
 
-use crate::consts::DISTRICT_OF_COLUMBIA;
+use fixtures::DISTRICT_OF_COLUMBIA;
+
 use crate::element::item::Element;
 use crate::element::item::ProcessedElement;
 use crate::element::iterator::ElementIterator;

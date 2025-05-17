@@ -5,14 +5,14 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tonic::{Request, Response, Status};
 
-use router_service::{MatchedRoute, RouteRequest, RouteResponse};
-
-use crate::router_service::{
+use crate::service::router_service::api::v1::Coordinate;
+use crate::service::router_service::api::v1::router::v1::router_service_server::RouterService;
+use crate::service::router_service::api::v1::router::v1::{
     ClosestPointRequest, ClosestPointResponse, ClosestSnappedPointRequest,
-    ClosestSnappedPointResponse, Coordinate, MapMatchRequest, MapMatchResponse,
+    ClosestSnappedPointResponse, MapMatchRequest, MapMatchResponse, MatchedRoute, RouteRequest,
+    RouteResponse,
 };
 use geo::LineString;
-use router_service::router_service_server::RouterService;
 use routers::transition::PredicateCache;
 use routers::{Graph, Scan};
 #[cfg(feature = "tracing")]
@@ -20,7 +20,9 @@ use tracing::Level;
 use wkt::ToWkt;
 
 pub mod router_service {
-    tonic::include_proto!("api.v1");
+    include!(concat!(env!("OUT_DIR"), "/_includes.rs"));
+    // tonic::include_proto!("api.v1");
+    // tonic::include_proto!("api.v1.router.v1");
 
     pub const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("routers_descriptor");

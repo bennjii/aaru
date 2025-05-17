@@ -1,4 +1,5 @@
-use routers_codec::consts::DISTRICT_OF_COLUMBIA;
+use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
+
 use routers_codec::element::ProcessedElement;
 use routers_codec::{BlockIterator, Element, ElementIterator, Parallel, ProcessedElementIterator};
 
@@ -9,7 +10,7 @@ use std::any::Any;
 use std::path::PathBuf;
 
 fn block_iter_count() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let mut iter = BlockIterator::new(path).expect("Could not create iterator");
 
     iter.par_iter().for_each(|item| {
@@ -18,7 +19,7 @@ fn block_iter_count() {
 }
 
 fn element_iter_count() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let iter = ElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(
@@ -36,7 +37,7 @@ fn element_iter_count() {
 }
 
 fn processed_iter_count() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
 
     let nodes = iter.map_red(

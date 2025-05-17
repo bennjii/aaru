@@ -1,8 +1,8 @@
+use crate::error::ShardError;
+use geo::Coord;
+use routers_codec::Way;
 use scc::HashIndex;
 use std::hash::Hash;
-
-use crate::error::ShardError;
-use routers_codec::Way;
 
 /// `Shard<T>
 ///

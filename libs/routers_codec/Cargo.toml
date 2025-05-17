@@ -3,7 +3,10 @@ name = "routers_codec"
 version = "0.1.0"
 edition = "2024"
 include = ["docs/**"]
+
 [dependencies]
+fixtures = { workspace = true }
+
 # GeoRust
 geo = "0.30.0"
 rstar = { version = "0.12.2", features = ["serde"] }
@@ -34,3 +37,11 @@ harness = false
 [[bench]]
 name = "codec_target"
 harness = false
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+
+[profile.bench]
+opt-level = 3
+lto = true

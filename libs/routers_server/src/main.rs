@@ -1,4 +1,5 @@
-use routers_codec::consts::LOS_ANGELES;
+use fixtures::LOS_ANGELES;
+
 mod service;
 mod trace;
 
@@ -8,7 +9,7 @@ use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::service::router_service::router_service_server::RouterServiceServer;
+use crate::service::router_service::api::v1::router::v1::router_service_server::RouterServiceServer;
 use crate::service::{RouteService, router_service};
 
 #[tokio::main]
