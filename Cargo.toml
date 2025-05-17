@@ -9,7 +9,10 @@ members = [
 unsafe_code = "forbid"
 
 [workspace.dependencies]
-fixtures = { path = "libs/routers_fixtures", package = "routers_fixtures" }
+fixtures = { version = "0.1.0" }
+
+[patch.crates-io]
+routers_fixtures = { path = "libs/routers_fixtures"}
 
 [package]
 name = "routers"
@@ -33,7 +36,7 @@ opt-level = 3
 
 [dependencies]
 fixtures = { workspace = true }
-codec = { path = "libs/routers_codec", package = "routers_codec" }
+codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
 
 # Algorithm
 rstar = { version = "0.12.2", features = ["serde"] }

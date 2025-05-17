@@ -123,12 +123,12 @@ pub mod common {
     }
 
     #[derive(Clone, Debug)]
-    pub struct Role(TagString);
+    pub struct Role(pub TagString);
 
     #[derive(Clone, Debug)]
     pub struct Reference {
         pub id: OsmEntryId,
-        role: Option<Role>,
+        pub role: Option<Role>,
     }
 
     impl Hash for Reference {

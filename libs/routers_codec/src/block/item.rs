@@ -73,7 +73,7 @@ impl BlockItem {
         Some(decoded)
     }
 
-    fn r#type(&self) -> &str {
+    pub fn r#type(&self) -> &str {
         match self {
             BlockItem::HeaderBlock(_) => "HeaderBlock",
             BlockItem::PrimitiveBlock(_) => "PrimitiveBlock",

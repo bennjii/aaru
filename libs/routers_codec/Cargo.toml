@@ -2,11 +2,17 @@
 name = "routers_codec"
 version = "0.1.0"
 edition = "2024"
-include = ["docs/**"]
+include = ["docs/**", "build.rs", "proto/**", "src/**", "benches/**"]
+description = "Codec primitives for routers"
+license = "MIT"
+repository = "https://github.com/bennjii/routers"
+
+[lib]
+name = "routers_codec"
+path = "./src/lib.rs"
+bench = false
 
 [dependencies]
-fixtures = { workspace = true }
-
 # GeoRust
 geo = "0.30.0"
 rstar = { version = "0.12.2", features = ["serde"] }
@@ -23,7 +29,16 @@ test-log = { version = "0.2.16", features = ["log"] }
 
 mimalloc = { version = "0.1.43", optional = true }
 
+tracing = { version = "0.1.40", optional = true }
+tracing-subscriber = { version = "0.3.18", features = [
+    "tracing-log",
+    "fmt",
+    "env-filter",
+], optional = true }
+
 [dev-dependencies]
+fixtures = { workspace = true }
+
 osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
 criterion = { version = "2.10.1", features = [
     "async_tokio",
@@ -50,3 +65,4 @@ lto = true
 
 [features]
 default = ["mimalloc"]
+tracing = ["dep:tracing", "dep:tracing-subscriber"]
