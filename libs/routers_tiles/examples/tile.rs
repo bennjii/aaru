@@ -4,6 +4,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Router, serve};
 use dotenv::dotenv;
+
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;

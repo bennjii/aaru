@@ -1,8 +1,9 @@
-#![cfg(test)]
-
-use crate::codec::consts::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, LOS_ANGELES, SYDNEY};
-use crate::codec::element::variants::Node;
 use crate::route::{Graph, Scan};
+
+use codec::osm::element::variants::Node;
+use fixtures::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, LOS_ANGELES, SYDNEY, fixture_path};
+
+use crate::error::RouteError;
 use geo::{LineString, Point, coord, wkt};
 use std::{path::Path, time::Instant};
 use wkt::ToWkt;
@@ -15,10 +16,11 @@ fn generate_linestring(route: Vec<Node>) -> String {
         .wkt_string()
 }
 
-fn init_graph(file: &str) -> crate::Result<Graph> {
+fn init_graph(file: &str) -> Result<Graph, RouteError> {
     let time = Instant::now();
 
-    let path = Path::new(file);
+    let fixture = fixture_path(file);
+    let path = Path::new(&fixture);
     let graph = Graph::new(path.as_os_str().to_ascii_lowercase())?;
 
     println!("Graph Init Took: {:?}", time.elapsed());
@@ -26,7 +28,7 @@ fn init_graph(file: &str) -> crate::Result<Graph> {
 }
 
 #[test]
-fn columbia_mapping() -> crate::Result<()> {
+fn columbia_mapping() -> Result<(), RouteError> {
     let graph = init_graph(DISTRICT_OF_COLUMBIA)?;
     let time = Instant::now();
 
@@ -46,7 +48,7 @@ fn columbia_mapping() -> crate::Result<()> {
 }
 
 #[test]
-fn stutgard_mapping() -> crate::Result<()> {
+fn stutgard_mapping() -> Result<(), RouteError> {
     let graph = init_graph(BADEN_WUERTTEMBERG)?;
     let start = coord! { x: 9.186777765, y: 48.773585361 };
     let end = coord! { x: 9.170598155, y: 48.779354943 };
@@ -65,7 +67,7 @@ fn stutgard_mapping() -> crate::Result<()> {
 }
 
 #[test]
-fn sydney_mapping() -> crate::Result<()> {
+fn sydney_mapping() -> Result<(), RouteError> {
     let graph = init_graph(SYDNEY)?;
 
     let start = coord! { x: 151.180025, y: -33.883572 };

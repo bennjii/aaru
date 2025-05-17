@@ -87,18 +87,18 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                         .map_match(coordinates.clone(), Arc::clone(&lookup))
                         .expect("Match must complete successfully");
 
-                    // let linestring = result
-                    //     .matched()
-                    //     .iter()
-                    //     .map(|node| {
-                    //         coord! {
-                    //             x: node.position.x(),
-                    //             y: node.position.y(),
-                    //         }
-                    //     })
-                    //     .collect::<LineString>();
-                    //
-                    // let _as_wkt_string = linestring.wkt_string();
+                    let linestring = result
+                        .matched()
+                        .iter()
+                        .map(|node| {
+                            coord! {
+                                x: node.position.x(),
+                                y: node.position.y(),
+                            }
+                        })
+                        .collect::<LineString>();
+
+                    let _as_wkt_string = linestring.wkt_string();
                     // assert_eq!(as_wkt_string, sc.expected_linestring);
                 })
             });

@@ -1,5 +1,3 @@
-use aaru::server::route::router_service::router_service_client::RouterServiceClient;
-use aaru::server::route::router_service::{Coordinate, Costing, MapMatchRequest};
 use geo::{LineString, coord, wkt};
 use std::fmt::Error;
 use std::fs::File;

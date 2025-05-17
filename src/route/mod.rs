@@ -5,6 +5,7 @@ pub mod graph;
 #[doc(hidden)]
 pub mod scan;
 #[doc(hidden)]
+#[cfg(test)]
 mod test;
 #[doc(hidden)]
 pub mod transition;

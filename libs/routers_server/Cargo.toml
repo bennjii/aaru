@@ -55,3 +55,7 @@ prost-build = { version = "0.13.3" }
 [features]
 # TODO: Implement tracting optional-features
 tracing = []
+
+[[example]]
+name = "client"
+path = "examples/route_client.rs"
