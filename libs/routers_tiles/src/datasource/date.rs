@@ -21,7 +21,7 @@ impl PartialEq for UtcDate {
 }
 
 pub fn format_date(date: &DateTime<Utc>) -> String {
-    return date.format(STORAGE_FORMAT).to_string();
+    date.format(STORAGE_FORMAT).to_string()
 }
 
 impl<'de> Deserialize<'de> for UtcDate {

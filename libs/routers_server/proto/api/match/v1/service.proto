@@ -1,0 +1,12 @@
+syntax = "proto3";
+package api.match.v1;
+
+import "api/match/v1/definition.proto";
+
+service MatchService {
+  // Matches an input route to a given underlying map.
+  rpc Match(MatchRequest) returns (MatchResponse);
+
+  // Naively snaps an input route to a given underlying map.
+  rpc Snap(SnapRequest) returns (SnapResponse);
+}

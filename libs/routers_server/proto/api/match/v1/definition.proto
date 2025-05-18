@@ -1,0 +1,59 @@
+syntax = "proto3";
+package api.match.v1;
+
+import "google/protobuf/timestamp.proto";
+import "model/v1/costing.proto";
+import "model/v1/geo.proto";
+
+message MatchRequest {
+  // A list of coordinates to match
+  repeated model.v1.Coordinate data = 1;
+  // A list of timestamps to match, each timestamp corresponds to a coordinate. Lengths are expected to be equal.
+  repeated google.protobuf.Timestamp timestamps = 2;
+
+  // The distance (in m) used to search for the closest edges, using a square scan.
+  // The default value is 20 meters.
+  optional double search_distance = 3;
+
+  // The maximum distance (in m) between coordinates before a new route is started.
+  optional double breakage_distance = 4;
+
+  // The vehicle costing method to use for map matching.
+  model.v1.Costing costing_method = 5;
+}
+
+message MatchResponse {
+  repeated MatchedRoute matches = 1;
+  repeated string warnings = 2;
+}
+
+message MatchedRoute {
+  repeated model.v1.Coordinate snapped_shape = 1;
+  repeated model.v1.Coordinate interpolated = 2;
+  repeated model.v1.EdgeInfo edges = 3;
+
+  string label = 4; // Not sure what this would be yet.
+  uint32 cost = 5;
+}
+
+message SnapRequest {
+  // A list of coordinates to match
+  repeated model.v1.Coordinate data = 1;
+  // A list of timestamps to match, each timestamp corresponds to a coordinate. Lengths are expected to be equal.
+  repeated google.protobuf.Timestamp timestamps = 2;
+
+  // The distance (in m) used to search for the closest edges, using a square scan.
+  // The default value is 20 meters.
+  optional double search_distance = 3;
+
+  // The maximum distance (in m) between coordinates before a new route is started.
+  optional double breakage_distance = 4;
+
+  // The vehicle costing method to use for map matching.
+  model.v1.Costing costing_method = 5;
+}
+
+message SnapResponse {
+  repeated MatchedRoute matches = 1;
+  repeated string warnings = 2;
+}

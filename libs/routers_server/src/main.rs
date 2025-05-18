@@ -1,16 +1,22 @@
-use fixtures::LOS_ANGELES;
+pub mod lib;
+pub mod services;
+pub mod trace;
 
-mod service;
-mod trace;
+use crate::lib::proto;
+use std::sync::Arc;
+
+use crate::lib::r#match::MatchServiceServer;
+use crate::lib::optimise::OptimisationServiceServer;
+use crate::lib::proximity::ProximityServiceServer;
+
+use crate::services::RouteService;
 
 use dotenv::dotenv;
+use fixtures::{LOS_ANGELES, fixture};
 use tonic::codegen::http::Method;
 use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
 use tower_http::cors::{Any, CorsLayer};
-
-use crate::service::router_service::api::v1::router::v1::router_service_server::RouterServiceServer;
-use crate::service::{RouteService, router_service};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,12 +28,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create the router
     tracing::info!("Creating Router");
-    let router = RouteService::from_file(LOS_ANGELES).expect("-");
+    let router_base = RouteService::from_file(fixture!(LOS_ANGELES).to_str().unwrap()).expect("-");
+
+    let router = Arc::new(router_base);
 
     // Initialize the reflector
     tracing::info!("Router Created");
     let reflector = tonic_reflection::server::Builder::configure()
-        .register_encoded_file_descriptor_set(router_service::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
         .build_v1()
         .unwrap();
 
@@ -46,7 +54,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(GrpcWebLayer::new())
         .accept_http1(true)
         .tcp_nodelay(true)
-        .add_service(RouterServiceServer::new(router))
+        .add_service(OptimisationServiceServer::new(router.clone()))
+        .add_service(MatchServiceServer::new(router.clone()))
+        .add_service(ProximityServiceServer::new(router.clone()))
         .add_service(reflector)
         .serve(addr)
         .await?;

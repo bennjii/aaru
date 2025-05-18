@@ -3,6 +3,11 @@ name = "routers_server"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "routers_server"
+path = "src/lib.rs"
+bench = false
+
 [dependencies]
 fixtures = { workspace = true }
 
@@ -51,6 +56,7 @@ opentelemetry-otlp = { version = "0.26.0", features = ["tls"] }
 [build-dependencies]
 tonic-build = { version = "0.13.0", features = ["prost"] }
 prost-build = { version = "0.13.3" }
+walkdir = "2.5.0"
 
 [features]
 # TODO: Implement tracting optional-features
@@ -59,3 +65,6 @@ tracing = []
 [[example]]
 name = "client"
 path = "examples/route_client.rs"
+
+[profile.dev.package."*"]
+opt-level = 3

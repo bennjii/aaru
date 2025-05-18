@@ -1,16 +1,29 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+
+fn find_proto_files<P: AsRef<Path>>(dir: P) -> Vec<PathBuf> {
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+
+    walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "proto"))
+        .map(|entry| entry.path().to_path_buf())
+        .map(|path| {
+            PathBuf::from_str(&manifest_dir)
+                .unwrap()
+                .join(path.to_str().unwrap())
+        })
+        .collect()
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
-    let routers = [
-        manifest_dir.clone() + "/proto/api/v1/router/v1/definition.proto",
-        manifest_dir.clone() + "/proto/api/v1/router/v1/service.proto",
-        manifest_dir.clone() + "/proto/api/v1/geo.proto",
-    ];
-
+    let routers = find_proto_files("proto");
     let includes = [manifest_dir.clone() + "/proto"];
+
     let mut cfg = prost_build::Config::new();
     cfg.bytes(["."]);
 
