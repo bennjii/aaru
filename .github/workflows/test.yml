@@ -47,5 +47,5 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: nextest
-          args: run --profile ci
+          args: run --profile ci --frozen
 

@@ -104,7 +104,7 @@ impl SelectiveForwardSolver {
 
         // Fast-track to the finish line
         if successors.contains(&end) {
-            debug!("End-Successors: {:?}", successors);
+            debug!("End-Successors: {successors:?}");
             return vec![(end, CandidateEdge::zero())];
         }
 
