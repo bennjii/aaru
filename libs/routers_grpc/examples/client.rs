@@ -8,8 +8,8 @@ use tonic;
 use tonic::transport::Channel;
 use wkt::ToWkt;
 
-use routers_server::r#match::*;
-use routers_server::model::*;
+use routers_grpc::r#match::*;
+use routers_grpc::model::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
