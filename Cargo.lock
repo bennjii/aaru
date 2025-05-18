@@ -1996,7 +1996,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "routers_server"
+name = "routers_grpc"
 version = "0.1.0"
 dependencies = [
  "dotenv",

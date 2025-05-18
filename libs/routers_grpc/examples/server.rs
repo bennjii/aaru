@@ -1,18 +1,11 @@
-pub mod definition;
-pub mod services;
-pub mod trace;
-
-use crate::definition::proto;
-use std::sync::Arc;
-
-use crate::definition::r#match::MatchServiceServer;
-use crate::definition::optimise::OptimisationServiceServer;
-use crate::definition::proximity::ProximityServiceServer;
-
-use crate::services::RouteService;
+use routers_grpc::r#match::MatchServiceServer;
+use routers_grpc::optimise::OptimisationServiceServer;
+use routers_grpc::proximity::ProximityServiceServer;
 
 use dotenv::dotenv;
 use fixtures::{LOS_ANGELES, fixture_path};
+use routers_grpc::{initialize_tracer, proto, services::RouteService};
+use std::sync::Arc;
 use tonic::codegen::http::Method;
 use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
@@ -24,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv()?;
 
     // Create the tracer first.
-    trace::initialize_tracer();
+    initialize_tracer();
 
     // Create the router
     tracing::info!("Creating Router");
@@ -46,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Server::builder()
         .layer(
             CorsLayer::new()
-                .allow_methods([Method::GET, Method::POST])
+                .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
                 .allow_headers(Any)
                 // allow requests from any origin
                 .allow_origin(Any),

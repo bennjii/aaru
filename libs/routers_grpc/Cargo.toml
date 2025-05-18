@@ -1,11 +1,11 @@
 [package]
-name = "routers_server"
+name = "routers_grpc"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "routers_server"
-path = "src/definition.rs"
+name = "routers_grpc"
+path = "src/lib.rs"
 bench = false
 
 [dependencies]
@@ -47,11 +47,11 @@ tracing-subscriber = { version = "0.3.18", features = [
 tracing-opentelemetry = { version = "0.27.0" }
 
 # Open-Telemetry Modules
-opentelemetry = { version = "0.26.0" }
+opentelemetry = { version = "0.26.0", optional = true }
 opentelemetry_sdk = { version = "0.26.0", features = [
     "rt-tokio",
-]}
-opentelemetry-otlp = { version = "0.26.0", features = ["tls"] }
+], optional = true }
+opentelemetry-otlp = { version = "0.26.0", features = ["tls"], optional = true }
 
 [build-dependencies]
 tonic-build = { version = "0.13.0", features = ["prost"] }
@@ -59,9 +59,18 @@ prost-build = { version = "0.13.3" }
 walkdir = "2.5.0"
 
 [features]
-# TODO: Implement tracting optional-features
-tracing = []
+default = []
+tracing = [
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-otlp"
+]
 
 [[example]]
 name = "client"
-path = "examples/route_client.rs"
+path = "examples/client.rs"
+
+[[example]]
+name = "server"
+path = "examples/server.rs"
+required-features = ["tracing"]

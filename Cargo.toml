@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "libs/routers_codec", "libs/routers_geo", "libs/routers_server",
+    "libs/routers_codec", "libs/routers_geo", "libs/routers_grpc",
     "libs/routers_shard", "libs/routers_tiles", "libs/routers_fixtures"
 ]
 
