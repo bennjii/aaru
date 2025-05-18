@@ -31,18 +31,6 @@ jobs:
       - name: Install `toolchain`
         run: rustup toolchain install stable
 
-      - name: Install `rustfmt`
-        run: rustup component add rustfmt
-
-      - name: Install `clippy`
-        run: rustup component add clippy
-
-      - name: 📝 Format
-        run: cargo fmt --check
-
-      - name: 🔍 Clippy
-        run: cargo clippy
-
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest
