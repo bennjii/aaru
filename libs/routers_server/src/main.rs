@@ -1,18 +1,18 @@
-pub mod lib;
+pub mod definition;
 pub mod services;
 pub mod trace;
 
-use crate::lib::proto;
+use crate::definition::proto;
 use std::sync::Arc;
 
-use crate::lib::r#match::MatchServiceServer;
-use crate::lib::optimise::OptimisationServiceServer;
-use crate::lib::proximity::ProximityServiceServer;
+use crate::definition::r#match::MatchServiceServer;
+use crate::definition::optimise::OptimisationServiceServer;
+use crate::definition::proximity::ProximityServiceServer;
 
 use crate::services::RouteService;
 
 use dotenv::dotenv;
-use fixtures::{LOS_ANGELES, fixture};
+use fixtures::{LOS_ANGELES, fixture_path};
 use tonic::codegen::http::Method;
 use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
@@ -28,8 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create the router
     tracing::info!("Creating Router");
-    let router_base = RouteService::from_file(fixture!(LOS_ANGELES).to_str().unwrap()).expect("-");
-
+    let los_angeles = fixture_path(LOS_ANGELES);
+    let router_base = RouteService::from_file(los_angeles).expect("-");
     let router = Arc::new(router_base);
 
     // Initialize the reflector

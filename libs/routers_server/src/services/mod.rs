@@ -1,6 +1,6 @@
 use routers::Graph;
 use routers::transition::PredicateCache;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 pub mod matcher;
@@ -14,10 +14,9 @@ pub struct RouteService {
 }
 
 impl RouteService {
-    pub fn from_file(file: &str) -> Result<RouteService, Box<dyn std::error::Error>> {
-        let path = Path::new(file);
+    pub fn from_file(file: PathBuf) -> Result<RouteService, Box<dyn std::error::Error>> {
         let graph =
-            Graph::new(path.as_os_str().to_ascii_lowercase()).map_err(|e| format!("{:?}", e))?;
+            Graph::new(file.as_os_str().to_ascii_lowercase()).map_err(|e| format!("{:?}", e))?;
 
         Ok(RouteService {
             graph,

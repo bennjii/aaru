@@ -2,8 +2,8 @@ use geo::{Point, coord};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
-use crate::lib::model::*;
-use crate::lib::optimise::*;
+use crate::definition::model::*;
+use crate::definition::optimise::*;
 
 use crate::services::RouteService;
 #[cfg(feature = "tracing")]
@@ -13,7 +13,7 @@ use tracing::Level;
 impl OptimisationService for Arc<RouteService> {
     #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn route(
-        &self,
+        self: Arc<Self>,
         request: Request<RouteRequest>,
     ) -> Result<Response<RouteResponse>, Status> {
         let (_, _, routing) = request.into_parts();

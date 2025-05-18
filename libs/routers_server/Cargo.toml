@@ -5,7 +5,7 @@ edition = "2024"
 
 [lib]
 name = "routers_server"
-path = "src/lib.rs"
+path = "src/definition.rs"
 bench = false
 
 [dependencies]
@@ -65,6 +65,3 @@ tracing = []
 [[example]]
 name = "client"
 path = "examples/route_client.rs"
-
-[profile.dev.package."*"]
-opt-level = 3

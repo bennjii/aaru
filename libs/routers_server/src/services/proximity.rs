@@ -4,8 +4,8 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
-use crate::lib::model::*;
-use crate::lib::proximity::*;
+use crate::definition::model::*;
+use crate::definition::proximity::*;
 
 use crate::services::RouteService;
 use routers::Scan;
@@ -17,7 +17,7 @@ use wkt::ToWkt;
 impl ProximityService for Arc<RouteService> {
     #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn closest_point(
-        &self,
+        self: Arc<Self>,
         request: Request<ClosestPointRequest>,
     ) -> Result<Response<ClosestPointResponse>, Status> {
         let ClosestPointRequest { coordinate } = request.into_inner();
@@ -43,7 +43,7 @@ impl ProximityService for Arc<RouteService> {
 
     #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn closest_snapped_point(
-        &self,
+        self: Arc<Self>,
         request: Request<ClosestSnappedPointRequest>,
     ) -> Result<Response<ClosestSnappedPointResponse>, Status> {
         let (_, _, request) = request.into_parts();

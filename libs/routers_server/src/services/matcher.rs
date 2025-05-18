@@ -2,8 +2,8 @@ use geo::{LineString, coord};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
-use crate::lib::r#match::*;
-use crate::lib::model::*;
+use crate::definition::r#match::*;
+use crate::definition::model::*;
 
 use crate::services::RouteService;
 #[cfg(feature = "tracing")]
@@ -13,7 +13,7 @@ use tracing::Level;
 impl MatchService for Arc<RouteService> {
     #[cfg_attr(feature="tracing", tracing::instrument(skip_all, level = Level::INFO))]
     async fn r#match(
-        &self,
+        self: Arc<Self>,
         request: Request<MatchRequest>,
     ) -> Result<Response<MatchResponse>, Status> {
         let map_match = request.into_inner();
@@ -64,7 +64,10 @@ impl MatchService for Arc<RouteService> {
         }))
     }
 
-    async fn snap(&self, _request: Request<SnapRequest>) -> Result<Response<SnapResponse>, Status> {
-        todo!()
+    async fn snap(
+        self: Arc<Self>,
+        _request: Request<SnapRequest>,
+    ) -> Result<Response<SnapResponse>, Status> {
+        unimplemented!()
     }
 }
