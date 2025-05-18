@@ -36,5 +36,5 @@ jobs:
           tool: nextest
 
       - name: 🧪 Test
-        run: cargo nextest run --profile ci
+        run: cargo test --tests
 
