@@ -31,10 +31,5 @@ jobs:
       - name: Install `toolchain`
         run: rustup toolchain install stable
 
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: nextest
-
       - name: 🧪 Test
         run: cargo test --tests
-
