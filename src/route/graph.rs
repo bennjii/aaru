@@ -1,12 +1,12 @@
-use crate::codec::element::item::ProcessedElement;
-use crate::codec::element::processed_iterator::ProcessedElementIterator;
-use crate::codec::element::variants::common::OsmEntryId;
-use crate::codec::element::variants::Node;
-use crate::codec::parallel::Parallel;
+use codec::osm::element::item::ProcessedElement;
+use codec::osm::element::processed_iterator::ProcessedElementIterator;
+use codec::osm::element::variants::Node;
+use codec::osm::element::variants::common::OsmEntryId;
+use codec::osm::parallel::Parallel;
 
+use crate::route::Scan;
 use crate::route::error::RouteError;
 use crate::route::transition::*;
-use crate::route::Scan;
 
 use geo::{LineString, Point};
 use log::{debug, info};
@@ -106,13 +106,14 @@ impl Graph {
     }
 
     /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
-    pub fn new(filename: std::ffi::OsString) -> crate::Result<Graph> {
+    pub fn new(filename: std::ffi::OsString) -> Result<Graph, RouteError> {
         let mut start_time = Instant::now();
         let fixed_start_time = Instant::now();
 
         let path = PathBuf::from(filename);
 
-        let reader = ProcessedElementIterator::new(path)?;
+        let reader = ProcessedElementIterator::new(path)
+            .map_err(|err| RouteError::Other(format!("{err:?}")))?;
         let weights = Graph::weights()?;
 
         debug!("Iterator warming took: {:?}", start_time.elapsed());
@@ -155,7 +156,7 @@ impl Graph {
                                     lock.add_edge(b.id, a.id, w);
                                 }
                             } else {
-                                debug!("Edge windowing produced odd-sized entry: {:?}", edge);
+                                debug!("Edge windowing produced odd-sized entry: {edge:?}");
                             }
                         });
                     }
@@ -252,7 +253,7 @@ impl Graph {
         start_node: NodeIx,
         finish_node: NodeIx,
     ) -> Option<(Weight, Vec<Node>)> {
-        debug!("Routing {:?} -> {:?}", start_node, finish_node);
+        debug!("Routing {start_node:?} -> {finish_node:?}");
 
         let (score, path) = petgraph::algo::astar(
             &self.graph,

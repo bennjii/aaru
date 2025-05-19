@@ -1,6 +1,6 @@
+use crate::route::Graph;
 use crate::route::graph::NodeIx;
 use crate::route::transition::*;
-use crate::route::Graph;
 
 /// A base context provided to costing methods.
 ///

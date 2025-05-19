@@ -1,7 +1,0 @@
-version: v2
-modules:
-  - path: proto
-    name: buf.build/aaru/aaru
-    excludes:
-      - proto/osm
-      - proto/mvt

@@ -1,6 +1,6 @@
-use crate::codec::element::variants::OsmEntryId;
 use crate::route::transition::candidate::{Candidate, CandidateId};
 use crate::route::transition::{ResolutionMethod, RoutingContext, Strategy, Trip, VirtualTail};
+use codec::osm::element::variants::OsmEntryId;
 use geo::{Distance, Haversine};
 
 pub trait TransitionStrategy: for<'a> Strategy<TransitionContext<'a>> {}

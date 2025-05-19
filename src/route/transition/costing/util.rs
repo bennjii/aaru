@@ -37,7 +37,7 @@ pub trait Strategy<Ctx> {
         let multiplier = 1.0 / Self::ZETA;
 
         // The exponential cost heuristic (-1 * value / β)
-        let cost = -1.0 * self.calculate(ctx).map_or(f64::INFINITY, |v| v.into()) / Self::BETA;
+        let cost = -self.calculate(ctx).map_or(f64::INFINITY, |v| v.into()) / Self::BETA;
 
         // Shift so low-costs have low output costs (normalised)
         let shifted = ((multiplier * cost.exp()) - OFFSET).max(0.);

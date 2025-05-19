@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 use geo::{Distance, Haversine};
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::*;
-use petgraph::prelude::EdgeRef;
 use petgraph::Direction;
+use petgraph::prelude::EdgeRef;
 
 type ProcessedReachable = (CandidateId, Reachable);
 
@@ -104,7 +104,7 @@ impl SelectiveForwardSolver {
 
         // Fast-track to the finish line
         if successors.contains(&end) {
-            debug!("End-Successors: {:?}", successors);
+            debug!("End-Successors: {successors:?}");
             return vec![(end, CandidateEdge::zero())];
         }
 

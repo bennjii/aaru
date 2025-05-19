@@ -1,0 +1,35 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize]
+
+env:
+  PROTOC_VERSION: 3.20.3
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: install protoc
+        uses: taiki-e/install-action@v2
+        with:
+          tool: protoc@${{ env.PROTOC_VERSION }}
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install `toolchain`
+        run: rustup toolchain install stable
+
+      - name: 🧪 Test
+        run: cargo test --tests

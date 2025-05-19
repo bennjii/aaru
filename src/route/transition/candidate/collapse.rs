@@ -1,6 +1,6 @@
-use crate::route::transition::candidate::*;
-use crate::route::transition::Reachable;
 use crate::route::Graph;
+use crate::route::transition::Reachable;
+use crate::route::transition::candidate::*;
 use geo::LineString;
 
 /// The collapsed solution to a transition graph.
