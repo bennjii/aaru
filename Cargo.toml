@@ -1,3 +1,4 @@
+# === Workspace ===
 [workspace]
 resolver = "2"
 members = [
@@ -8,115 +9,54 @@ members = [
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
+# === Workspace Deps ===
 [workspace.dependencies]
+# Shared Fixtures
 fixtures = { version = "0.1.0", package = "routers_fixtures" }
 
-[patch.crates-io]
-routers_fixtures = { path = "libs/routers_fixtures" }
+# Optimisation Crates
+rayon = "1.10.0"
+scc = "2.3.4"
+itertools = "0.14.0"
+indexmap = "2.9.0"
 
-[package]
-name = "routers"
-description = "Rust-Based Routing Tooling for System-Agnostic Maps."
-readme = "README.md"
-version = "0.2.0"
-edition = "2024"
-license = "MIT"
-include = ["src/**/*", "readme.md"]
+# Logging
+log = { version = "0.4.22" }
+test-log = { version = "0.2.16", features = ["log"] }
 
-[lib]
-name = "routers"
-path = "src/lib.rs"
-bench = false
-
-[dependencies]
-fixtures = { workspace = true }
-codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
-
-# Algorithm
-rstar = { version = "0.12.2", features = ["serde"] }
-petgraph = { version = "0.8.1", features = ["serde-1", "graphmap", "rayon"] }
-
-# Logging Utility
-log = { version = "0.4.22", features = [] }
-
+# Server/Paralellism
 tokio = { version = "1.41.1", features = [
     "rt",
     "rt-multi-thread",
     "macros",
     "fs",
-], optional = true }
+] }
 
-axum = { version = "0.7.7", features = ["query"], optional = true }
-axum-macros = { version = "0.4.1", optional = true }
-serde_qs = { version = "0.13.0", optional = true }
+# GeoRust
+geo = { version = "0.30.0" }
+wkt = { version = "0.14.0" }
+rstar = { version = "0.12.2", features = ["serde"] }
 
-# Tracing [Optional-"tracing"]
-tracing = { version = "0.1.40", optional = true }
+# Tracing
+tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = [
     "tracing-log",
     "fmt",
     "env-filter",
-], optional = true }
-opentelemetry = { version = "0.26.0", optional = true }
+] }
+opentelemetry = { version = "0.26.0" }
 opentelemetry_sdk = { version = "0.26.0", features = [
     "rt-tokio",
-], optional = true }
-tracing-opentelemetry = { version = "0.27.0", optional = true }
-opentelemetry-otlp = { version = "0.26.0", features = ["tls"], optional = true }
+] }
+tracing-opentelemetry = { version = "0.27.0" }
+opentelemetry-otlp = { version = "0.26.0", features = ["tls"] }
 
-# Optimisations and Compression
-rayon = "1.10.0"
-flate2 = { version = "1.0.34", features = ["zlib-ng"], optional = true }
-fast_hilbert = { version = "2.0.0", optional = true }
-scc = { version = "2.2.4", optional = true }
-pathfinding = "4.14.0"
-approx = "0.5.1"
-itertools = "0.14.0"
-
-# GeoRust
-geo = "0.30.0"
-wkt = "0.13.0"
-measure_time = "0.9.0"
-rustc-hash = "2.1.1"
-indexmap = "2.9.0"
-
-[dev-dependencies]
+# Benchmarking
 criterion = { version = "2.10.1", features = [
     "async_tokio",
 ], package = "codspeed-criterion-compat" }
 
-[[bench]]
-name = "map_match"
-harness = false
-
-[[bench]]
-name = "total_ingestion"
-harness = false
-
-# TODO: Redo.
-[features]
-default = ["codec", "route"]
-
-tracing = [
-    "dep:tracing",
-    "tracing-subscriber",
-    "opentelemetry",
-    "opentelemetry_sdk",
-    "tracing-opentelemetry",
-    "opentelemetry-otlp",
-]
-
-http_server = ["axum", "axum-macros", "serde_qs", "tokio"]
-
-tile = ["http_server", "fast_hilbert"]
-route = ["scc", "codec"]
-codec = ["flate2"]
-
-all = ["tile", "route", "codec"]
-
-[package.metadata.docs.rs]
-features = ["tile", "route", "codec"]
-
+# === Profiles ===
 [profile.release]
 opt-level = 3
 lto = "fat"
@@ -132,3 +72,83 @@ lto = "off"
 
 [profile.dev.package."*"]
 opt-level = 3
+
+# === Patches ===
+[patch.crates-io]
+routers_fixtures = { path = "libs/routers_fixtures" }
+
+# === Root Package ===
+[package]
+name = "routers"
+description = "Rust-Based Routing Tooling for System-Agnostic Maps."
+readme = "README.md"
+version = "0.2.0"
+edition = "2024"
+license = "MIT"
+include = ["src/**/*", "readme.md"]
+
+[lib]
+name = "routers"
+path = "src/lib.rs"
+bench = false
+
+# === Root Dependencies ===
+[dependencies]
+# Fixtures
+fixtures = { workspace = true }
+
+# Logging Utility
+log = { workspace = true }
+
+# GeoRust
+geo = { workspace = true }
+wkt = { workspace = true }
+
+# Tracing [Optional-"tracing"]
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+
+# Optimisations and Compression
+rayon = { workspace = true }
+scc = { workspace = true }
+itertools = { workspace = true }
+indexmap = { workspace = true }
+
+# Algorithm
+rstar = { workspace = true }
+codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
+petgraph = { version = "0.8.1", features = ["serde-1", "graphmap", "rayon"] }
+
+# Root-Specific Crates
+approx = "0.5.1"
+pathfinding = "4.14.0"
+measure_time = "0.9.0"
+rustc-hash = "2.1.1"
+
+[dev-dependencies]
+criterion = { version = "2.10.1", features = ["async_tokio"], package = "codspeed-criterion-compat" }
+
+[[bench]]
+name = "map_match"
+harness = false
+
+[[bench]]
+name = "total_ingestion"
+harness = false
+
+[features]
+tracing = [
+    "dep:tracing",
+    "tracing-subscriber",
+    "opentelemetry",
+    "opentelemetry_sdk",
+    "tracing-opentelemetry",
+    "opentelemetry-otlp",
+]
+
+[package.metadata.docs.rs]
+features = []

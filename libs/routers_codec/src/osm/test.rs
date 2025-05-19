@@ -1,18 +1,17 @@
 #![cfg(test)]
 
 use log::error;
-use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::blob::iterator::BlobIterator;
-use crate::block::item::BlockItem;
-use crate::block::iterator::BlockIterator;
-use fixtures::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA};
+use crate::osm::blob::iterator::BlobIterator;
+use crate::osm::block::item::BlockItem;
+use crate::osm::block::iterator::BlockIterator;
+use fixtures::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, fixture_path};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
 #[test]
 fn iterate_blobs_each() {
-    let path = PathBuf::from(BADEN_WUERTTEMBERG);
+    let path = fixture_path(BADEN_WUERTTEMBERG);
     let iterator = BlobIterator::new(path.clone());
 
     let now = Instant::now();
@@ -43,7 +42,7 @@ fn iterate_blobs_each() {
 
 #[test_log::test]
 fn iterate_blocks_each() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let iterator = BlockIterator::new(path.clone());
 
     let mut primitive_blocks = 0;
@@ -72,7 +71,7 @@ fn iterate_blocks_each() {
 
 #[test_log::test]
 fn parallel_iterate_blocks_each() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
 
     let block_iter = BlockIterator::new(path).unwrap();
 

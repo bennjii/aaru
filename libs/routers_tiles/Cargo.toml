@@ -9,15 +9,10 @@ routers_geo = { path = "../routers_geo" }
 
 # Server dependencies
 axum = { version = "0.7.7", features = ["query"] }
-axum-macros = { version = "0.4.1" }
-serde_qs = { version = "0.13.0" }
+prost = { version = "0.13.3" }
 
 fast_hilbert = { version = "2.0.0" }
-
 strum = { version = "0.26.3", features = ["phf", "derive"] }
-env_logger = "0.11.5"
-
-prost = { version = "0.13.3" }
 
 chrono = "0.4.38"
 log = { version = "0.4.22", features = [] }

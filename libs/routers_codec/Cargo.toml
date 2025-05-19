@@ -13,39 +13,37 @@ path = "./src/lib.rs"
 bench = false
 
 [dependencies]
-# GeoRust
-geo = "0.30.0"
-rstar = { version = "0.12.2", features = ["serde"] }
-
+# TODO: Remove dependency.
 either = "1.13.0"
-rayon = "1.10.0"
 
 prost = { version = "0.13.3" }
 bytes = { version = "1.8.0", features = ["default"] } # Required for io::Cursor
+
+# Compression
 flate2 = { version = "1.1.1", features = ["zlib-rs"] }
-
-log = { version = "0.4.22", features = [] }
-test-log = { version = "0.2.16", features = ["log"] }
-
 mimalloc = { version = "0.1.43", optional = true }
 
-tracing = { version = "0.1.40", optional = true }
-tracing-subscriber = { version = "0.3.18", features = [
-    "tracing-log",
-    "fmt",
-    "env-filter",
-], optional = true }
+# GeoRust
+geo = { workspace = true }
+rstar = { workspace = true }
+
+rayon = { workspace = true }
+log = { workspace = true }
+test-log = { workspace = true }
+
+# Tracing
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
 [dev-dependencies]
 fixtures = { workspace = true }
+criterion = { workspace = true }
 
-osmpbf = { version = "0.3.4", features = ["zlib-ng"], default-features = false }
-criterion = { version = "2.10.1", features = [
-    "async_tokio",
-], package = "codspeed-criterion-compat" }
+# Used to compare performance to ensure no large regression
+osmpbf = { version = "0.3.5", features = ["zlib-ng"], default-features = false }
 
 [build-dependencies]
-prost-build = { version = "0.13.3" }
+prost-build = { version = "0.13.5" }
 
 [[bench]]
 name = "codec_sweep"
@@ -57,4 +55,9 @@ harness = false
 
 [features]
 default = ["mimalloc"]
+
+# Alternate Allocator (Applies to #[global_allocator])
+mimalloc = ["dep:mimalloc"]
+
+# Tracing (For Debugging & Logging)
 tracing = ["dep:tracing", "dep:tracing-subscriber"]

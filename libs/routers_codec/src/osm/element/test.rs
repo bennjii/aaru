@@ -1,19 +1,19 @@
 #![cfg(test)]
 
-use fixtures::DISTRICT_OF_COLUMBIA;
+use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
-use crate::element::item::Element;
-use crate::element::item::ProcessedElement;
-use crate::element::iterator::ElementIterator;
-use crate::element::processed_iterator::ProcessedElementIterator;
-use crate::parallel::Parallel;
+use crate::osm::element::item::Element;
+use crate::osm::element::item::ProcessedElement;
+use crate::osm::element::iterator::ElementIterator;
+use crate::osm::element::processed_iterator::ProcessedElementIterator;
+use crate::osm::parallel::Parallel;
+
 use log::info;
-use std::path::PathBuf;
 use std::time::Instant;
 
 #[test]
 fn try_into_iter() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let iter = ElementIterator::new(path).expect("Could not create iterator");
 
     iter.for_each(|item| {
@@ -23,7 +23,7 @@ fn try_into_iter() {
 
 #[test]
 fn iter_count() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let iter = ElementIterator::new(path).expect("Could not create iterator");
     let now = Instant::now();
 
@@ -44,7 +44,7 @@ fn iter_count() {
 
 #[test]
 fn processed_iter_count() {
-    let path = PathBuf::from(DISTRICT_OF_COLUMBIA);
+    let path = fixture_path(DISTRICT_OF_COLUMBIA);
     let iter = ProcessedElementIterator::new(path).expect("Could not create iterator");
 
     let now = Instant::now();
