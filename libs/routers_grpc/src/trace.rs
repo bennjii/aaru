@@ -7,7 +7,7 @@
 //! OTEL_EXPORTER_OTLP_ENDPOINT=https://<exporter>.com
 //! OTEL_EXPORTER_OTLP_HEADERS=<api-key> [if required]
 //! OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-//! OTEL_SERVICE_NAME=aaru
+//! OTEL_SERVICE_NAME=routers
 //! ```
 
 use opentelemetry::trace::TracerProvider;
@@ -29,7 +29,7 @@ pub fn initialize_tracer() {
         .with_exporter(exporter)
         .install_batch(opentelemetry_sdk::runtime::Tokio)
         .expect("Couldn't create OTLP tracer")
-        .tracer("aaru");
+        .tracer("routers");
 
     // Link OTEL and STDOUT subscribers
     let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);

@@ -52,13 +52,13 @@ impl Node {
     /// Takes an `osm::DenseNodes` structure and extracts `Node`s as an
     /// iterator from `DenseNodes` with their contextual `PrimitiveBlock`.
     ///
-    /// ```rust,ignore
-    ///  use aaru::codec::element::{item::Element, variants::Node};
-    ///  use aaru::codec::osm::PrimitiveBlock;
+    /// ```rust
+    ///  use routers_codec::osm::element::{item::Element, variants::Node};
+    ///  use routers_codec::osm::PrimitiveBlock;
     ///
     /// let block: PrimitiveBlock = unimplemented!();
     ///  if let Element::DenseNodes(nodes) = block {
-    ///     let nodes = Node::from_dense(nodes);
+    ///     let nodes = Node::from_dense(nodes, 100);
     ///     for node in nodes {
     ///         println!("Node: {}", node);
     ///     }

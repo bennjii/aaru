@@ -6,12 +6,12 @@ pub trait Project {
     /// It Takes an input and a zoom level, and outputs a value implementing Point.
     ///
     /// ### Example
-    /// ```rust,ignore
-    /// use aaru::geo::{LatLng, Project};
-    /// use aaru::geo::project::SlippyTile;
+    /// ```rust
+    /// use routers_geo::{Project, project::SlippyTile};
+    /// use geo::{Point, point};
     ///
-    /// let value = LatLng::from_degree_unchecked(38.9126, -77.0234);
-    /// let SlippyTile((x, px), (y, py), z) = SlippyTile::project(&value, 19);
+    /// let value = point! { 38.9126, -77.0234 };
+    /// let SlippyTile((x, px), (y, py), z) = SlippyTile::project(value, 19);
     /// // We now have the slippy tile coordinate of the original lat/lng.
     /// ```
     fn project(value: geo::Point, zoom: u8) -> Self;
@@ -29,8 +29,8 @@ pub mod projections {
     ///
     /// To discover this for yourself, use an explorer tool like [this one](https://chrishewett.com/blog/slippy-tile-explorer/).
     ///
-    /// ```rust,ignore
-    /// use aaru::geo::project::SlippyTile;
+    /// ```rust
+    /// use routers_geo::project::SlippyTile;
     /// // Tile which encloses central europe
     /// let value = SlippyTile((4, 0), (8, 0), 5);
     /// ```

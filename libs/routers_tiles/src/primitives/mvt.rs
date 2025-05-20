@@ -8,7 +8,7 @@ use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use prost::Message;
 
-use crate::mvt::{Layer, Tile, Value};
+use crate::proto::{Layer, Tile, Value};
 
 const MVT_CONTENT_TYPE: &str = "application/vnd.mapbox-vector-tile";
 

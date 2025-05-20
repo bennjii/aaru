@@ -20,8 +20,8 @@ type NodeId = usize;
 ///
 /// ```rust
 /// use geo::LineString;
-/// use aaru::route::{Graph, Transition};
-/// use aaru::route::transition::{CostingStrategies, SelectiveForwardSolver};
+/// use routers::route::{Graph, Transition};
+/// use routers::route::transition::{CostingStrategies, SelectiveForwardSolver};
 ///
 /// // An example function to find the interpolated path of a trip.
 /// fn match_trip(map: &Graph, route: LineString) -> Option<LineString> {
