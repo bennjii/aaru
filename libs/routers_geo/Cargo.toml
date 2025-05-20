@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 log = { version = "0.4.22", features = [] }
-
 strum = { version = "0.26.3", features = ["phf", "derive"] }
 
 geo = "0.30.0"

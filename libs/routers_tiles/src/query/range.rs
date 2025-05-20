@@ -5,23 +5,18 @@ use std::ops::Add;
 
 use crate::datasource::date::UtcDate;
 
-#[derive(Copy, Clone, Debug, PartialEq, Deserialize)]
-enum RangeType {
+#[derive(Default, Copy, Clone, Debug, PartialEq, Deserialize)]
+pub enum RangeType {
+    #[default]
     Inclusive,
     Exclusive,
-}
-
-impl Default for RangeType {
-    fn default() -> Self {
-        RangeType::Inclusive
-    }
 }
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub struct Range<T> {
     start: T,
     end: T,
-    variant: RangeType,
+    pub variant: RangeType,
 }
 
 impl<T> Range<T>
@@ -40,7 +35,7 @@ where
         &self.end
     }
 
-    pub(crate) fn within<K: Into<T>>(&self, other: K) -> bool {
+    pub fn within<K: Into<T>>(&self, other: K) -> bool {
         let as_current = other.into();
 
         match self.variant {
@@ -64,7 +59,7 @@ impl Iterator for Range<UtcDate> {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Weekdays(Vec<Weekday>);
+pub struct Weekdays(Vec<Weekday>);
 
 impl<'de> Deserialize<'de> for Weekdays {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -101,8 +96,8 @@ pub struct DatedRange {
 }
 
 impl DatedRange {
-    pub(crate) fn within(&self, timestamp: i64) -> bool {
-        DateTime::from_timestamp(timestamp, 0).map_or(false, |date| {
+    pub fn within(&self, timestamp: i64) -> bool {
+        DateTime::from_timestamp(timestamp, 0).is_some_and(|date| {
             self.dates.within(UtcDate(date)) && self.days.0.contains(&date.weekday())
         })
     }

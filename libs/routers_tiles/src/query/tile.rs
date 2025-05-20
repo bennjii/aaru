@@ -2,8 +2,8 @@ use crate::proto::Tile;
 
 pub struct MVTTile(pub(crate) Tile);
 
-impl Into<Tile> for MVTTile {
-    fn into(self) -> Tile {
-        self.0
+impl From<MVTTile> for Tile {
+    fn from(val: MVTTile) -> Self {
+        val.0
     }
 }

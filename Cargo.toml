@@ -12,7 +12,7 @@ unsafe_code = "forbid"
 # === Workspace Deps ===
 [workspace.dependencies]
 # Shared Fixtures
-fixtures = { version = "0.1.0", package = "routers_fixtures" }
+fixtures = { version = "0.1.0", package = "routers_fixtures", path = "libs/routers_fixtures" }
 
 # Optimisation Crates
 rayon = "1.10.0"
