@@ -9,13 +9,13 @@ use crate::definition::proximity::*;
 
 use crate::services::RouteService;
 use routers::Scan;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "telemetry")]
 use tracing::Level;
 use wkt::ToWkt;
 
 #[tonic::async_trait]
 impl ProximityService for Arc<RouteService> {
-    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
+    #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn closest_point(
         self: Arc<Self>,
         request: Request<ClosestPointRequest>,
@@ -41,7 +41,7 @@ impl ProximityService for Arc<RouteService> {
         }))
     }
 
-    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
+    #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn closest_snapped_point(
         self: Arc<Self>,
         request: Request<ClosestSnappedPointRequest>,

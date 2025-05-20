@@ -6,12 +6,12 @@ use crate::definition::model::*;
 use crate::definition::optimise::*;
 
 use crate::services::RouteService;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "telemetry")]
 use tracing::Level;
 
 #[tonic::async_trait]
 impl OptimisationService for Arc<RouteService> {
-    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, err(level = Level::INFO)))]
+    #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn route(
         self: Arc<Self>,
         request: Request<RouteRequest>,

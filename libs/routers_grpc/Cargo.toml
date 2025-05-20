@@ -9,49 +9,44 @@ path = "src/lib.rs"
 bench = false
 
 [dependencies]
-fixtures = { workspace = true }
-
 routers = { path = "../.." }
 
-geo = "0.30.0"
-wkt = "0.13.0"
-log = { version = "0.4.22", features = [] }
-
-tokio = { version = "1.41.1", features = [
-    "rt",
-    "rt-multi-thread",
-    "macros",
-    "fs",
-]}
-
-dotenv = "0.15.0"
-
+# Protobuf Handling
 prost = { version = "0.13.3" }
 prost-types = "0.13.4"
 
 # gRPC Server Dependencies
-tonic = { version = "0.13.0", features = [] }
-tonic-reflection = { version = "0.13.0" }
-tonic-web = { version = "0.13.0" }
+tonic = { version = "0.13.1", features = [] }
 
-# HTTP Server Dependencies
-tower-http = { version = "0.6.1", features = ["cors"] }
+# GeoRust
+geo = { workspace = true }
+wkt = { workspace = true }
+
+log = { workspace = true }
+tokio = { workspace = true }
 
 # Tracing
-tracing = { version = "0.1.40" }
-tracing-subscriber = { version = "0.3.18", features = [
-    "tracing-log",
-    "fmt",
-    "env-filter",
-] }
-tracing-opentelemetry = { version = "0.27.0" }
+tracing = { workspace = true }
 
-# Open-Telemetry Modules
-opentelemetry = { version = "0.26.0", optional = true }
-opentelemetry_sdk = { version = "0.26.0", features = [
-    "rt-tokio",
-], optional = true }
-opentelemetry-otlp = { version = "0.26.0", features = ["tls"], optional = true }
+# OpenTelemetry
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+
+tracing-subscriber = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Environment Variable Resolution
+dotenv = "0.15.0"
+
+# Workspace Crates
+fixtures = { workspace = true }
+
+# Server Example
+tower-http = { version = "0.6.1", features = ["cors"] }
+tonic-reflection = { version = "0.13.1" }
+tonic-web = { version = "0.13.1" }
 
 [build-dependencies]
 tonic-build = { version = "0.13.0", features = ["prost"] }
@@ -60,10 +55,13 @@ walkdir = "2.5.0"
 
 [features]
 default = []
-tracing = [
+telemetry = [
     "dep:opentelemetry",
     "dep:opentelemetry_sdk",
-    "dep:opentelemetry-otlp"
+    "dep:opentelemetry-otlp",
+
+    "dep:tracing-subscriber",
+    "dep:tracing-opentelemetry"
 ]
 
 [[example]]
@@ -74,3 +72,6 @@ path = "examples/client.rs"
 name = "server"
 path = "examples/server.rs"
 required-features = ["tracing"]
+
+[lints]
+workspace = true

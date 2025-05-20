@@ -4,6 +4,9 @@ repos:
     hooks:
       - id: fmt
       - id: check
-        args: ['--features', 'all']
       - id: clippy
-        args: ['--features', 'all']
+
+  - repo: https://github.com/est31/cargo-udeps
+    rev: v0.1.47
+    hooks:
+      - id: udeps
