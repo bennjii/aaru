@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-geo = "0.30.0"
 
-routers_codec = { path = "../routers_codec" }
-
-scc = { version = "2.2.4" }
+[lints]
+workspace = true

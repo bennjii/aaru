@@ -9,12 +9,7 @@ path = "src/lib.rs"
 bench = false
 
 [dependencies]
-# Workspace Crates
-fixtures = { workspace = true }
 routers = { path = "../.." }
-
-# Environment Variable Resolution
-dotenv = "0.15.0"
 
 # Protobuf Handling
 prost = { version = "0.13.3" }
@@ -22,11 +17,6 @@ prost-types = "0.13.4"
 
 # gRPC Server Dependencies
 tonic = { version = "0.13.1", features = [] }
-tonic-reflection = { version = "0.13.1" }
-tonic-web = { version = "0.13.1" }
-
-# HTTP Server Dependencies
-tower-http = { version = "0.6.1", features = ["cors"] }
 
 # GeoRust
 geo = { workspace = true }
@@ -37,13 +27,26 @@ tokio = { workspace = true }
 
 # Tracing
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-tracing-opentelemetry = { workspace = true }
 
 # OpenTelemetry
 opentelemetry = { workspace = true, optional = true }
 opentelemetry_sdk = { workspace = true, optional = true }
 opentelemetry-otlp = { workspace = true, optional = true }
+
+tracing-subscriber = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Environment Variable Resolution
+dotenv = "0.15.0"
+
+# Workspace Crates
+fixtures = { workspace = true }
+
+# Server Example
+tower-http = { version = "0.6.1", features = ["cors"] }
+tonic-reflection = { version = "0.13.1" }
+tonic-web = { version = "0.13.1" }
 
 [build-dependencies]
 tonic-build = { version = "0.13.0", features = ["prost"] }
@@ -55,7 +58,10 @@ default = []
 telemetry = [
     "dep:opentelemetry",
     "dep:opentelemetry_sdk",
-    "dep:opentelemetry-otlp"
+    "dep:opentelemetry-otlp",
+
+    "dep:tracing-subscriber",
+    "dep:tracing-opentelemetry"
 ]
 
 [[example]]

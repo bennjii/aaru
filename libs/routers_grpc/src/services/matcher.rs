@@ -6,12 +6,12 @@ use crate::definition::r#match::*;
 use crate::definition::model::*;
 
 use crate::services::RouteService;
-#[cfg(feature = "tracing")]
+#[cfg(feature = "telemetry")]
 use tracing::Level;
 
 #[tonic::async_trait]
 impl MatchService for Arc<RouteService> {
-    #[cfg_attr(feature="tracing", tracing::instrument(skip_all, level = Level::INFO))]
+    #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
     async fn r#match(
         self: Arc<Self>,
         request: Request<MatchRequest>,
@@ -64,6 +64,7 @@ impl MatchService for Arc<RouteService> {
         }))
     }
 
+    #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
     async fn snap(
         self: Arc<Self>,
         _request: Request<SnapRequest>,

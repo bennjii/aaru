@@ -94,15 +94,11 @@ bench = false
 
 # === Root Dependencies ===
 [dependencies]
-# Fixtures
-fixtures = { workspace = true }
-
 # Logging Utility
 log = { workspace = true }
 
 # GeoRust
 geo = { workspace = true }
-wkt = { workspace = true }
 
 # Tracing [Optional-"tracing"]
 tracing = { workspace = true, optional = true }
@@ -130,6 +126,9 @@ measure_time = "0.9.0"
 rustc-hash = "2.1.1"
 
 [dev-dependencies]
+wkt = { workspace = true }
+fixtures = { workspace = true }
+
 criterion = { version = "2.10.1", features = ["async_tokio"], package = "codspeed-criterion-compat" }
 
 [[bench]]

@@ -1968,11 +1968,6 @@ dependencies = [
 [[package]]
 name = "routers_shard"
 version = "0.1.0"
-dependencies = [
- "geo",
- "routers_codec",
- "scc",
-]
 
 [[package]]
 name = "routers_tiles"
