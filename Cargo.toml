@@ -89,6 +89,17 @@ bench = false
 
 # === Root Dependencies ===
 [dependencies]
+# Algorithm
+rstar = { workspace = true }
+codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
+petgraph = { version = "0.8.1", features = ["serde-1", "graphmap", "rayon"] }
+
+# Root-Specific Crates
+approx = "0.5.1"
+pathfinding = "4.14.0"
+measure_time = "0.9.0"
+rustc-hash = "2.1.1"
+
 # Logging Utility
 log = { workspace = true }
 
@@ -109,21 +120,10 @@ scc = { workspace = true }
 itertools = { workspace = true }
 indexmap = { workspace = true }
 
-# Algorithm
-rstar = { workspace = true }
-codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
-petgraph = { version = "0.8.1", features = ["serde-1", "graphmap", "rayon"] }
-
-# Root-Specific Crates
-approx = "0.5.1"
-pathfinding = "4.14.0"
-measure_time = "0.9.0"
-rustc-hash = "2.1.1"
-
 [dev-dependencies]
 wkt = { workspace = true }
-routers_fixtures = { path = "libs/routers_fixtures" }
 
+routers_fixtures = { path = "libs/routers_fixtures" }
 criterion = { version = "2.10.1", features = ["async_tokio"], package = "codspeed-criterion-compat" }
 
 [[bench]]
