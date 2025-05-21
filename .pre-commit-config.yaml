@@ -10,3 +10,12 @@ repos:
     rev: v0.1.47
     hooks:
       - id: udeps
+
+  - repo: local
+    hooks:
+      - id: audit
+        name: audit
+        description: Checks to find vulnerable or unmaintained versions
+        entry: cargo audit
+        language: system
+        pass_filenames: false

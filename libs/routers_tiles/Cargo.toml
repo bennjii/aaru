@@ -16,12 +16,12 @@ serde_qs = "0.15.0"
 prost = { version = "0.13.5" }
 
 fast_hilbert = { version = "2.0.1" }
-chrono = "0.4.38"
-log = { version = "0.4.22", features = [] }
-serde = { version = "1.0.214", features = ["derive"] }
+chrono = "0.4.41"
+log = { version = "0.4.27", features = [] }
+serde = { version = "1.0.219", features = ["derive"] }
 strum = { workspace = true }
 
-tracing = { version = "0.1.40", optional = true }
+tracing = { version = "0.1.41", optional = true }
 async-trait = "0.1.88"
 
 [dev-dependencies]
