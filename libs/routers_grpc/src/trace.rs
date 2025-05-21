@@ -11,6 +11,8 @@
 //! ```
 
 use opentelemetry::trace::TracerProvider;
+use opentelemetry_otlp::SpanExporter;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -18,17 +20,11 @@ use tracing_subscriber::util::SubscriberInitExt;
 /// This is optional, not calling this function will simply
 /// not log traces.
 pub fn initialize_tracer() {
-    // The remote server to log to...
-    let exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
-        .with_tls_config(Default::default());
+    let otlp_exporter = SpanExporter::builder().with_tonic().build().unwrap();
 
-    // Initialize OpenTelemetry OLTP Protoc Pipeline
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(exporter)
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Couldn't create OTLP tracer")
+    let tracer = SdkTracerProvider::builder()
+        .with_simple_exporter(otlp_exporter)
+        .build()
         .tracer("routers");
 
     // Link OTEL and STDOUT subscribers
