@@ -49,8 +49,8 @@ dotenv = { workspace = true }
 routers_fixtures = { path = "../routers_fixtures" }
 
 [build-dependencies]
-tonic-build = { version = "0.13.0", features = ["prost"] }
-prost-build = { version = "0.13.3" }
+tonic-build = { version = "0.13.1", features = ["prost"] }
+prost-build = { version = "0.13.5" }
 walkdir = "2.5.0"
 
 [features]

@@ -1,4 +1,4 @@
-use axum::async_trait;
+use async_trait::async_trait;
 
 pub struct Query<T, F> {
     pub parameters: T,
