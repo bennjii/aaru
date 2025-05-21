@@ -1,4 +1,4 @@
-use fixtures::DISTRICT_OF_COLUMBIA;
+use routers_fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
 use criterion::criterion_main;
 use log::info;
@@ -7,7 +7,7 @@ use routers::route::Graph;
 use std::path::Path;
 
 fn ingest_as_full_graph() {
-    let path = Path::new(fixtures::fixture_path(DISTRICT_OF_COLUMBIA).as_os_str())
+    let path = Path::new(fixture_path(DISTRICT_OF_COLUMBIA).as_os_str())
         .as_os_str()
         .to_ascii_lowercase();
     let graph = Graph::new(path).expect("Could not generate graph");

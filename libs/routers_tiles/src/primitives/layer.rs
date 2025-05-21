@@ -1,4 +1,4 @@
-use crate::mvt::{Feature, GeomType, Layer, Value};
+use crate::proto::{Feature, GeomType, Layer, Value};
 
 use routers_geo::cluster::Clustered;
 use routers_geo::coord::point::TileItem;

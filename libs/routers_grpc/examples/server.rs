@@ -3,7 +3,7 @@ use routers_grpc::optimise::OptimisationServiceServer;
 use routers_grpc::proximity::ProximityServiceServer;
 
 use dotenv::dotenv;
-use fixtures::{LOS_ANGELES, fixture_path};
+use routers_fixtures::{LOS_ANGELES, fixture_path};
 use routers_grpc::{initialize_tracer, proto, services::RouteService};
 use std::sync::Arc;
 use tonic::codegen::http::Method;

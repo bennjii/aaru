@@ -1,6 +1,6 @@
 [package]
 name = "routers_codec"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 include = ["docs/**", "build.rs", "proto/**", "src/**", "benches/**"]
 description = "Codec primitives for routers"
@@ -35,8 +35,9 @@ tracing = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 [dev-dependencies]
+routers_fixtures = { path = "../routers_fixtures" }
+
 test-log = { workspace = true }
-fixtures = { workspace = true }
 criterion = { workspace = true }
 
 # Used to compare performance to ensure no large regression

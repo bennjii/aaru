@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
+use routers_fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
 use crate::osm::element::item::Element;
 use crate::osm::element::item::ProcessedElement;

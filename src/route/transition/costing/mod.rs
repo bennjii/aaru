@@ -8,8 +8,8 @@
 //! graph constructor.
 //!
 //! ```rust
-//! use aaru::route::transition::CostingStrategies;
-//! use aaru::route::transition::graph::Transition;
+//! use routers::route::transition::CostingStrategies;
+//! use routers::route::transition::graph::Transition;
 //!
 //! // Create default strategies
 //! let costing = CostingStrategies::default();
@@ -32,7 +32,7 @@
 //! which implement [`Strategy<TransitionContext>`].
 //!
 //!```rust
-//! use aaru::route::transition::{Strategy, TransitionContext};
+//! use routers::route::transition::{Strategy, TransitionContext};
 //!
 //! struct MyTransitionStrategy;
 //!

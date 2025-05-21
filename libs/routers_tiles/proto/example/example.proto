@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package example;
+
+message Example {
+  int64 a = 1;
+  int64 b = 2;
+
+  double latitude = 3;
+  double longitude = 4;
+}

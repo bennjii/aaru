@@ -37,16 +37,16 @@ tracing-subscriber = { workspace = true, optional = true }
 tracing-opentelemetry = { workspace = true, optional = true }
 
 [dev-dependencies]
-# Environment Variable Resolution
-dotenv = "0.15.0"
-
-# Workspace Crates
-fixtures = { workspace = true }
-
 # Server Example
-tower-http = { version = "0.6.1", features = ["cors"] }
+tower-http = { workspace = true }
 tonic-reflection = { version = "0.13.1" }
 tonic-web = { version = "0.13.1" }
+
+# Environment Variable Resolution
+dotenv = { workspace = true }
+
+# Workspace Crates
+routers_fixtures = { path = "../routers_fixtures" }
 
 [build-dependencies]
 tonic-build = { version = "0.13.0", features = ["prost"] }

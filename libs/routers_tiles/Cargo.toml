@@ -4,11 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# Big Table Connector
+bigtable_rs = { version = "0.2.10", optional = true }
+
 geo = "0.30.0"
 routers_geo = { path = "../routers_geo" }
 
 # Server dependencies
 axum = { version = "0.7.7", features = ["query"] }
+serde_qs = "0.15.0"
 prost = { version = "0.13.3" }
 
 fast_hilbert = { version = "2.0.0" }
@@ -20,8 +24,29 @@ serde = { version = "1.0.214", features = ["derive"] }
 
 tracing = { version = "0.1.40", optional = true }
 
+[dev-dependencies]
+futures = "0.3.19"
+routers_grpc = { path = "../routers_grpc", features = ["telemetry"] }
+
+tokio = { workspace = true }
+dotenv = { workspace = true }
+tower-http = { workspace = true }
+
 [build-dependencies]
 prost-build = { version = "0.13.3" }
 
 [features]
+default = ["bigtable"]
+# The example service
+example = []
+
+# Tracing
 tracing = ["dep:tracing"]
+
+# Connectors
+bigtable = ["dep:bigtable_rs"]
+
+[[example]]
+name = "server"
+path = "examples/server.rs"
+required-features = ["routers_grpc/telemetry", "tracing", "example"]

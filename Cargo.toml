@@ -11,9 +11,6 @@ unsafe_code = "forbid"
 
 # === Workspace Deps ===
 [workspace.dependencies]
-# Shared Fixtures
-fixtures = { version = "0.1.0", package = "routers_fixtures" }
-
 # Optimisation Crates
 rayon = "1.10.0"
 scc = "2.3.4"
@@ -25,6 +22,8 @@ log = { version = "0.4.22" }
 test-log = { version = "0.2.16", features = ["log"] }
 
 # Server/Paralellism
+dotenv = "0.15.0"
+tower-http = { version = "0.6.1", features = ["cors"] }
 tokio = { version = "1.41.1", features = [
     "rt",
     "rt-multi-thread",
@@ -73,10 +72,6 @@ lto = "off"
 [profile.dev.package."*"]
 opt-level = 3
 
-# === Patches ===
-[patch.crates-io]
-routers_fixtures = { path = "libs/routers_fixtures" }
-
 # === Root Package ===
 [package]
 name = "routers"
@@ -94,6 +89,17 @@ bench = false
 
 # === Root Dependencies ===
 [dependencies]
+# Algorithm
+rstar = { workspace = true }
+codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
+petgraph = { version = "0.8.1", features = ["serde-1", "graphmap", "rayon"] }
+
+# Root-Specific Crates
+approx = "0.5.1"
+pathfinding = "4.14.0"
+measure_time = "0.9.0"
+rustc-hash = "2.1.1"
+
 # Logging Utility
 log = { workspace = true }
 
@@ -114,21 +120,10 @@ scc = { workspace = true }
 itertools = { workspace = true }
 indexmap = { workspace = true }
 
-# Algorithm
-rstar = { workspace = true }
-codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
-petgraph = { version = "0.8.1", features = ["serde-1", "graphmap", "rayon"] }
-
-# Root-Specific Crates
-approx = "0.5.1"
-pathfinding = "4.14.0"
-measure_time = "0.9.0"
-rustc-hash = "2.1.1"
-
 [dev-dependencies]
 wkt = { workspace = true }
-fixtures = { workspace = true }
 
+routers_fixtures = { path = "libs/routers_fixtures" }
 criterion = { version = "2.10.1", features = ["async_tokio"], package = "codspeed-criterion-compat" }
 
 [[bench]]

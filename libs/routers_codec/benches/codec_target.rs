@@ -1,4 +1,4 @@
-use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
+use routers_fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
 use routers_codec::osm::{
     BlockItem, BlockIterator, Parallel, ProcessedElementIterator, element::ProcessedElement,

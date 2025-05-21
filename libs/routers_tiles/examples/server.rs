@@ -4,18 +4,19 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Router, serve};
 use dotenv::dotenv;
-
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 
-use aaru::tile::repositories::RepositorySet;
 use axum::http::StatusCode;
-use futures::join_all;
+use futures::future::join_all;
+use routers_tiles::RepositorySet;
+use routers_tiles::datasource::connectors::bigtable::{BigTableRepositorySet, init_bq};
+use routers_tiles::proto::Example;
 use tracing::{Level, event};
 
-async fn health_check(State(state): State<Arc<RepositorySet>>) -> Response {
+async fn health_check(State(state): State<Arc<BigTableRepositorySet>>) -> Response {
     let futures: Vec<_> = state
         .repositories
         .iter()
@@ -28,7 +29,7 @@ async fn health_check(State(state): State<Arc<RepositorySet>>) -> Response {
     let results = join_all(futures).await;
 
     for result in results {
-        if let Err(response) = result.map_err(|e| aaru::Error::Tile(e)) {
+        if let Err(response) = result {
             return response.into_response();
         }
     }
@@ -68,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     // Create the tracer first.
-    aaru::util::trace::initialize_tracer();
+    routers_grpc::trace::initialize_tracer();
 
     // Set the address to serve from
     let addr = tokio::net::TcpListener::bind(format!("localhost:{port}")).await?;
@@ -80,6 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/", get(health_check))
+        .route("/example/:z/:x/:y", get(Example::tile))
         .layer(cors(allowed_origins))
         .with_state(Arc::new(state));
 

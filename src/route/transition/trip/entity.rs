@@ -55,8 +55,8 @@ impl Trip {
     ///
     /// ### Example
     /// ```rust
-    ///  use aaru::codec::element::variants::{Node, OsmEntryId};
-    ///  use aaru::route::transition::Trip;
+    ///  use codec::osm::element::variants::{Node, OsmEntryId};
+    ///  use routers::route::transition::Trip;
     ///  use geo::Point;
     ///
     ///  // Create some nodes
@@ -112,8 +112,8 @@ impl Trip {
     /// # Example
     /// ```
     /// use geo::Point;
-    /// use aaru::codec::element::variants::{Node, OsmEntryId};
-    /// use aaru::route::transition::Trip;
+    /// use codec::osm::element::variants::{Node, OsmEntryId};
+    /// use routers::route::transition::Trip;
     ///
     /// let positions = vec![
     ///     // San Francisco (SF)
@@ -151,8 +151,8 @@ impl Trip {
     ///
     /// ### Example
     /// ```rust
-    ///  use aaru::codec::element::variants::{Node, OsmEntryId};
-    ///  use aaru::route::transition::Trip;
+    ///  use codec::osm::element::variants::{Node, OsmEntryId};
+    ///  use routers::route::transition::Trip;
     ///  use geo::Point;
     ///
     ///  // Create some nodes
