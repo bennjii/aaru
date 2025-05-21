@@ -11,9 +11,6 @@ unsafe_code = "forbid"
 
 # === Workspace Deps ===
 [workspace.dependencies]
-# Shared Fixtures
-routers_fixtures = { version = "0.1.0", path = "libs/routers_fixtures" }
-
 # Optimisation Crates
 rayon = "1.10.0"
 scc = "2.3.4"
@@ -125,7 +122,7 @@ rustc-hash = "2.1.1"
 
 [dev-dependencies]
 wkt = { workspace = true }
-routers_fixtures = { workspace = true }
+routers_fixtures = { path = "libs/routers_fixtures" }
 
 criterion = { version = "2.10.1", features = ["async_tokio"], package = "codspeed-criterion-compat" }
 
