@@ -1,13 +1,14 @@
 #![cfg(test)]
 
 use log::error;
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::time::Instant;
 
 use crate::osm::blob::iterator::BlobIterator;
 use crate::osm::block::item::BlockItem;
 use crate::osm::block::iterator::BlockIterator;
-use fixtures::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, fixture_path};
-use rayon::iter::{ParallelBridge, ParallelIterator};
+
+use routers_fixtures::{BADEN_WUERTTEMBERG, DISTRICT_OF_COLUMBIA, fixture_path};
 
 #[test]
 fn iterate_blobs_each() {

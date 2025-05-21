@@ -1,7 +1,7 @@
 use crate::route::{Graph, Scan};
 
 use codec::osm::element::variants::Node;
-use fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
+use routers_fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
 use crate::error::RouteError;
 use geo::{LineString, Point, coord, wkt};

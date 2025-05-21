@@ -46,7 +46,7 @@ tonic-web = { version = "0.13.1" }
 dotenv = { workspace = true }
 
 # Workspace Crates
-fixtures = { workspace = true }
+routers_fixtures = { workspace = true }
 
 [build-dependencies]
 tonic-build = { version = "0.13.0", features = ["prost"] }
