@@ -1742,6 +1742,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentelemetry-stdout"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7e27d446dabd68610ef0b77d07b102ecde827a4596ea9c01a4d3811e945b286"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "opentelemetry",
+ "opentelemetry_sdk",
+]
+
+[[package]]
 name = "opentelemetry_sdk"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2407,8 +2419,10 @@ dependencies = [
  "dotenv",
  "geo",
  "log",
+ "once_cell",
  "opentelemetry",
  "opentelemetry-otlp",
+ "opentelemetry-stdout",
  "opentelemetry_sdk",
  "prost",
  "prost-build",

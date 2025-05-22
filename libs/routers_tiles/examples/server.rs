@@ -11,6 +11,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer, MaxAge};
 
 use axum::http::StatusCode;
 use futures::future::join_all;
+use routers_grpc::Tracer;
 use routers_tiles::RepositorySet;
 use routers_tiles::datasource::connectors::bigtable::{BigTableRepositorySet, init_bq};
 use routers_tiles::proto::Example;
@@ -69,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     // Create the tracer first.
-    routers_grpc::trace::initialize_tracer();
+    Tracer::new();
 
     // Set the address to serve from
     let addr = tokio::net::TcpListener::bind(format!("localhost:{port}")).await?;
