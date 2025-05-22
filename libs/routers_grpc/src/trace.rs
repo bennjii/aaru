@@ -13,6 +13,7 @@
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_otlp::SpanExporter;
 use opentelemetry_sdk::trace::SdkTracerProvider;
+use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -32,9 +33,10 @@ pub fn initialize_tracer() {
     let fmt_layer = tracing_subscriber::fmt::layer().compact();
 
     // Initialise tracing with subscribers and environment filter
-    let registry = tracing_subscriber::registry()
+    let registry = Registry::default()
         .with(tracing_subscriber::EnvFilter::from_default_env())
-        .with(fmt_layer);
+        .with(fmt_layer)
+        .with(otel_layer);
 
-    registry.with(otel_layer).init();
+    registry.init();
 }
