@@ -5,7 +5,7 @@ edition = "2024"
 include = ["docs/**", "build.rs", "proto/**", "src/**", "benches/**"]
 description = "Codec primitives for routers"
 license = "MIT"
-repository = "https://github.com/bennjii/routers"
+repository = "https://github.com/routers-org/routers"
 
 [lib]
 name = "routers_codec"
