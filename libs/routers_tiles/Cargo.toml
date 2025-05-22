@@ -5,27 +5,27 @@ edition = "2024"
 
 [dependencies]
 # Big Table Connector
-bigtable_rs = { version = "0.2.10", optional = true }
+bigtable_rs = { version = "0.2.17", optional = true }
 
 geo = "0.30.0"
 routers_geo = { path = "../routers_geo" }
 
 # Server dependencies
-axum = { version = "0.7.7", features = ["query"] }
+axum = { version = "0.8.4", features = ["query"] }
 serde_qs = "0.15.0"
-prost = { version = "0.13.3" }
+prost = { version = "0.13.5" }
 
-fast_hilbert = { version = "2.0.0" }
-strum = { version = "0.26.3", features = ["phf", "derive"] }
+fast_hilbert = { version = "2.0.1" }
+chrono = "0.4.41"
+log = { version = "0.4.27", features = [] }
+serde = { version = "1.0.219", features = ["derive"] }
+strum = { workspace = true }
 
-chrono = "0.4.38"
-log = { version = "0.4.22", features = [] }
-serde = { version = "1.0.214", features = ["derive"] }
-
-tracing = { version = "0.1.40", optional = true }
+tracing = { version = "0.1.41", optional = true }
+async-trait = "0.1.88"
 
 [dev-dependencies]
-futures = "0.3.19"
+futures = "0.3.31"
 routers_grpc = { path = "../routers_grpc", features = ["telemetry"] }
 
 tokio = { workspace = true }

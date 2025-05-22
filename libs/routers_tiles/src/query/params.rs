@@ -1,23 +1,22 @@
-use axum::async_trait;
-use axum::extract::FromRequest;
+use axum::extract::FromRequestParts;
 use axum::http::StatusCode;
+use axum::http::request::Parts;
 use serde::de::DeserializeOwned;
 use serde_qs::Config;
 
 // Extractor for `serde_qs` support
 pub struct QueryParams<T>(pub T);
 
-#[async_trait]
-impl<B, T> FromRequest<B> for QueryParams<T>
+impl<B, T> FromRequestParts<B> for QueryParams<T>
 where
-    B: Send,
-    T: DeserializeOwned + Clone + Send + 'static,
+    B: Send + Sync,
+    T: DeserializeOwned + Send,
 {
     type Rejection = (StatusCode, String);
 
-    async fn from_request(req: axum::extract::Request, _: &B) -> Result<Self, Self::Rejection> {
-        let uri = req.uri();
-        let query = uri
+    async fn from_request_parts(parts: &mut Parts, _: &B) -> Result<Self, Self::Rejection> {
+        let query = parts
+            .uri
             .query()
             .ok_or_else(|| (StatusCode::BAD_REQUEST, "Missing query string".to_string()))?;
 

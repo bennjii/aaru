@@ -1,6 +1,5 @@
 use crate::error::TileError;
-
-use axum::async_trait;
+use async_trait::async_trait;
 use std::collections::HashMap;
 
 pub const DEFAULT_APP_PROFILE: &str = "default";
