@@ -1,14 +1,15 @@
 use crate::route::{Graph, Scan};
 
-use codec::osm::element::variants::Node;
+use codec::primitive::Node;
 use routers_fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
 use crate::error::RouteError;
+use codec::osm::element::variants::OsmEntryId;
 use geo::{LineString, Point, coord, wkt};
 use std::{path::Path, time::Instant};
 use wkt::ToWkt;
 
-fn generate_linestring(route: Vec<Node>) -> String {
+fn generate_linestring(route: Vec<Node<OsmEntryId>>) -> String {
     route
         .iter()
         .map(|node| node.position)
@@ -16,7 +17,7 @@ fn generate_linestring(route: Vec<Node>) -> String {
         .wkt_string()
 }
 
-fn init_graph(file: &str) -> Result<Graph, RouteError> {
+fn init_graph(file: &str) -> Result<Graph<OsmEntryId>, RouteError> {
     let time = Instant::now();
 
     let fixture = fixture_path(file);

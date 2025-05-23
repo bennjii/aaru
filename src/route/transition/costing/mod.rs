@@ -32,18 +32,19 @@
 //! which implement [`Strategy<TransitionContext>`].
 //!
 //!```rust
+//! use codec::Entry;
 //! use routers::route::transition::{Strategy, TransitionContext};
 //!
 //! struct MyTransitionStrategy;
 //!
 //! // Implement the strategy with the correct context.
-//! impl<'a> Strategy<TransitionContext<'a>> for MyTransitionStrategy {
+//! impl<'a, E> Strategy<TransitionContext<'a, E>> for MyTransitionStrategy where E: Entry {
 //!    type Cost = f64;
 //!
 //!    const ZETA: f64 = 1.0;
 //!    const BETA: f64 = -50.0;
 //!
-//!    fn calculate(&self, context: TransitionContext<'a>) -> Self::Cost {
+//!    fn calculate(&self, context: TransitionContext<'a, E>) -> Option<Self::Cost> {
 //!        todo!()
 //!    }
 //! }

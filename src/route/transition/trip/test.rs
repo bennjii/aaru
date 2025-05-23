@@ -1,14 +1,14 @@
 use crate::route::transition::Trip;
-use codec::osm::element::variants::{Node, OsmEntryId};
+use codec::osm::element::variants::OsmEntryId;
 
 use approx::assert_relative_eq;
+use codec::primitive::Node;
 use geo::wkt;
 
 const SHARED_DISTANCE: f64 = 900.0;
 
 #[test]
 fn test_trip() {
-    use codec::osm::element::variants::Node;
     use geo::Point;
 
     let nodes: Vec<Node<OsmEntryId>> = vec![

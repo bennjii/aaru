@@ -63,7 +63,8 @@ where
     ///
     /// ### Example
     /// ```rust
-    ///  use codec::osm::element::variants::{Node, OsmEntryId};
+    ///  use codec::osm::element::variants::{OsmEntryId};
+    ///  use codec::primitive::Node;
     ///  use routers::route::transition::Trip;
     ///  use geo::Point;
     ///
@@ -120,7 +121,8 @@ where
     /// # Example
     /// ```
     /// use geo::Point;
-    /// use codec::osm::element::variants::{Node, OsmEntryId};
+    /// use codec::osm::element::variants::OsmEntryId;
+    /// use codec::primitive::Node;
     /// use routers::route::transition::Trip;
     ///
     /// let positions = vec![
@@ -159,7 +161,8 @@ where
     ///
     /// ### Example
     /// ```rust
-    ///  use codec::osm::element::variants::{Node, OsmEntryId};
+    ///  use codec::osm::element::variants::{OsmEntryId};
+    ///  use codec::primitive::Node;
     ///  use routers::route::transition::Trip;
     ///  use geo::Point;
     ///

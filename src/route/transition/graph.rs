@@ -38,7 +38,7 @@ type NodeId = usize;
 ///     let solver = SelectiveForwardSolver::default();
 ///
 ///     // Now.. we simply solve the transition graph using the solver
-///     let solution = transition.solve(solver)?;
+///     let solution = transition.solve(solver).ok()?;
 ///
 ///     // Now we can return the interpolated path, just like that!
 ///     Some(solution.interpolated(map))
