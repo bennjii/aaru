@@ -1,6 +1,5 @@
 use crate::route::transition::Trip;
-use codec::osm::element::variants::Node;
-use codec::osm::element::variants::common::OsmEntryId;
+use codec::osm::element::variants::{Node, OsmEntryId};
 
 use approx::assert_relative_eq;
 use geo::wkt;
@@ -12,7 +11,7 @@ fn test_trip() {
     use codec::osm::element::variants::Node;
     use geo::Point;
 
-    let nodes: Vec<Node> = vec![
+    let nodes: Vec<Node<OsmEntryId>> = vec![
         Node::new(Point::new(0.0, 0.0), OsmEntryId::null()),
         Node::new(Point::new(0.0, 1.0), OsmEntryId::null()),
         Node::new(Point::new(1.0, 1.0), OsmEntryId::null()),

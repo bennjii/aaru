@@ -1,8 +1,9 @@
 use crate::route::Graph;
-use crate::route::graph::{EdgeIx, NodeIx, Weight};
+use crate::route::graph::Weight;
 use crate::route::transition::RoutingContext;
 
-use codec::osm::element::variants::Node;
+use codec::Entry;
+use codec::primitive::Node;
 use geo::{Distance, Haversine, LineLocatePoint, LineString, Point};
 use pathfinding::num_traits::Zero;
 use petgraph::Direction;
@@ -17,13 +18,19 @@ use std::ops::Add;
 /// Meaning, any edge which is bidirectional must therefore be converted into two edges, each
 /// with a different direction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DirectionAwareEdgeId {
-    id: EdgeIx,
+pub struct DirectionAwareEdgeId<E>
+where
+    E: Entry,
+{
+    id: E,
     direction: Direction,
 }
 
-impl DirectionAwareEdgeId {
-    pub fn new(id: EdgeIx) -> Self {
+impl<E> DirectionAwareEdgeId<E>
+where
+    E: Entry,
+{
+    pub fn new(id: E) -> Self {
         Self {
             id,
             direction: Direction::Outgoing,
@@ -31,7 +38,7 @@ impl DirectionAwareEdgeId {
     }
 
     /// The [`EdgeIx`] of the direction-aware edge.
-    pub fn index(&self) -> EdgeIx {
+    pub fn index(&self) -> E {
         self.id
     }
 
@@ -52,7 +59,10 @@ impl DirectionAwareEdgeId {
     }
 }
 
-impl Ord for DirectionAwareEdgeId {
+impl<E> Ord for DirectionAwareEdgeId<E>
+where
+    E: Entry,
+{
     fn cmp(&self, other: &Self) -> Ordering {
         match self.id.cmp(&other.id) {
             Ordering::Equal => self.direction.cmp(&other.direction),
@@ -61,7 +71,10 @@ impl Ord for DirectionAwareEdgeId {
     }
 }
 
-impl PartialOrd for DirectionAwareEdgeId {
+impl<E> PartialOrd for DirectionAwareEdgeId<E>
+where
+    E: Entry,
+{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -78,17 +91,23 @@ impl PartialOrd for DirectionAwareEdgeId {
 ///
 /// [flyweight]: https://refactoring.guru/design-patterns/flyweight
 #[derive(Clone, Copy, Debug)]
-pub struct Edge {
-    pub source: NodeIx,
-    pub target: NodeIx,
+pub struct Edge<E>
+where
+    E: Entry,
+{
+    pub source: E,
+    pub target: E,
 
     pub weight: Weight,
-    pub id: DirectionAwareEdgeId,
+    pub id: DirectionAwareEdgeId<E>,
 }
 
-impl<'a> From<(NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))> for Edge {
+impl<'a, E> From<(E, E, &'a (Weight, DirectionAwareEdgeId<E>))> for Edge<E>
+where
+    E: Entry,
+{
     #[inline]
-    fn from((source, target, edge): (NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))) -> Self {
+    fn from((source, target, edge): (E, E, &'a (Weight, DirectionAwareEdgeId<E>))) -> Self {
         Edge {
             source,
             target,
@@ -111,18 +130,24 @@ impl<'a> From<(NodeIx, NodeIx, &'a (Weight, DirectionAwareEdgeId))> for Edge {
 ///
 /// As it is large, this should only be used transitively
 /// like in [`Scan::nearest_edges`](crate::route::Scan::nearest_edges).
-pub struct FatEdge {
-    pub source: Node,
-    pub target: Node,
+pub struct FatEdge<E>
+where
+    E: Entry,
+{
+    pub source: Node<E>,
+    pub target: Node<E>,
 
     pub weight: Weight,
-    pub id: DirectionAwareEdgeId,
+    pub id: DirectionAwareEdgeId<E>,
 }
 
-impl FatEdge {
+impl<E> FatEdge<E>
+where
+    E: Entry,
+{
     /// Downsizes a [`FatEdge`] to an [`Edge`].
     #[inline]
-    pub fn thin(&self) -> Edge {
+    pub fn thin(&self) -> Edge<E> {
         Edge {
             source: self.source.id,
             target: self.target.id,
@@ -132,7 +157,10 @@ impl FatEdge {
     }
 }
 
-impl rstar::RTreeObject for FatEdge {
+impl<E> rstar::RTreeObject for FatEdge<E>
+where
+    E: Entry,
+{
     type Envelope = AABB<Point>;
 
     fn envelope(&self) -> Self::Envelope {
@@ -158,9 +186,12 @@ pub struct CandidateLocation {
 /// It further contains the emission cost [emission](#field.emission) associated with choosing this
 /// candidate and the candidate's location within the solution, [location](#field.location).
 #[derive(Clone, Copy, Debug)]
-pub struct Candidate {
+pub struct Candidate<E>
+where
+    E: Entry,
+{
     /// Refers to the points within the map graph (Underlying routing structure)
-    pub edge: Edge,
+    pub edge: Edge<E>,
     pub position: Point,
     pub emission: u32,
 
@@ -192,7 +223,10 @@ pub enum VirtualTail {
     ToTarget,
 }
 
-impl Candidate {
+impl<E> Candidate<E>
+where
+    E: Entry,
+{
     /// Returns the percentage of the distance through the edge, relative to the position
     /// upon the linestring by which it lies.
     ///
@@ -206,7 +240,7 @@ impl Candidate {
     ///                0.4              0.9
     ///               (40%)            (90%)
     ///
-    pub fn percentage(&self, graph: &Graph) -> Option<f64> {
+    pub fn percentage(&self, graph: &Graph<E>) -> Option<f64> {
         let edge = graph
             .resolve_line(&[self.edge.source, self.edge.target])
             .into_iter()
@@ -216,7 +250,7 @@ impl Candidate {
     }
 
     /// Calculates the offset, in meters, of the candidate to it's edge by the [`VirtualTail`].
-    pub fn offset(&self, ctx: &RoutingContext, variant: VirtualTail) -> Option<f64> {
+    pub fn offset(&self, ctx: &RoutingContext<E>, variant: VirtualTail) -> Option<f64> {
         match variant {
             VirtualTail::ToSource => {
                 let source = ctx.map.get_position(&self.edge.source)?;
@@ -229,7 +263,7 @@ impl Candidate {
         }
     }
 
-    pub fn new(edge: Edge, position: Point, emission: u32, location: CandidateLocation) -> Self {
+    pub fn new(edge: Edge<E>, position: Point, emission: u32, location: CandidateLocation) -> Self {
         Self {
             edge,
             position,

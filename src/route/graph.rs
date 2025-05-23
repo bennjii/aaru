@@ -1,13 +1,13 @@
 use codec::osm::element::item::ProcessedElement;
 use codec::osm::element::processed_iterator::ProcessedElementIterator;
-use codec::osm::element::variants::Node;
-use codec::osm::element::variants::common::OsmEntryId;
 use codec::osm::parallel::Parallel;
 
 use crate::route::Scan;
 use crate::route::error::RouteError;
 use crate::route::transition::*;
 
+use codec::osm::element::variants::OsmEntryId;
+use codec::primitive::{Entry, Node};
 use geo::{LineString, Point};
 use log::{debug, info};
 use petgraph::prelude::DiGraphMap;
@@ -25,36 +25,41 @@ use tracing::Level;
 
 pub type Weight = u32;
 
-// TODO: Convert `type X = Y` to `struct X(Y)` for type enforcement. (TypeName pattern)
-pub type NodeIx = OsmEntryId;
-pub type EdgeIx = OsmEntryId;
-
-pub type GraphStructure =
-    DiGraphMap<NodeIx, (Weight, DirectionAwareEdgeId), BuildHasherDefault<FxHasher>>;
+pub type GraphStructure<E> =
+    DiGraphMap<E, (Weight, DirectionAwareEdgeId<E>), BuildHasherDefault<FxHasher>>;
 
 const MAX_WEIGHT: Weight = u32::MAX as Weight;
 
 /// Routing graph, can be ingested from an `.osm.pbf` file,
 /// and can be actioned upon using `route(start, end)`.
-pub struct Graph {
-    pub(crate) graph: GraphStructure,
-    pub(crate) index: RTree<Node>,
-    pub(crate) index_edge: RTree<FatEdge>,
-    pub(crate) hash: FxHashMap<NodeIx, Node>,
+pub struct Graph<E>
+where
+    E: Entry,
+{
+    pub(crate) graph: GraphStructure<E>,
+    pub(crate) index: RTree<Node<E>>,
+    pub(crate) index_edge: RTree<FatEdge<E>>,
+    pub(crate) hash: FxHashMap<E, Node<E>>,
 }
 
-impl Debug for Graph {
+impl<E> Debug for Graph<E>
+where
+    E: Entry,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Graph with Nodes: {}", self.hash.len())
     }
 }
 
-impl Graph {
-    pub fn index(&self) -> &RTree<Node> {
+impl<E> Graph<E>
+where
+    E: Entry,
+{
+    pub fn index(&self) -> &RTree<Node<E>> {
         &self.index
     }
 
-    pub fn index_edge(&self) -> &RTree<FatEdge> {
+    pub fn index_edge(&self) -> &RTree<FatEdge<E>> {
         &self.index_edge
     }
 
@@ -63,17 +68,69 @@ impl Graph {
     }
 
     #[inline]
-    pub fn get_position(&self, node_index: &NodeIx) -> Option<Point<f64>> {
+    pub fn get_position(&self, node_index: &E) -> Option<Point<f64>> {
         self.hash.get(node_index).map(|point| point.position)
     }
 
-    pub fn resolve_line(&self, node_index: &[NodeIx]) -> Vec<Point<f64>> {
+    pub fn resolve_line(&self, node_index: &[E]) -> Vec<Point<f64>> {
         node_index
             .iter()
             .filter_map(|node| self.get_position(node))
             .collect::<Vec<_>>()
     }
 
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
+    pub fn map_match(
+        &self,
+        linestring: LineString,
+        cache: Arc<Mutex<PredicateCache<E>>>,
+    ) -> Result<Collapse<E>, MatchError> {
+        info!("Finding matched route for {} positions", linestring.0.len());
+
+        let costing = CostingStrategies::default();
+
+        // Create our hidden markov model solver
+        let transition = Transition::new(self, linestring, costing);
+
+        // Yield the transition layers of each level
+        // & Collapse the layers into a final vector
+        transition.solve(SelectiveForwardSolver::default().use_cache(cache))
+    }
+
+    pub(crate) fn route_nodes(
+        &self,
+        start_node: E,
+        finish_node: E,
+    ) -> Option<(Weight, Vec<Node<E>>)> {
+        debug!("Routing {start_node:?} -> {finish_node:?}");
+
+        let (score, path) = petgraph::algo::astar(
+            &self.graph,
+            start_node,
+            |finish| finish == finish_node,
+            |e| e.weight().0,
+            |_| 0 as Weight,
+        )?;
+
+        let route = path
+            .iter()
+            .filter_map(|v| self.hash.get(v).copied())
+            .collect();
+
+        Some((score, route))
+    }
+
+    /// Finds the optimal route between a start and end point.
+    /// Returns the weight and routing node vector.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
+    pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node<E>>)> {
+        let start_node = self.nearest_node(start)?;
+        let finish_node = self.nearest_node(finish)?;
+        self.route_nodes(start_node.id, finish_node.id)
+    }
+}
+
+impl Graph<OsmEntryId> {
     /// The weighting mapping of node keys to weight.
     pub fn weights<'a>() -> Result<HashMap<&'a str, Weight>, RouteError> {
         let mut weights: HashMap<&str, Weight> = HashMap::new();
@@ -106,7 +163,7 @@ impl Graph {
     }
 
     /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
-    pub fn new(filename: std::ffi::OsString) -> Result<Graph, RouteError> {
+    pub fn new(filename: std::ffi::OsString) -> Result<Self, RouteError> {
         let mut start_time = Instant::now();
         let fixed_start_time = Instant::now();
 
@@ -122,8 +179,9 @@ impl Graph {
         info!("Ingesting...");
 
         let global_graph = Mutex::new(GraphStructure::new());
-        let (nodes, edges): (Vec<Node>, Vec<Edge>) = reader.par_red(
-            |mut trees: (Vec<Node>, Vec<Edge>), element: ProcessedElement| {
+        let (nodes, edges): (Vec<Node<OsmEntryId>>, Vec<Edge<OsmEntryId>>) = reader.par_red(
+            |mut trees: (Vec<Node<OsmEntryId>>, Vec<Edge<OsmEntryId>>),
+             element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
                         // If way is not traversable (/ is not road)
@@ -228,55 +286,5 @@ impl Graph {
             index_edge: tree_edge,
             hash,
         })
-    }
-
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn map_match(
-        &self,
-        linestring: LineString,
-        cache: Arc<Mutex<PredicateCache>>,
-    ) -> Result<Collapse, MatchError> {
-        info!("Finding matched route for {} positions", linestring.0.len());
-
-        let costing = CostingStrategies::default();
-
-        // Create our hidden markov model solver
-        let transition = Transition::new(self, linestring, costing);
-
-        // Yield the transition layers of each level
-        // & Collapse the layers into a final vector
-        transition.solve(SelectiveForwardSolver::default().use_cache(cache))
-    }
-
-    pub(crate) fn route_nodes(
-        &self,
-        start_node: NodeIx,
-        finish_node: NodeIx,
-    ) -> Option<(Weight, Vec<Node>)> {
-        debug!("Routing {start_node:?} -> {finish_node:?}");
-
-        let (score, path) = petgraph::algo::astar(
-            &self.graph,
-            start_node,
-            |finish| finish == finish_node,
-            |e| e.weight().0,
-            |_| 0 as Weight,
-        )?;
-
-        let route = path
-            .iter()
-            .filter_map(|v| self.hash.get(v).copied())
-            .collect();
-
-        Some((score, route))
-    }
-
-    /// Finds the optimal route between a start and end point.
-    /// Returns the weight and routing node vector.
-    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    pub fn route(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node>)> {
-        let start_node = self.nearest_node(start)?;
-        let finish_node = self.nearest_node(finish)?;
-        self.route_nodes(start_node.id, finish_node.id)
     }
 }

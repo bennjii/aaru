@@ -7,7 +7,8 @@ use std::vec;
 use tracing::debug;
 
 use crate::osm;
-use crate::osm::element::variants::{Node, Relation, Way};
+use crate::osm::element::variants::{OsmEntryId, Relation, Way};
+use crate::primitive::Node;
 
 #[derive(Clone)]
 pub enum Element<'a> {
@@ -19,7 +20,7 @@ pub enum Element<'a> {
 
 #[derive(Clone)]
 pub enum ProcessedElement {
-    Node(Node),
+    Node(Node<OsmEntryId>),
     Way(Way),
     Relation(Relation),
 }

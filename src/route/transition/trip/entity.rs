@@ -1,6 +1,6 @@
 use crate::route::Graph;
-use crate::route::graph::NodeIx;
-use codec::osm::element::variants::Node;
+use codec::Entry;
+use codec::primitive::Node;
 use geo::{Bearing, Distance, Haversine, LineString};
 
 /// Utilities to calculate metadata of a trip.
@@ -10,16 +10,24 @@ use geo::{Bearing, Distance, Haversine, LineString};
 /// to provide utilities such as conversions into a [`LineString`],
 /// finding the total travelled angle, and finding the trips summative length.
 #[derive(Clone, Debug)]
-pub struct Trip(Vec<Node>);
+pub struct Trip<E>(Vec<Node<E>>)
+where
+    E: Entry;
 
-impl From<Vec<Node>> for Trip {
-    fn from(nodes: Vec<Node>) -> Self {
+impl<E> From<Vec<Node<E>>> for Trip<E>
+where
+    E: Entry,
+{
+    fn from(nodes: Vec<Node<E>>) -> Self {
         Trip(nodes)
     }
 }
 
-impl Trip {
-    pub fn new(nodes: impl IntoIterator<Item = Node>) -> Self {
+impl<E> Trip<E>
+where
+    E: Entry,
+{
+    pub fn new(nodes: impl IntoIterator<Item = Node<E>>) -> Self {
         Self(nodes.into_iter().collect::<Vec<_>>())
     }
 
@@ -30,7 +38,7 @@ impl Trip {
 
     // TODO: This should be done lazily, since we may not need the points but possibly OK as is.
     /// Creates a new trip from a slice of [`NodeIx`]s, and a map to lookup their location.
-    pub fn new_with_map(map: &Graph, nodes: &[NodeIx]) -> Self {
+    pub fn new_with_map(map: &Graph<E>, nodes: &[E]) -> Self {
         let resolved = map.resolve_line(nodes);
 
         let nodes = resolved
@@ -60,7 +68,7 @@ impl Trip {
     ///  use geo::Point;
     ///
     ///  // Create some nodes
-    ///  let nodes: Vec<Node> = vec![
+    ///  let nodes: Vec<Node<OsmEntryId>> = vec![
     ///     Node::new(Point::new(0.0, 0.0), OsmEntryId::null()),
     ///     Node::new(Point::new(0.0, 1.0), OsmEntryId::null()),
     ///     Node::new(Point::new(1.0, 1.0), OsmEntryId::null()),
@@ -156,7 +164,7 @@ impl Trip {
     ///  use geo::Point;
     ///
     ///  // Create some nodes
-    ///  let nodes: Vec<Node> = vec![
+    ///  let nodes: Vec<Node<OsmEntryId>> = vec![
     ///     Node::new(Point::new(0.0, 0.0), OsmEntryId::null()),
     ///     Node::new(Point::new(0.0, 1.0), OsmEntryId::null()),
     ///     Node::new(Point::new(1.0, 1.0), OsmEntryId::null()),

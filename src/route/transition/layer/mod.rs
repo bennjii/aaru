@@ -17,7 +17,7 @@ pub struct Layer {
 
     /// The input position within the input to the transition solver.
     ///
-    /// This position is consumed by the [`LayerGenerator`](super::LayerGenerator)
+    /// This position is consumed by the [`LayerGenerator`](LayerGenerator)
     /// to produce candidates for each layer, based on intrinsic location properties.
     pub origin: Point,
 }

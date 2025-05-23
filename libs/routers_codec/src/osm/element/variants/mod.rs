@@ -4,18 +4,17 @@ pub mod node;
 pub mod relation;
 pub mod way;
 
-pub use node::*;
 pub use relation::*;
 pub use way::*;
 
 pub mod common {
+    use crate::osm::{PrimitiveBlock, relation::MemberType};
+    use crate::primitive::Entry;
     use std::{
         collections::HashMap,
         hash::{Hash, Hasher},
         ops::{Add, Deref},
     };
-
-    use crate::osm::{PrimitiveBlock, relation::MemberType};
 
     const OSM_NULL_SENTINEL: i64 = -1i64;
 
@@ -40,10 +39,16 @@ pub mod common {
     ];
 
     #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
-    #[repr(transparent)]
+    // #[repr(transparent)]
     pub struct OsmEntryId {
         pub identifier: i64,
-        // variant: MemberType,
+        variant: MemberType,
+    }
+
+    impl Entry for OsmEntryId {
+        fn identifier(&self) -> impl num_traits::PrimInt {
+            self.identifier
+        }
     }
 
     impl Default for OsmEntryId {
@@ -53,17 +58,17 @@ pub mod common {
     }
 
     impl OsmEntryId {
-        pub const fn new(id: i64, _variant: MemberType) -> OsmEntryId {
+        pub const fn new(id: i64, variant: MemberType) -> OsmEntryId {
             OsmEntryId {
                 identifier: id,
-                // variant,
+                variant,
             }
         }
 
         pub const fn null() -> OsmEntryId {
             OsmEntryId {
                 identifier: OSM_NULL_SENTINEL,
-                // variant: MemberType::Node,
+                variant: MemberType::Node,
             }
         }
 
@@ -75,7 +80,7 @@ pub mod common {
         pub const fn node(identifier: i64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
-                // variant: MemberType::Node,
+                variant: MemberType::Node,
             }
         }
 
@@ -83,7 +88,7 @@ pub mod common {
         pub const fn way(identifier: i64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
-                // variant: MemberType::Way,
+                variant: MemberType::Way,
             }
         }
     }
@@ -94,7 +99,7 @@ pub mod common {
         fn add(self, other: i64) -> Self::Output {
             OsmEntryId {
                 identifier: self.identifier + other,
-                // variant: self.variant,
+                variant: self.variant,
             }
         }
     }
@@ -104,7 +109,7 @@ pub mod common {
         fn from(value: i64) -> Self {
             OsmEntryId {
                 identifier: value,
-                // variant: MemberType::Node,
+                variant: MemberType::Node,
             }
         }
     }

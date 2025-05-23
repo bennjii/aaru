@@ -1,6 +1,7 @@
 use routers::Graph;
 use routers::transition::PredicateCache;
 
+use codec::osm::element::variants::OsmEntryId;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -10,8 +11,8 @@ pub mod proximity;
 
 #[derive(Debug)]
 pub struct RouteService {
-    pub graph: Graph,
-    lookup: Arc<Mutex<PredicateCache>>,
+    pub graph: Graph<OsmEntryId>,
+    lookup: Arc<Mutex<PredicateCache<OsmEntryId>>>,
 }
 
 impl RouteService {

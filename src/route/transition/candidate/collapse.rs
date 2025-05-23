@@ -1,10 +1,14 @@
 use crate::route::Graph;
 use crate::route::transition::Reachable;
 use crate::route::transition::candidate::*;
+use codec::Entry;
 use geo::LineString;
 
 /// The collapsed solution to a transition graph.
-pub struct Collapse {
+pub struct Collapse<E>
+where
+    E: Entry,
+{
     /// The solved cost of the collapsed route.
     /// This value is not actionable by the consumer but rather indicative of how confident
     /// the system is in the route chosen.
@@ -20,17 +24,20 @@ pub struct Collapse {
     ///
     /// To obtain the geographic representation of this interpolation,
     /// use the [`Collapse::interpolated`] method.
-    pub interpolated: Vec<Reachable>,
+    pub interpolated: Vec<Reachable<E>>,
 
-    candidates: Candidates,
+    candidates: Candidates<E>,
 }
 
-impl Collapse {
+impl<E> Collapse<E>
+where
+    E: Entry,
+{
     pub(crate) fn new(
         cost: u32,
-        interpolated: Vec<Reachable>,
+        interpolated: Vec<Reachable<E>>,
         route: Vec<CandidateId>,
-        candidates: Candidates,
+        candidates: Candidates<E>,
     ) -> Self {
         Self {
             cost,
@@ -45,7 +52,7 @@ impl Collapse {
     ///
     /// This includes further information such as the edge it matched to,
     /// costing and the identifier for the candidate.
-    pub fn matched(&self) -> Vec<Candidate> {
+    pub fn matched(&self) -> Vec<Candidate<E>> {
         self.route
             .iter()
             .filter_map(|node| self.candidates.lookup.get(node))
@@ -55,7 +62,7 @@ impl Collapse {
 
     /// Returns the interpolated route from the collapse as a [`LineString`].
     /// This can therefore be used to show the expected turn decisions made by the provided input.
-    pub fn interpolated(&self, map: &Graph) -> LineString {
+    pub fn interpolated(&self, map: &Graph<E>) -> LineString {
         self.interpolated
             .iter()
             .enumerate()

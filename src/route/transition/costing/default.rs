@@ -65,6 +65,7 @@ pub mod emission {
 
 pub mod transition {
     use crate::route::transition::*;
+    use codec::Entry;
 
     /// Calculates the transition cost between two candidates.
     ///
@@ -118,14 +119,17 @@ pub mod transition {
     /// [amortize]: https://en.wikipedia.org/wiki/Amortized_analysis
     pub struct DefaultTransitionCost;
 
-    impl<'a> Strategy<TransitionContext<'a>> for DefaultTransitionCost {
+    impl<'a, E> Strategy<TransitionContext<'a, E>> for DefaultTransitionCost
+    where
+        E: Entry,
+    {
         type Cost = f64;
 
         const ZETA: f64 = 1.0;
         const BETA: f64 = -1.0;
 
         #[inline]
-        fn calculate(&self, context: TransitionContext<'a>) -> Option<Self::Cost> {
+        fn calculate(&self, context: TransitionContext<'a, E>) -> Option<Self::Cost> {
             // Find the transition lengths (shortest path, trip length)
             let lengths = context.lengths()?;
 
@@ -141,7 +145,7 @@ pub mod transition {
                     .map_path
                     .windows(2)
                     .filter_map(|node| match node {
-                        [a, b] if a.identifier == b.identifier => None,
+                        [a, b] if a.identifier() == b.identifier() => None,
                         [a, b] => context.routing_context.edge(a, b),
                         _ => None,
                     })
@@ -174,38 +178,48 @@ pub mod transition {
 pub mod costing {
     use super::{DefaultEmissionCost, DefaultTransitionCost};
     use crate::route::transition::*;
+    use codec::Entry;
+    use std::marker::PhantomData;
 
-    pub struct CostingStrategies<E, T>
+    pub struct CostingStrategies<E, T, Ent>
     where
+        Ent: Entry,
         E: EmissionStrategy,
-        T: TransitionStrategy,
+        T: TransitionStrategy<Ent>,
     {
         emission: E,
         transition: T,
+        _phantom: std::marker::PhantomData<Ent>,
     }
 
-    impl<E, T> CostingStrategies<E, T>
+    impl<E, T, Ent> CostingStrategies<E, T, Ent>
     where
+        Ent: Entry,
         E: EmissionStrategy,
-        T: TransitionStrategy,
+        T: TransitionStrategy<Ent>,
     {
         pub fn new(emission: E, transition: T) -> Self {
             Self {
                 emission,
                 transition,
+                _phantom: PhantomData,
             }
         }
     }
 
-    impl Default for CostingStrategies<DefaultEmissionCost, DefaultTransitionCost> {
+    impl<E> Default for CostingStrategies<DefaultEmissionCost, DefaultTransitionCost, E>
+    where
+        E: Entry,
+    {
         fn default() -> Self {
             CostingStrategies::new(DefaultEmissionCost::default(), DefaultTransitionCost)
         }
     }
 
-    impl<E, T> Costing<E, T> for CostingStrategies<E, T>
+    impl<E, T, Ent> Costing<E, T, Ent> for CostingStrategies<E, T, Ent>
     where
-        T: TransitionStrategy,
+        Ent: Entry,
+        T: TransitionStrategy<Ent>,
         E: EmissionStrategy,
     {
         #[inline(always)]
@@ -214,15 +228,12 @@ pub mod costing {
         }
 
         #[inline(always)]
-        fn transition(&self, context: TransitionContext) -> u32 {
+        fn transition(&self, context: TransitionContext<Ent>) -> u32 {
             self.transition.cost(context)
         }
     }
 }
 
-#[doc(hidden)]
 pub use costing::*;
-#[doc(hidden)]
 pub use emission::*;
-#[doc(hidden)]
 pub use transition::*;

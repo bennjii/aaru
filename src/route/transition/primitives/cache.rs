@@ -1,16 +1,18 @@
+use crate::route::transition::RoutingContext;
+use codec::Entry;
 use geo::Distance;
 use rustc_hash::FxHashMap;
 use std::fmt::Debug;
-use std::hash::Hash;
 use std::sync::Arc;
 
-use crate::route::transition::RoutingContext;
+pub trait CacheKey: Entry {}
+impl<T> CacheKey for T where T: Entry {}
 
 /// A generic read-through cache for a hashmap-backed data structure
 #[derive(Debug)]
 pub struct CacheMap<K, V, Meta>
 where
-    K: Hash + Eq + Copy + Debug,
+    K: CacheKey,
     V: Debug,
     Meta: Debug,
 {
@@ -21,7 +23,7 @@ where
 impl<K, V, Meta> CacheMap<K, V, Meta>
 where
     CacheMap<K, V, Meta>: Calculable<K, V>,
-    K: Hash + Eq + Copy + Debug,
+    K: CacheKey,
     V: Debug,
     Meta: Debug,
 {
@@ -37,7 +39,7 @@ where
     /// This, therefore does not require [`V`] to be `Clone`. However, it
     /// consumes an owned value of the key, [`K`], which is required for the
     /// call to the [`Calculable::calculate`] function.
-    pub fn query(&mut self, ctx: &RoutingContext, key: K) -> Arc<V> {
+    pub fn query(&mut self, ctx: &RoutingContext<K>, key: K) -> Arc<V> {
         if let Some(value) = self.map.get(&key) {
             return Arc::clone(value);
         }
@@ -51,7 +53,7 @@ where
 
 impl<K, V, Meta> Default for CacheMap<K, V, Meta>
 where
-    K: Hash + Eq + Copy + Debug,
+    K: CacheKey,
     V: Debug,
     Meta: Default + Debug,
 {
@@ -76,35 +78,33 @@ where
 /// The [`SuccessorsCache`], given an underlying map key,
 /// can derive the successors using the routing map and an
 /// upper-bounded dijkstra algorithm.
-pub trait Calculable<K, V> {
+pub trait Calculable<K: CacheKey, V> {
     /// The concrete implementation of the function which derives the
     /// value, [`V`], from the key, [`K`].
     ///
     /// The function parameters include relevant [`RoutingContext`] which
     /// may be required for the calculation.
-    fn calculate(&mut self, ctx: &RoutingContext, key: K) -> V;
+    fn calculate(&mut self, ctx: &RoutingContext<K>, key: K) -> V;
 }
 
 mod successor {
+    use crate::route::transition::*;
     use geo::Haversine;
     use petgraph::Direction;
-
-    use crate::route::graph::NodeIx;
-    use crate::route::transition::*;
 
     use super::*;
 
     /// The weights, given as output from the [`SuccessorsCache::calculate`] function.
-    type SuccessorWeights = Vec<(NodeIx, WeightAndDistance)>;
+    type SuccessorWeights<E> = Vec<(E, WeightAndDistance)>;
 
     /// The cache map definition for the successors.
     ///
     /// It accepts a [`NodeIx`] as input, from which it will obtain all outgoing
     /// edges and obtain the distances to each one as a [`WeightAndDistance`].
-    pub type SuccessorsCache = CacheMap<NodeIx, SuccessorWeights, ()>;
+    pub type SuccessorsCache<E> = CacheMap<E, SuccessorWeights<E>, ()>;
 
-    impl Calculable<NodeIx, SuccessorWeights> for SuccessorsCache {
-        fn calculate(&mut self, ctx: &RoutingContext, key: NodeIx) -> SuccessorWeights {
+    impl<E: CacheKey> Calculable<E, SuccessorWeights<E>> for SuccessorsCache<E> {
+        fn calculate(&mut self, ctx: &RoutingContext<E>, key: E) -> SuccessorWeights<E> {
             // Calc. once
             let source = ctx.map.get_position(&key).unwrap();
 
@@ -143,24 +143,30 @@ mod successor {
 }
 
 mod predicate {
-    use crate::route::graph::NodeIx;
     use crate::route::transition::*;
+    use codec::Entry;
 
     use super::*;
 
     const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
 
     #[derive(Debug)]
-    pub struct PredicateMetadata {
+    pub struct PredicateMetadata<E>
+    where
+        E: Entry,
+    {
         /// The successors cache used to back the successors and
         /// prevent repeated calculations.
-        successors: SuccessorsCache,
+        successors: SuccessorsCache<E>,
 
         /// The threshold by which the solver is bounded, in centimeters.
         threshold_distance: f64,
     }
 
-    impl Default for PredicateMetadata {
+    impl<E> Default for PredicateMetadata<E>
+    where
+        E: Entry,
+    {
         fn default() -> Self {
             Self {
                 successors: SuccessorsCache::default(),
@@ -175,14 +181,14 @@ mod predicate {
     /// dijkstra calculation
     ///
     /// The output from the [`PredicateCache::calculate`] function.
-    type Predicates = FxHashMap<NodeIx, (NodeIx, WeightAndDistance)>;
+    type Predicates<E> = FxHashMap<E, (E, WeightAndDistance)>;
 
     /// The predicate cache through which a backing of [`Predicates`] is
     /// made from a [`NodeIx`] key, cached on first calculation and read thereafter.
-    pub type PredicateCache = CacheMap<NodeIx, Predicates, PredicateMetadata>;
+    pub type PredicateCache<E> = CacheMap<E, Predicates<E>, PredicateMetadata<E>>;
 
-    impl Calculable<NodeIx, Predicates> for PredicateCache {
-        fn calculate(&mut self, ctx: &RoutingContext, key: NodeIx) -> Predicates {
+    impl<E: CacheKey> Calculable<E, Predicates<E>> for PredicateCache<E> {
+        fn calculate(&mut self, ctx: &RoutingContext<E>, key: E) -> Predicates<E> {
             let threshold = self.metadata.threshold_distance;
 
             Dijkstra
@@ -197,7 +203,7 @@ mod predicate {
                     let parent = pre.parent.unwrap_or_default();
                     (pre.node, (parent, pre.total_cost))
                 })
-                .collect::<Predicates>()
+                .collect::<Predicates<E>>()
         }
     }
 }

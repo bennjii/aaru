@@ -1,5 +1,6 @@
 use crate::route::transition::*;
 
+use codec::Entry;
 use pathfinding::num_traits::{ConstZero, Zero};
 use petgraph::prelude::EdgeRef;
 use petgraph::{Directed, Graph};
@@ -9,7 +10,10 @@ use std::sync::{Arc, RwLock};
 
 type LockedGraph<A, B> = Arc<RwLock<Graph<A, B, Directed>>>;
 
-pub struct Candidates {
+pub struct Candidates<E>
+where
+    E: Entry,
+{
     /// The locked graph structure storing the candidates
     /// in their layers, connected piecewise.
     ///
@@ -18,12 +22,15 @@ pub struct Candidates {
     pub(crate) graph: LockedGraph<CandidateRef, CandidateEdge>,
 
     /// Candidate flyweight
-    pub(crate) lookup: HashMap<CandidateId, Candidate>,
+    pub(crate) lookup: HashMap<CandidateId, Candidate<E>>,
 
     ends: Option<(CandidateId, CandidateId)>,
 }
 
-impl Debug for Candidates {
+impl<E> Debug for Candidates<E>
+where
+    E: Entry,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let entries = self.lookup.len();
         write!(
@@ -33,7 +40,10 @@ impl Debug for Candidates {
     }
 }
 
-impl Candidates {
+impl<E> Candidates<E>
+where
+    E: Entry,
+{
     pub fn attach_ends(&mut self, layers: &Layers) -> Option<(CandidateId, CandidateId)> {
         if self.ends.is_some() {
             return None;
@@ -86,7 +96,7 @@ impl Candidates {
     /// Takes an owned value to indicate the structure is [terminal].
     ///
     /// [terminal]: Cannot be used again
-    pub fn collapse(self) -> Option<Collapse> {
+    pub fn collapse(self) -> Option<Collapse<E>> {
         let (source, target) = self.ends?;
 
         // There should be exclusive read-access by the time collapse is called.
@@ -144,12 +154,15 @@ impl Candidates {
     }
 
     /// TODO: Provide docs
-    pub fn candidate(&self, a: &CandidateId) -> Option<Candidate> {
+    pub fn candidate(&self, a: &CandidateId) -> Option<Candidate<E>> {
         self.lookup.get(a).map(|c| *c)
     }
 }
 
-impl Default for Candidates {
+impl<E> Default for Candidates<E>
+where
+    E: Entry,
+{
     fn default() -> Self {
         let graph = Arc::new(RwLock::new(Graph::new()));
         let lookup = HashMap::default();

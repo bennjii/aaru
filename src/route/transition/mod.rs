@@ -12,17 +12,17 @@ pub mod solver;
 pub mod trip;
 
 // Re-Exports
-#[doc(hidden)]
+// #[doc(hidden)]
 pub use candidate::*;
-#[doc(hidden)]
+// #[doc(hidden)]
 pub use costing::*;
-#[doc(hidden)]
+// #[doc(hidden)]
 pub use graph::*;
-#[doc(hidden)]
+// #[doc(hidden)]
 pub use layer::*;
-#[doc(hidden)]
+// #[doc(hidden)]
 pub use primitives::*;
-#[doc(hidden)]
+// #[doc(hidden)]
 pub use solver::*;
-#[doc(hidden)]
+// #[doc(hidden)]
 pub use trip::*;

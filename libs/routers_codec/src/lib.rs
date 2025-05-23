@@ -7,3 +7,6 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 pub mod osm;
+pub mod primitive;
+
+pub use primitive::Entry;

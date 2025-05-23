@@ -1,5 +1,4 @@
 use crate::route::transition::WeightAndDistance;
-use codec::osm::element::variants::OsmEntryId;
 
 use indexmap::IndexMap;
 use indexmap::map::Entry;
@@ -11,7 +10,6 @@ use std::hash::{BuildHasherDefault, Hash};
 
 type FxIndexMap<K, V> = IndexMap<K, V, BuildHasherDefault<FxHasher>>;
 
-type Node = OsmEntryId;
 type Cost = WeightAndDistance;
 
 #[derive(Debug)]
@@ -44,31 +42,38 @@ impl Ord for SmallestHolder {
 }
 
 /// Struct returned by [`dijkstra_reach`].
-pub struct DijkstraReachable<FN> {
+pub struct DijkstraReachable<FN, E>
+where
+    E: codec::Entry,
+{
     to_see: BinaryHeap<SmallestHolder>,
     seen: FxHashSet<usize>,
-    parents: FxIndexMap<Node, (usize, Cost)>,
+    parents: FxIndexMap<E, (usize, Cost)>,
     successors: FN,
 }
 
 /// Information about a node reached by [`dijkstra_reach`].
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct DijkstraReachableItem {
+pub struct DijkstraReachableItem<E>
+where
+    E: codec::Entry,
+{
     /// The node that was reached by [`dijkstra_reach`].
-    pub node: Node,
+    pub node: E,
     /// The previous node that the current node came from.
     /// If the node is the first node, there will be no parent.
-    pub parent: Option<Node>,
+    pub parent: Option<E>,
     /// The total cost from the starting node.
     pub total_cost: Cost,
 }
 
-impl<FN, IN> Iterator for DijkstraReachable<FN>
+impl<FN, IN, E> Iterator for DijkstraReachable<FN, E>
 where
-    FN: FnMut(&Node) -> IN,
-    IN: Iterator<Item = (Node, Cost)>,
+    FN: FnMut(&E) -> IN,
+    IN: Iterator<Item = (E, Cost)>,
+    E: codec::Entry,
 {
-    type Item = DijkstraReachableItem;
+    type Item = DijkstraReachableItem<E>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(SmallestHolder { cost, index }) = self.to_see.pop() {
@@ -127,10 +132,11 @@ impl Dijkstra {
     ///
     /// The `successors` function receives the current node, and returns
     /// an iterator of successors associated with their move cost.
-    pub fn reach<FN, IN>(&self, start: &Node, successors: FN) -> DijkstraReachable<FN>
+    pub fn reach<FN, IN, E>(&self, start: &E, successors: FN) -> DijkstraReachable<FN, E>
     where
-        FN: FnMut(&Node) -> IN,
-        IN: Iterator<Item = (Node, Cost)>,
+        E: codec::Entry,
+        FN: FnMut(&E) -> IN,
+        IN: Iterator<Item = (E, Cost)>,
     {
         let mut to_see: BinaryHeap<SmallestHolder> = BinaryHeap::with_capacity(256);
         to_see.push(SmallestHolder {
@@ -138,7 +144,7 @@ impl Dijkstra {
             index: 0,
         });
 
-        let mut parents: FxIndexMap<Node, (usize, Cost)> =
+        let mut parents: FxIndexMap<E, (usize, Cost)> =
             FxIndexMap::with_capacity_and_hasher(64, BuildHasherDefault::<FxHasher>::default());
 
         parents.insert(*start, (usize::MAX, Zero::zero()));

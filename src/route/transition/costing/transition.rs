@@ -1,22 +1,25 @@
 use crate::route::transition::candidate::{Candidate, CandidateId};
 use crate::route::transition::{ResolutionMethod, RoutingContext, Strategy, Trip, VirtualTail};
-use codec::osm::element::variants::OsmEntryId;
+use codec::Entry;
 use geo::{Distance, Haversine};
 
-pub trait TransitionStrategy: for<'a> Strategy<TransitionContext<'a>> {}
-impl<T> TransitionStrategy for T where T: for<'a> Strategy<TransitionContext<'a>> {}
+pub trait TransitionStrategy<E>: for<'a> Strategy<TransitionContext<'a, E>> {}
+impl<T, E> TransitionStrategy<E> for T where T: for<'a> Strategy<TransitionContext<'a, E>> {}
 
 #[derive(Clone, Debug)]
-pub struct TransitionContext<'a> {
+pub struct TransitionContext<'a, E>
+where
+    E: Entry + 'a,
+{
     /// The optimal path travelled between the
     /// source candidate and target candidate, used
     /// to determine trip complexity (and therefore
     /// cost) often through heuristics such as
     /// immediate and summative angular rotation.
-    pub optimal_path: Trip,
+    pub optimal_path: Trip<E>,
 
     /// A list of all OSM nodes pertaining to the optimal trip path.
-    pub map_path: &'a [OsmEntryId],
+    pub map_path: &'a [E],
 
     /// The source candidate indicating the edge and
     /// position for which the path begins at.
@@ -28,7 +31,7 @@ pub struct TransitionContext<'a> {
 
     /// Further context to provide access to determine routing information,
     /// such as node positions upon the map, and referencing other candidates.
-    pub routing_context: RoutingContext<'a>,
+    pub routing_context: RoutingContext<'a, E>,
 
     /// The length between the layer nodes
     pub layer_width: f64,
@@ -79,29 +82,32 @@ impl TransitionLengths {
     }
 }
 
-impl TransitionContext<'_> {
+impl<E> TransitionContext<'_, E>
+where
+    E: Entry,
+{
     /// Obtains the source [candidate](Candidate) from the context.
-    pub fn source_candidate(&self) -> Candidate {
+    pub fn source_candidate(&self) -> Candidate<E> {
         self.routing_context
             .candidate(self.source_candidate)
             .expect("source candidate not found in routing context")
     }
 
     /// Obtains the target [candidate](Candidate) from the context.
-    pub fn target_candidate(&self) -> Candidate {
+    pub fn target_candidate(&self) -> Candidate<E> {
         self.routing_context
             .candidate(self.target_candidate)
             .expect("target candidate not found in routing context")
     }
 
     /// Returns a [candidate](Candidate) pair of (source, target)
-    pub fn candidates(&self) -> (Candidate, Candidate) {
+    pub fn candidates(&self) -> (Candidate<E>, Candidate<E>) {
         (self.source_candidate(), self.target_candidate())
     }
 
     /// Calculates the total offset, of both source and target positions within the context,
     /// considering the resolution method requested
-    pub fn total_offset(&self, source: &Candidate, target: &Candidate) -> Option<f64> {
+    pub fn total_offset(&self, source: &Candidate<E>, target: &Candidate<E>) -> Option<f64> {
         match self.requested_resolution_method {
             ResolutionMethod::Standard => {
                 // Also validate that this isn't the only way we need to calculate the distances,

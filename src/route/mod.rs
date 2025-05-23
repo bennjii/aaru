@@ -1,14 +1,11 @@
-#[doc(hidden)]
 pub mod error;
-#[doc(hidden)]
 pub mod graph;
-#[doc(hidden)]
 pub mod scan;
+pub mod transition;
+
 #[doc(hidden)]
 #[cfg(test)]
 mod test;
-#[doc(hidden)]
-pub mod transition;
 
 #[doc(inline)]
 pub use graph::Graph;

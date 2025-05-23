@@ -1,5 +1,5 @@
 use crate::route::transition::*;
-use codec::osm::element::variants::OsmEntryId;
+use codec::primitive::Entry;
 
 #[derive(Debug, Default, Copy, Clone)]
 pub enum ResolutionMethod {
@@ -14,19 +14,25 @@ pub enum ResolutionMethod {
 /// It requests itself to be resolved in the heuristic-layer by a given
 /// [resolution_method](#field.resolution_method).
 #[derive(Clone)]
-pub struct Reachable {
+pub struct Reachable<E>
+where
+    E: Entry,
+{
     pub source: CandidateId,
     pub target: CandidateId,
-    pub path: Vec<OsmEntryId>,
+    pub path: Vec<E>,
 
     pub(crate) resolution_method: ResolutionMethod,
 }
 
-impl Reachable {
+impl<E> Reachable<E>
+where
+    E: Entry,
+{
     /// Creates a new reachable element, supplied a source, target and path.
     ///
     /// This assumes the default resolution method.
-    pub fn new(source: CandidateId, target: CandidateId, path: Vec<OsmEntryId>) -> Self {
+    pub fn new(source: CandidateId, target: CandidateId, path: Vec<E>) -> Self {
         Self {
             source,
             target,
@@ -56,7 +62,7 @@ impl Reachable {
 /// in order to solve the transition graph.
 ///
 /// Functionality is implemented using the [`Solver::solve`] method.
-pub trait Solver {
+pub trait Solver<Ent> {
     /// Refines a single node within an initial layer to all nodes in the
     /// following layer with their respective emission and transition
     /// probabilities in the hidden markov model.
@@ -66,8 +72,9 @@ pub trait Solver {
     /// or due to blown-out costings. There are other reasons this may occur given
     /// the functionality is statistical and therefore prone to out-of-bound failures
     /// which are less deterministic than a brute-force model.
-    fn solve<E, T>(&self, transition: Transition<E, T>) -> Result<Collapse, MatchError>
+    fn solve<E, T>(&self, transition: Transition<E, T, Ent>) -> Result<Collapse<Ent>, MatchError>
     where
+        Ent: Entry,
         E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy + Send + Sync;
+        T: TransitionStrategy<Ent> + Send + Sync;
 }

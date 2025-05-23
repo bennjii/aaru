@@ -1,6 +1,7 @@
 use crate::route::transition::*;
 use crate::route::{Graph, Scan};
 
+use codec::Entry;
 use geo::{Distance, Haversine, Point};
 use itertools::Itertools;
 use measure_time::debug_time;
@@ -42,14 +43,15 @@ const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 250m
 /// represents a candidate transition point, within the `distance`
 /// search radius of the linestring point, which was found by the
 /// projection of the linestring point upon the closest edges within this radius.
-pub struct LayerGenerator<'a, E, T>
+pub struct LayerGenerator<'a, E, T, Ent>
 where
+    Ent: Entry,
     E: EmissionStrategy,
-    T: TransitionStrategy,
+    T: TransitionStrategy<Ent>,
 {
     /// The maximum distance by which the generator will search for nodes,
     /// allowing it to find edges which may be comprised of distant nodes.
-    search_distance: f64,
+    pub search_distance: f64,
 
     /// The maximum distance by which matched candidates will be found,
     /// this directly minimises the cost to compute since it impacts the
@@ -58,25 +60,26 @@ where
     /// A high search distance may take longer to compute but will give
     /// more accurate candidates as it can find edges who's comprising nodes
     /// are far apart.
-    filter_distance: f64,
+    pub filter_distance: f64,
 
     /// The costing heuristics required to generate the layers.
     ///
     /// This is required as a caching technique since the costs for a candidate
     /// need only be calculated once.
-    heuristics: &'a CostingStrategies<E, T>,
+    pub heuristics: &'a CostingStrategies<E, T, Ent>,
 
     /// The routing map used to pull candidates from, and provide layout context.
-    map: &'a Graph,
+    map: &'a Graph<Ent>,
 }
 
-impl<'a, E, T> LayerGenerator<'a, E, T>
+impl<'a, E, T, Ent> LayerGenerator<'a, E, T, Ent>
 where
+    Ent: Entry,
     E: EmissionStrategy + Send + Sync,
-    T: TransitionStrategy + Send + Sync,
+    T: TransitionStrategy<Ent> + Send + Sync,
 {
     /// Creates a [`LayerGenerator`] from a map and costing heuristics.
-    pub fn new(map: &'a Graph, heuristics: &'a CostingStrategies<E, T>) -> Self {
+    pub fn new(map: &'a Graph<Ent>, heuristics: &'a CostingStrategies<E, T, Ent>) -> Self {
         LayerGenerator {
             map,
             heuristics,
@@ -88,7 +91,7 @@ where
 
     /// Utilises the configured search and filter distances to produce
     /// the candidates and layers required to match the initial input.
-    pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates) {
+    pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates<Ent>) {
         let candidates = Candidates::default();
 
         // In parallel, create each layer, and collect into a single structure.

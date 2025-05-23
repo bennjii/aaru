@@ -1,12 +1,8 @@
 //! Candidates are [...]
 
-#[doc(hidden)]
 pub mod collapse;
-#[doc(hidden)]
 pub mod entry;
-#[doc(hidden)]
 pub mod graph;
-#[doc(hidden)]
 pub mod ident;
 
 #[doc(inline)]

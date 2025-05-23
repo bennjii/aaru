@@ -13,6 +13,8 @@ path = "./src/lib.rs"
 bench = false
 
 [dependencies]
+num-traits = "0.2.19"
+
 # TODO: Remove dependency.
 either = "1.13.0"
 

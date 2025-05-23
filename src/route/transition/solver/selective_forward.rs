@@ -7,24 +7,29 @@ use std::cell::RefCell;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
+use codec::Entry;
 use geo::{Distance, Haversine};
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::*;
 use petgraph::Direction;
 use petgraph::prelude::EdgeRef;
 
-type ProcessedReachable = (CandidateId, Reachable);
-
 /// A Upper-Bounded Dijkstra (UBD) algorithm.
 ///
 /// TODO: Docs
-pub struct SelectiveForwardSolver {
+pub struct SelectiveForwardSolver<Ent>
+where
+    Ent: Entry,
+{
     // Internally holds a successors cache
-    predicate: Arc<Mutex<PredicateCache>>,
-    reachable_hash: RefCell<FxHashMap<(usize, usize), Reachable>>,
+    predicate: Arc<Mutex<PredicateCache<Ent>>>,
+    reachable_hash: RefCell<FxHashMap<(usize, usize), Reachable<Ent>>>,
 }
 
-impl Default for SelectiveForwardSolver {
+impl<Ent> Default for SelectiveForwardSolver<Ent>
+where
+    Ent: Entry,
+{
     fn default() -> Self {
         Self {
             predicate: Arc::new(Mutex::new(PredicateCache::default())),
@@ -33,8 +38,11 @@ impl Default for SelectiveForwardSolver {
     }
 }
 
-impl SelectiveForwardSolver {
-    pub fn use_cache(self, cache: Arc<Mutex<PredicateCache>>) -> Self {
+impl<Ent> SelectiveForwardSolver<Ent>
+where
+    Ent: Entry,
+{
+    pub fn use_cache(self, cache: Arc<Mutex<PredicateCache<Ent>>>) -> Self {
         Self {
             predicate: cache,
             ..self
@@ -75,14 +83,14 @@ impl SelectiveForwardSolver {
 
     fn reach<'a, 'b, E, T>(
         &'b self,
-        transition: &'b Transition<'b, E, T>,
-        context: RoutingContext<'b>,
+        transition: &'b Transition<'b, E, T, Ent>,
+        context: RoutingContext<'b, Ent>,
         (start, end): (CandidateId, CandidateId),
         source: &CandidateId,
     ) -> Vec<(CandidateId, CandidateEdge)>
     where
         E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy + Send + Sync,
+        T: TransitionStrategy<Ent> + Send + Sync,
         'b: 'a,
     {
         let graph_ref = Arc::clone(&transition.candidates.graph);
@@ -163,10 +171,10 @@ impl SelectiveForwardSolver {
     /// to reach the target.
     fn reachable<'a>(
         &self,
-        ctx: RoutingContext<'a>,
+        ctx: RoutingContext<'a, Ent>,
         source: &CandidateId,
         targets: &'a [CandidateId],
-    ) -> Option<Vec<Reachable>> {
+    ) -> Option<Vec<Reachable<Ent>>> {
         let source_candidate = ctx.candidate(source)?;
 
         // Upper-Bounded reachable map containing a Child:Parent relation
@@ -228,11 +236,17 @@ impl SelectiveForwardSolver {
     }
 }
 
-impl Solver for SelectiveForwardSolver {
-    fn solve<E, T>(&self, mut transition: Transition<E, T>) -> Result<Collapse, MatchError>
+impl<Ent> Solver<Ent> for SelectiveForwardSolver<Ent>
+where
+    Ent: Entry,
+{
+    fn solve<E, T>(
+        &self,
+        mut transition: Transition<E, T, Ent>,
+    ) -> Result<Collapse<Ent>, MatchError>
     where
         E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy + Send + Sync,
+        T: TransitionStrategy<Ent> + Send + Sync,
     {
         let (start, end) = {
             // Compute cost ~= free

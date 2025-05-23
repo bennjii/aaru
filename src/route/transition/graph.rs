@@ -1,6 +1,7 @@
 use crate::route::Graph;
 use crate::route::transition::*;
 
+use codec::primitive::Entry;
 use geo::LineString;
 
 type LayerId = usize;
@@ -20,11 +21,12 @@ type NodeId = usize;
 ///
 /// ```rust
 /// use geo::LineString;
+/// use codec::osm::element::variants::OsmEntryId;
 /// use routers::route::{Graph, Transition};
 /// use routers::route::transition::{CostingStrategies, SelectiveForwardSolver};
 ///
 /// // An example function to find the interpolated path of a trip.
-/// fn match_trip(map: &Graph, route: LineString) -> Option<LineString> {
+/// fn match_trip(map: &Graph<OsmEntryId>, route: LineString) -> Option<LineString> {
 ///     // Use the default costing strategies
 ///     let costing = CostingStrategies::default();
 ///
@@ -42,22 +44,24 @@ type NodeId = usize;
 ///     Some(solution.interpolated(map))
 /// }
 /// ```
-pub struct Transition<'a, E, T>
+pub struct Transition<'a, E, T, Ent>
 where
+    Ent: Entry,
     E: EmissionStrategy,
-    T: TransitionStrategy,
+    T: TransitionStrategy<Ent>,
 {
-    pub(crate) map: &'a Graph,
-    pub(crate) heuristics: CostingStrategies<E, T>,
+    pub(crate) map: &'a Graph<Ent>,
+    pub(crate) heuristics: CostingStrategies<E, T, Ent>,
 
-    pub(crate) candidates: Candidates,
+    pub(crate) candidates: Candidates<Ent>,
     pub(crate) layers: Layers,
 }
 
-impl<'a, E, T> Transition<'a, E, T>
+impl<'a, E, T, Ent> Transition<'a, E, T, Ent>
 where
+    Ent: Entry,
     E: EmissionStrategy + Send + Sync,
-    T: TransitionStrategy + Send + Sync,
+    T: TransitionStrategy<Ent> + Send + Sync,
 {
     /// Creates a new transition graph from the input linestring and heuristics.
     ///
@@ -70,10 +74,10 @@ where
     /// Therefore, this function may be more expensive than intended for some cases,
     /// plan accordingly.
     pub fn new(
-        map: &'a Graph,
+        map: &'a Graph<Ent>,
         linestring: LineString,
-        heuristics: CostingStrategies<E, T>,
-    ) -> Transition<'a, E, T> {
+        heuristics: CostingStrategies<E, T, Ent>,
+    ) -> Transition<'a, E, T, Ent> {
         let points = linestring.into_points();
         let generator = LayerGenerator::new(map, &heuristics);
 
@@ -89,7 +93,7 @@ where
     }
 
     /// Converts the transition graph into a [`RoutingContext`].
-    pub fn context(&self) -> RoutingContext {
+    pub fn context(&self) -> RoutingContext<Ent> {
         RoutingContext {
             candidates: &self.candidates,
             map: self.map,
@@ -97,7 +101,7 @@ where
     }
 
     /// Solves the transition graph, using the provided [`Solver`].
-    pub fn solve(self, solver: impl Solver) -> Result<Collapse, MatchError> {
+    pub fn solve(self, solver: impl Solver<Ent>) -> Result<Collapse<Ent>, MatchError> {
         // Indirection to call.
         solver.solve(self)
     }
@@ -112,7 +116,7 @@ where
     /// not be re-used.
     ///
     /// [HMM]: https://en.wikipedia.org/wiki/Hidden_Markov_model
-    pub(crate) fn collapse(self) -> Result<Collapse, MatchError> {
+    pub(crate) fn collapse(self) -> Result<Collapse<Ent>, MatchError> {
         // Use the candidates to collapse the graph into a single route.
         self.candidates
             .collapse()
