@@ -104,6 +104,7 @@ mod successor {
     pub type SuccessorsCache<E> = CacheMap<E, SuccessorWeights<E>, ()>;
 
     impl<E: CacheKey> Calculable<E, SuccessorWeights<E>> for SuccessorsCache<E> {
+        #[inline]
         fn calculate(&mut self, ctx: &RoutingContext<E>, key: E) -> SuccessorWeights<E> {
             // Calc. once
             let source = ctx.map.get_position(&key).unwrap();
@@ -188,6 +189,7 @@ mod predicate {
     pub type PredicateCache<E> = CacheMap<E, Predicates<E>, PredicateMetadata<E>>;
 
     impl<E: CacheKey> Calculable<E, Predicates<E>> for PredicateCache<E> {
+        #[inline]
         fn calculate(&mut self, ctx: &RoutingContext<E>, key: E) -> Predicates<E> {
             let threshold = self.metadata.threshold_distance;
 

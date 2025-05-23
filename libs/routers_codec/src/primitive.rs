@@ -6,7 +6,7 @@ use std::hash::Hash;
 pub trait Entry:
     Default + Copy + Clone + PartialEq + Eq + Ord + Hash + Debug + Send + Sync
 {
-    fn identifier(&self) -> impl num_traits::PrimInt;
+    fn identifier(&self) -> i64;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
