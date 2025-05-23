@@ -2,10 +2,13 @@
 //! Has methods for accessing appropriate
 //! tags for graph representation.
 
-use crate::osm::PrimitiveBlock;
-use crate::{osm, osm::relation::MemberType};
+#[cfg(debug_assertions)]
+use crate::osm::relation::MemberType;
 
-use super::common::{OsmEntryId, ReferenceKey, References, Referential, Tagable, Tags};
+use super::common::{OsmEntryId, ReferenceKey, References, Referential, Taggable, Tags};
+use crate::osm;
+use crate::osm::PrimitiveBlock;
+use crate::osm::element::variants::Intermediate;
 
 #[derive(Clone, Debug)]
 pub struct Way {
@@ -40,7 +43,7 @@ impl Way {
     }
 }
 
-impl Tagable for osm::Way {
+impl Taggable for osm::Way {
     fn indices(&self) -> impl Iterator<Item = (&u32, &u32)> {
         self.keys.iter().zip(self.vals.iter())
     }
@@ -48,8 +51,11 @@ impl Tagable for osm::Way {
 
 impl Referential for osm::Way {
     fn indices(&self) -> impl Iterator<Item = ReferenceKey> {
-        self.refs
-            .iter()
-            .map(|id| (&-1i32, id, &(MemberType::Node as i32)))
+        self.refs.iter().map(|id| Intermediate {
+            role: &-1i32,
+            index: id,
+            #[cfg(debug_assertions)]
+            member_type: &(MemberType::Node as i32),
+        })
     }
 }
