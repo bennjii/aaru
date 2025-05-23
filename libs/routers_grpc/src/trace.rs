@@ -10,35 +10,26 @@
 //! OTEL_SERVICE_NAME=routers
 //! ```
 
-use opentelemetry::trace::TracerProvider;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, Registry};
 
-/// Initialises the tracer, using tracing subscription.
-/// This is optional, not calling this function will simply
-/// not log traces.
-pub fn initialize_tracer() {
-    // The remote server to log to...
-    let exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
-        .with_tls_config(Default::default());
+pub struct Tracer;
 
-    // Initialize OpenTelemetry OLTP Protoc Pipeline
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(exporter)
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Couldn't create OTLP tracer")
-        .tracer("routers");
+impl Tracer {
+    /// Initialises the tracer, using tracing subscription.
+    /// This is optional, not calling this function will simply
+    /// not log traces.
+    pub fn new() {
+        let formatting = tracing_subscriber::fmt::layer()
+            .with_thread_ids(true) // include the thread ID of the current thread
+            .with_thread_names(true) // include the name of the current thread
+            .compact();
 
-    // Link OTEL and STDOUT subscribers
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-    let fmt_layer = tracing_subscriber::fmt::layer().compact();
-
-    // Initialise tracing with subscribers and environment filter
-    let registry = tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::from_default_env())
-        .with(fmt_layer);
-
-    registry.with(otel_layer).init();
+        // Initialise tracing with subscribers and environment filter
+        Registry::default()
+            .with(EnvFilter::from_default_env())
+            .with(formatting)
+            .init()
+    }
 }

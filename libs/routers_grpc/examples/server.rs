@@ -1,10 +1,10 @@
+use routers_fixtures::{LOS_ANGELES, fixture_path};
 use routers_grpc::r#match::MatchServiceServer;
 use routers_grpc::optimise::OptimisationServiceServer;
 use routers_grpc::proximity::ProximityServiceServer;
+use routers_grpc::{Tracer, proto, services::RouteService};
 
 use dotenv::dotenv;
-use routers_fixtures::{LOS_ANGELES, fixture_path};
-use routers_grpc::{initialize_tracer, proto, services::RouteService};
 use std::sync::Arc;
 use tonic::codegen::http::Method;
 use tonic::transport::Server;
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv()?;
 
     // Create the tracer first.
-    initialize_tracer();
+    Tracer::new();
 
     // Create the router
     tracing::info!("Creating Router");
