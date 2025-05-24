@@ -1,5 +1,6 @@
 use crate::transition::*;
 use codec::primitive::Entry;
+use itertools::Either;
 
 #[derive(Debug, Default, Copy, Clone)]
 pub enum ResolutionMethod {
@@ -20,7 +21,7 @@ where
 {
     pub source: CandidateId,
     pub target: CandidateId,
-    pub path: Vec<E>,
+    pub path: Vec<Edge<E>>, // TODO: => Helper method to remove the duplicate node id's to crt8 a vec<e>
 
     pub(crate) resolution_method: ResolutionMethod,
 }
@@ -32,7 +33,7 @@ where
     /// Creates a new reachable element, supplied a source, target and path.
     ///
     /// This assumes the default resolution method.
-    pub fn new(source: CandidateId, target: CandidateId, path: Vec<E>) -> Self {
+    pub fn new(source: CandidateId, target: CandidateId, path: Vec<Edge<E>>) -> Self {
         Self {
             source,
             target,
@@ -47,6 +48,21 @@ where
         Self {
             resolution_method: ResolutionMethod::DistanceOnly,
             ..self
+        }
+    }
+
+    /// A collection of all nodes within the reachable's path.
+    /// This represents the path as a collection of nodes, as opposed
+    /// to the default representation being a collection of edges.
+    pub fn path_nodes(&self) -> impl Iterator<Item = E> {
+        match self.path.last() {
+            Some(last) => Either::Left(
+                self.path
+                    .iter()
+                    .map(|edge| edge.source)
+                    .chain(std::iter::once(last.target)),
+            ),
+            None => Either::Right(std::iter::empty()),
         }
     }
 

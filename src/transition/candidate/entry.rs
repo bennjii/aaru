@@ -18,6 +18,7 @@ use std::ops::Add;
 /// Meaning, any edge which is bidirectional must therefore be converted into two edges, each
 /// with a different direction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// TODO: Restructure, Rename or Revisit (Confusing)
 pub struct DirectionAwareEdgeId<E>
 where
     E: Entry,

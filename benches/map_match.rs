@@ -3,19 +3,19 @@ use routers_fixtures::{
     fixture,
 };
 
-use routers::Graph;
 use routers::transition::*;
+use routers::{Graph, Match};
 
 use criterion::{black_box, criterion_main};
-use geo::{LineString, coord};
+use geo::LineString;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use wkt::{ToWkt, TryFromWkt};
+use wkt::TryFromWkt;
 
 struct MapMatchScenario {
     name: &'static str,
     input_linestring: &'static str,
-    expected_linestring: &'static str,
+    expected_linestring: &'static [i64],
 }
 
 struct GraphArea {
@@ -87,19 +87,12 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                         .map_match(coordinates.clone(), Arc::clone(&lookup))
                         .expect("Match must complete successfully");
 
-                    let linestring = result
-                        .matched()
-                        .iter()
-                        .map(|node| {
-                            coord! {
-                                x: node.position.x(),
-                                y: node.position.y(),
-                            }
-                        })
-                        .collect::<LineString>();
+                    let edges = result
+                        .edges()
+                        .map(|edge| edge.id.index().identifier)
+                        .collect::<Vec<_>>();
 
-                    let _as_wkt_string = linestring.wkt_string();
-                    // assert_eq!(as_wkt_string, sc.expected_linestring);
+                    assert_eq!(edges, sc.expected_linestring);
                 })
             });
         });

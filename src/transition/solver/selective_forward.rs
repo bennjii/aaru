@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use codec::Entry;
 use geo::{Distance, Haversine};
+use itertools::Itertools;
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::*;
 use petgraph::Direction;
@@ -128,11 +129,13 @@ where
                 let sl = transition.layers.layers.get(source_layer)?;
                 let tl = transition.layers.layers.get(target_layer)?;
 
+                let path_vec = reachable.path_nodes().collect_vec();
+
                 let layer_width = Haversine.distance(sl.origin, tl.origin);
+                let optimal_path = Trip::new_with_map(transition.map, &path_vec);
 
                 let transition_cost = transition.heuristics.transition(TransitionContext {
-                    optimal_path: Trip::new_with_map(transition.map, &reachable.path),
-                    map_path: &reachable.path,
+                    map_path: &path_vec,
                     requested_resolution_method: reachable.resolution_method,
 
                     source_candidate: &reachable.source,
@@ -140,6 +143,7 @@ where
                     routing_context: context,
 
                     layer_width,
+                    optimal_path,
                 });
 
                 let emission_cost = transition
@@ -227,7 +231,18 @@ where
                         &predicate_map,
                     )?;
 
-                    Some(Reachable::new(*source, *target, path_to_target))
+                    let path = path_to_target
+                        .windows(2)
+                        .filter_map(|pair| {
+                            if let [a, b] = pair {
+                                return ctx.edge(a, b);
+                            }
+
+                            None
+                        })
+                        .collect::<Vec<_>>();
+
+                    Some(Reachable::new(*source, *target, path))
                 })
                 .collect::<Vec<_>>()
         };

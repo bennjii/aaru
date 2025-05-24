@@ -1,9 +1,9 @@
+use routers::Graph;
 use routers_fixtures::{DISTRICT_OF_COLUMBIA, fixture_path};
 
 use criterion::criterion_main;
 use log::info;
 
-use routers::route::Graph;
 use std::path::Path;
 
 fn ingest_as_full_graph() {

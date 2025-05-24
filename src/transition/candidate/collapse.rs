@@ -71,14 +71,19 @@ where
                 let target = self.candidates.candidate(&reachable.target).unwrap();
 
                 let path = reachable
-                    .path
-                    .iter()
-                    .filter_map(|node| map.get_position(node));
+                    .path_nodes()
+                    .filter_map(|node| map.get_position(&node));
 
                 std::iter::repeat_n(source.position, if index == 0 { 1 } else { 0 })
                     .chain(path)
                     .chain(std::iter::once(target.position))
             })
             .collect::<LineString>()
+    }
+
+    pub fn edges(self) -> impl Iterator<Item = Edge<E>> {
+        self.interpolated
+            .into_iter()
+            .flat_map(|reachable| reachable.path)
     }
 }
