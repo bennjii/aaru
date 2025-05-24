@@ -92,7 +92,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                         .map(|edge| edge.id.index().identifier)
                         .collect::<Vec<_>>();
 
-                    assert_eq!(edges, sc.expected_linestring);
+                    similar_asserts::assert_eq!(edges, sc.expected_linestring);
                 })
             });
         });

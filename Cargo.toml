@@ -129,6 +129,7 @@ wkt = { workspace = true }
 criterion = { workspace = true }
 
 routers_fixtures = { path = "libs/routers_fixtures" }
+similar-asserts = "1.7.0"
 
 [[bench]]
 name = "map_match"
