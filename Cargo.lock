@@ -2400,6 +2400,7 @@ dependencies = [
  "rustc-hash",
  "scc",
  "similar-asserts",
+ "thiserror 2.0.12",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",

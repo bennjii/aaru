@@ -26,7 +26,7 @@ impl MatchService for Arc<RouteService> {
 
         let result = self
             .graph
-            .map_match(coordinates, Arc::clone(&self.lookup))
+            .map_match(coordinates)
             .map_err(|err| Status::internal(format!("{:?}", err)))?;
 
         let snapped_shape = result

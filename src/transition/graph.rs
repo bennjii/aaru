@@ -120,6 +120,6 @@ where
         // Use the candidates to collapse the graph into a single route.
         self.candidates
             .collapse()
-            .ok_or(MatchError::CollapseFailure)
+            .map_err(MatchError::CollapseFailure)
     }
 }

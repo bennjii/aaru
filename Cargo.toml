@@ -123,6 +123,7 @@ rayon = { workspace = true }
 scc = { workspace = true }
 itertools = { workspace = true }
 indexmap = { workspace = true }
+thiserror = "2.0.12"
 
 [dev-dependencies]
 wkt = { workspace = true }
