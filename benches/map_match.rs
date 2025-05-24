@@ -9,7 +9,6 @@ use routers::{Graph, Match};
 use criterion::{black_box, criterion_main};
 use geo::LineString;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 use wkt::TryFromWkt;
 
 struct MapMatchScenario {
@@ -63,8 +62,6 @@ fn target_benchmark(c: &mut criterion::Criterion) {
 
     group.significance_level(0.1).sample_size(30);
 
-    let lookup = Arc::new(Mutex::new(PredicateCache::default()));
-
     MATCH_CASES.into_iter().for_each(|ga| {
         let path = Path::new(fixture!(ga.source_file))
             .as_os_str()
@@ -78,10 +75,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                 .expect("Linestring must parse successfully.");
 
             let _ = graph
-                .map_match(
-                    black_box(coordinates.clone()),
-                    black_box(Arc::clone(&lookup)),
-                )
+                .map_match(black_box(coordinates.clone()))
                 .expect("Match must complete successfully");
 
             group.bench_function(format!("layer-gen: {}", sc.name), |b| {
@@ -97,7 +91,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
             group.bench_function(format!("match: {}", sc.name), |b| {
                 b.iter(|| {
                     let result = graph
-                        .map_match(coordinates.clone(), Arc::clone(&lookup))
+                        .map_match(coordinates.clone())
                         .expect("Match must complete successfully");
 
                     let edges = result
