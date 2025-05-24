@@ -62,22 +62,19 @@ fn compare_to_osmpbf() {
     let mut primitive_blocks = 0;
     let mut header_blocks = 0;
 
-    for block in reader {
-        match block {
-            Ok(b) => match b.get_type() {
-                BlobType::OsmHeader => {
-                    if b.to_headerblock().is_ok() {
-                        header_blocks += 1;
-                    }
+    for blob in reader.flatten() {
+        match blob.get_type() {
+            BlobType::OsmHeader => {
+                if blob.to_headerblock().is_ok() {
+                    header_blocks += 1;
                 }
-                BlobType::OsmData => {
-                    if b.to_primitiveblock().is_ok() {
-                        primitive_blocks += 1;
-                    }
+            }
+            BlobType::OsmData => {
+                if blob.to_primitiveblock().is_ok() {
+                    primitive_blocks += 1;
                 }
-                _ => {}
-            },
-            Err(_) => {}
+            }
+            _ => {}
         }
     }
 
@@ -112,12 +109,12 @@ fn target_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("iterator_target");
     group.significance_level(0.1).sample_size(30);
 
-    group.bench_function("iterate_blocks_each", |b| b.iter(|| iterate_blocks_each()));
+    group.bench_function("iterate_blocks_each", |b| b.iter(iterate_blocks_each));
     group.bench_function("parallel_iterate_blocks_each", |b| {
-        b.iter(|| parallel_iterate_blocks_each())
+        b.iter(parallel_iterate_blocks_each)
     });
-    group.bench_function("compared_to_osmpbf", |b| b.iter(|| compare_to_osmpbf()));
-    group.bench_function("ingest_and_count", |b| b.iter(|| ingest_and_count()));
+    group.bench_function("compared_to_osmpbf", |b| b.iter(compare_to_osmpbf));
+    group.bench_function("ingest_and_count", |b| b.iter(ingest_and_count));
 
     group.finish();
 }

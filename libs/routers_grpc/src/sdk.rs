@@ -1,11 +1,11 @@
 //! Defines internal translations and relevant utilities
 //! in order to make the model useful as an SDK.
 
-use crate::model::Coordinate;
-use std::fmt::Error as StdError;
-
 use crate::r#match::MatchResponse;
+use crate::model::Coordinate;
+
 use geo::{Coord, LineString, coord};
+use std::fmt::Error as StdError;
 use std::ops::Deref;
 
 impl From<Coord> for Coordinate {
@@ -24,6 +24,18 @@ impl From<Coordinates> for LineString {
         val.iter()
             .map(|c| coord! { x: c.longitude, y: c.latitude })
             .collect::<LineString>()
+    }
+}
+
+impl From<LineString> for Coordinates {
+    fn from(value: LineString) -> Self {
+        Coordinates(value.into_iter().map(|point| point.into()).collect())
+    }
+}
+
+impl Coordinates {
+    pub fn linestring(self) -> LineString {
+        LineString::from(self)
     }
 }
 

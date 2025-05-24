@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv()?;
 
     // Create the tracer first.
-    Tracer::new();
+    Tracer::init();
 
     // Create the router
     tracing::info!("Creating Router");

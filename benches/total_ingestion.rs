@@ -18,9 +18,7 @@ fn ingestion_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("ingestion_benchmark");
     group.significance_level(0.1).sample_size(30);
 
-    group.bench_function("ingest_as_full_graph", |b| {
-        b.iter(|| ingest_as_full_graph())
-    });
+    group.bench_function("ingest_as_full_graph", |b| b.iter(ingest_as_full_graph));
     group.finish();
 }
 

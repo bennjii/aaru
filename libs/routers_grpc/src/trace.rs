@@ -20,7 +20,7 @@ impl Tracer {
     /// Initialises the tracer, using tracing subscription.
     /// This is optional, not calling this function will simply
     /// not log traces.
-    pub fn new() {
+    pub fn init() {
         let formatting = tracing_subscriber::fmt::layer()
             .with_thread_ids(true) // include the thread ID of the current thread
             .with_thread_names(true) // include the name of the current thread

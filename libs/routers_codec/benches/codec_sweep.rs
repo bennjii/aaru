@@ -57,11 +57,9 @@ fn sweep_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("iterator_sweep");
     group.significance_level(0.1).sample_size(30);
 
-    group.bench_function("block_iter_count", |b| b.iter(|| block_iter_count()));
-    group.bench_function("element_iter_count", |b| b.iter(|| element_iter_count()));
-    group.bench_function("processed_iter_count", |b| {
-        b.iter(|| processed_iter_count())
-    });
+    group.bench_function("block_iter_count", |b| b.iter(block_iter_count));
+    group.bench_function("element_iter_count", |b| b.iter(element_iter_count));
+    group.bench_function("processed_iter_count", |b| b.iter(processed_iter_count));
     group.finish();
 }
 
