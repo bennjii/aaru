@@ -6,6 +6,7 @@ use crate::definition::model::*;
 use crate::definition::optimise::*;
 
 use crate::services::RouteService;
+use routers::Route;
 #[cfg(feature = "telemetry")]
 use tracing::Level;
 
@@ -34,7 +35,7 @@ impl OptimisationService for Arc<RouteService> {
             )
             .map_err(|err| Status::internal(format!("{:?}", err)))?;
 
-        self.graph.route(Point(start), Point(end)).map_or(
+        self.graph.route_points(Point(start), Point(end)).map_or(
             Err(Status::internal("Could not route")),
             |(cost, route)| {
                 let shape = route

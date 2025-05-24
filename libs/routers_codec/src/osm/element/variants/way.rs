@@ -12,7 +12,6 @@ use crate::osm::element::variants::Intermediate;
 
 #[derive(Clone, Debug)]
 pub struct Way {
-    // TODO: Use this in routing so attributes like roadnames, etc. can be used when recollecting and returning a response metric
     id: OsmEntryId,
     refs: References,
     tags: Tags,

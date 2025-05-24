@@ -2387,7 +2387,6 @@ dependencies = [
  "geo",
  "log",
  "mimalloc",
- "num-traits",
  "osmpbf",
  "prost",
  "prost-build",

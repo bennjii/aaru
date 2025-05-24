@@ -3,7 +3,6 @@
 //! only the elements required for graph routing.
 
 use geo::point;
-use num_traits::ToPrimitive;
 use std::ops::{Add, Mul};
 
 use super::common::OsmEntryId;
@@ -15,10 +14,11 @@ impl Node<OsmEntryId> {
     /// iterator from `DenseNodes` with their contextual `PrimitiveBlock`.
     ///
     /// ```rust
-    ///  use routers_codec::osm::element::{item::Element, variants::Node};
+    ///  use routers_codec::osm::element::{item::Element};
     ///  use routers_codec::osm::PrimitiveBlock;
+    ///  use routers_codec::primitive::Node;
     ///
-    /// let block: PrimitiveBlock = unimplemented!();
+    ///  let block: PrimitiveBlock = unimplemented!();
     ///  if let Element::DenseNodes(nodes) = block {
     ///     let nodes = Node::from_dense(nodes, 100);
     ///     for node in nodes {
@@ -46,7 +46,7 @@ impl Node<OsmEntryId> {
                         prior_node
                             .position
                             .add(point! { x: lng, y: lat }.mul(scaling_factor)),
-                        OsmEntryId::node(prior_node.id.identifier().to_i64().unwrap() + *id),
+                        OsmEntryId::node(prior_node.id.identifier() + *id),
                     ),
                     None => Node::new(
                         point! { x: lng, y: lat }.mul(scaling_factor),

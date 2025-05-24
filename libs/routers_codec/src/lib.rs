@@ -9,4 +9,6 @@ static GLOBAL: MiMalloc = MiMalloc;
 pub mod osm;
 pub mod primitive;
 
+pub use primitive::Edge;
 pub use primitive::Entry;
+pub use primitive::Node;
