@@ -4,18 +4,19 @@ pub mod node;
 pub mod relation;
 pub mod way;
 
-pub use node::*;
 pub use relation::*;
 pub use way::*;
 
 pub mod common {
+    use crate::osm::PrimitiveBlock;
+    #[cfg(debug_assertions)]
+    use crate::osm::relation::MemberType;
+    use crate::primitive::Entry;
     use std::{
         collections::HashMap,
         hash::{Hash, Hasher},
         ops::{Add, Deref},
     };
-
-    use crate::osm::{PrimitiveBlock, relation::MemberType};
 
     const OSM_NULL_SENTINEL: i64 = -1i64;
 
@@ -40,10 +41,18 @@ pub mod common {
     ];
 
     #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
-    #[repr(transparent)]
+    #[cfg_attr(not(debug_assertions), repr(transparent))]
     pub struct OsmEntryId {
         pub identifier: i64,
-        // variant: MemberType,
+        #[cfg(debug_assertions)]
+        variant: MemberType,
+    }
+
+    impl Entry for OsmEntryId {
+        #[inline]
+        fn identifier(&self) -> i64 {
+            self.identifier
+        }
     }
 
     impl Default for OsmEntryId {
@@ -53,21 +62,24 @@ pub mod common {
     }
 
     impl OsmEntryId {
-        pub const fn new(id: i64, _variant: MemberType) -> OsmEntryId {
+        pub const fn new(id: i64, #[cfg(debug_assertions)] variant: MemberType) -> OsmEntryId {
             OsmEntryId {
                 identifier: id,
-                // variant,
+                #[cfg(debug_assertions)]
+                variant,
             }
         }
 
         pub const fn null() -> OsmEntryId {
             OsmEntryId {
                 identifier: OSM_NULL_SENTINEL,
-                // variant: MemberType::Node,
+                #[cfg(debug_assertions)]
+                variant: MemberType::Node,
             }
         }
 
-        pub fn is_null(&self) -> bool {
+        #[inline]
+        pub const fn is_null(&self) -> bool {
             self.identifier == OSM_NULL_SENTINEL
         }
 
@@ -75,7 +87,8 @@ pub mod common {
         pub const fn node(identifier: i64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
-                // variant: MemberType::Node,
+                #[cfg(debug_assertions)]
+                variant: MemberType::Node,
             }
         }
 
@@ -83,7 +96,8 @@ pub mod common {
         pub const fn way(identifier: i64) -> OsmEntryId {
             OsmEntryId {
                 identifier,
-                // variant: MemberType::Way,
+                #[cfg(debug_assertions)]
+                variant: MemberType::Way,
             }
         }
     }
@@ -94,7 +108,8 @@ pub mod common {
         fn add(self, other: i64) -> Self::Output {
             OsmEntryId {
                 identifier: self.identifier + other,
-                // variant: self.variant,
+                #[cfg(debug_assertions)]
+                variant: self.variant,
             }
         }
     }
@@ -102,10 +117,7 @@ pub mod common {
     impl From<i64> for OsmEntryId {
         // Defaults to Node variant
         fn from(value: i64) -> Self {
-            OsmEntryId {
-                identifier: value,
-                // variant: MemberType::Node,
-            }
+            OsmEntryId::node(value)
         }
     }
 
@@ -168,29 +180,66 @@ pub mod common {
     pub struct References(Vec<Reference>);
 
     /// A reference key is a tuple of the form (Role, MemberID, Type)
-    pub type ReferenceKey<'a> = (&'a i32, &'a i64, &'a i32);
+    pub type ReferenceKey<'a> = Intermediate<'a>;
+
+    pub struct Intermediate<'a> {
+        pub(crate) role: &'a i32,
+        pub(crate) index: &'a i64,
+        #[cfg(debug_assertions)]
+        pub(crate) member_type: &'a i32,
+    }
+
+    pub struct IntermediateRole {
+        role: Option<Role>,
+        index: i64,
+        #[cfg(debug_assertions)]
+        member_type: MemberType,
+    }
 
     pub trait Referential {
         fn indices(&self) -> impl Iterator<Item = ReferenceKey>;
 
         fn references(&self, block: &PrimitiveBlock) -> References {
             self.indices()
-                .fold(vec![], |mut prior, (role, id, variant)| {
-                    let index = id + prior.last().map_or(&0i64, |(_, v, _)| v);
+                .fold(vec![], |mut prior, intermediate| {
+                    #[cfg(debug_assertions)]
+                    let Intermediate { member_type, .. } = intermediate;
+                    let Intermediate { role, index, .. } = intermediate;
+
+                    let index = index
+                        + prior
+                            .last()
+                            .map_or(&0i64, |IntermediateRole { index, .. }| index);
+
                     let role = if *role == -1 {
                         None
                     } else {
                         Some(Role(TagString::recover(*role as usize, block)))
                     };
 
-                    let member_type = MemberType::try_from(*variant).unwrap_or(MemberType::Node);
+                    #[cfg(debug_assertions)]
+                    let member_type =
+                        MemberType::try_from(*member_type).unwrap_or(MemberType::Node);
 
-                    prior.push((role, index, member_type));
+                    prior.push(IntermediateRole {
+                        role,
+                        index,
+                        #[cfg(debug_assertions)]
+                        member_type,
+                    });
+
                     prior
                 })
                 .into_iter()
                 // All nodes in a Way are `Node` types, therefore navigable.
-                .map(|(role, id, variant)| Reference::new(OsmEntryId::new(id, variant), role))
+                .map(|intermediate| {
+                    let entry = OsmEntryId::new(
+                        intermediate.index,
+                        #[cfg(debug_assertions)]
+                        intermediate.member_type,
+                    );
+                    Reference::new(entry, intermediate.role)
+                })
                 .collect::<Vec<_>>()
                 .into()
         }
@@ -246,7 +295,7 @@ pub mod common {
     #[derive(Clone, Debug)]
     pub struct Tags(HashMap<TagString, TagString>);
 
-    pub trait Tagable {
+    pub trait Taggable {
         fn indices(&self) -> impl Iterator<Item = (&u32, &u32)>;
         fn tags(&self, block: &PrimitiveBlock) -> Tags {
             Tags::from_block(self.indices(), block)

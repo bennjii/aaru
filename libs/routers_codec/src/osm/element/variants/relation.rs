@@ -1,6 +1,6 @@
+use super::common::{ReferenceKey, References, Referential, Taggable, Tags};
 use crate::osm;
-
-use super::common::{ReferenceKey, References, Referential, Tagable, Tags};
+use crate::osm::element::variants::Intermediate;
 
 #[derive(Clone, Debug)]
 pub struct Relation {
@@ -19,7 +19,7 @@ impl Relation {
     }
 }
 
-impl Tagable for osm::Relation {
+impl Taggable for osm::Relation {
     fn indices(&self) -> impl Iterator<Item = (&u32, &u32)> {
         self.keys.iter().zip(self.vals.iter())
     }
@@ -31,6 +31,11 @@ impl Referential for osm::Relation {
             .iter()
             .zip(self.memids.iter())
             .zip(self.types.iter())
-            .map(|(e, v)| (e.0, e.1, v))
+            .map(|(e, _v)| Intermediate {
+                index: e.1,
+                role: e.0,
+                #[cfg(debug_assertions)]
+                member_type: _v,
+            })
     }
 }

@@ -2,61 +2,23 @@
 //! of the context information required for changelogs, and utilising
 //! only the elements required for graph routing.
 
-use geo::{Destination, Distance, Euclidean, Geodesic, Point, point};
-use rstar::{AABB, Envelope};
+use geo::point;
 use std::ops::{Add, Mul};
 
 use super::common::OsmEntryId;
 use crate::osm;
+use crate::primitive::{Entry, Node};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Node {
-    pub id: OsmEntryId,
-    pub position: Point,
-}
-
-impl rstar::PointDistance for Node {
-    fn distance_2(
-        &self,
-        point: &<Self::Envelope as Envelope>::Point,
-    ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
-        Euclidean.distance(self.position, *point).powi(2)
-    }
-}
-
-impl rstar::RTreeObject for Node {
-    type Envelope = AABB<Point>;
-
-    fn envelope(&self) -> Self::Envelope {
-        AABB::from_point(self.position)
-    }
-}
-
-impl Node {
-    /// Constructs a `Node` from a given `LatLng` and `id`.
-    pub const fn new(position: Point, id: OsmEntryId) -> Self {
-        Node { position, id }
-    }
-
-    /// Returns the identifier for the node
-    pub fn id(&self) -> OsmEntryId {
-        self.id
-    }
-
-    pub fn bounding(&self, distance: f64) -> AABB<Point> {
-        let bottom_right = Geodesic.destination(self.position, 135.0, distance);
-        let top_left = Geodesic.destination(self.position, 315.0, distance);
-        AABB::from_corners(top_left, bottom_right)
-    }
-
+impl Node<OsmEntryId> {
     /// Takes an `osm::DenseNodes` structure and extracts `Node`s as an
     /// iterator from `DenseNodes` with their contextual `PrimitiveBlock`.
     ///
     /// ```rust
-    ///  use routers_codec::osm::element::{item::Element, variants::Node};
+    ///  use routers_codec::osm::element::{item::Element};
     ///  use routers_codec::osm::PrimitiveBlock;
+    ///  use routers_codec::primitive::Node;
     ///
-    /// let block: PrimitiveBlock = unimplemented!();
+    ///  let block: PrimitiveBlock = unimplemented!();
     ///  if let Element::DenseNodes(nodes) = block {
     ///     let nodes = Node::from_dense(nodes, 100);
     ///     for node in nodes {
@@ -84,7 +46,7 @@ impl Node {
                         prior_node
                             .position
                             .add(point! { x: lng, y: lat }.mul(scaling_factor)),
-                        prior_node.id + *id,
+                        OsmEntryId::node(prior_node.id.identifier() + *id),
                     ),
                     None => Node::new(
                         point! { x: lng, y: lat }.mul(scaling_factor),
@@ -99,7 +61,9 @@ impl Node {
     }
 }
 
-impl From<&osm::Node> for Node {
+// Concrete translator for an OSM node
+// TODO: Move this to an appropriate loction.
+impl From<&osm::Node> for Node<OsmEntryId> {
     fn from(value: &osm::Node) -> Self {
         Node {
             id: OsmEntryId::node(value.id),
