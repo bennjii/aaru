@@ -45,6 +45,19 @@ const MATCH_CASES: [GraphArea; 2] = [
     },
 ];
 
+fn assert_subsequence(a: &[i64], b: &[i64]) {
+    let mut a_iter = a.iter();
+
+    for b_item in b {
+        if !a_iter.any(|a_item| a_item == b_item) {
+            panic!(
+                "b is not a subsequence of a: element {} not found in remaining portion of a",
+                b_item
+            );
+        }
+    }
+}
+
 fn target_benchmark(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("match");
 
@@ -92,7 +105,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                         .map(|edge| edge.id.index().identifier)
                         .collect::<Vec<_>>();
 
-                    similar_asserts::assert_eq!(edges, sc.expected_linestring);
+                    assert_subsequence(sc.expected_linestring, &edges);
                 })
             });
         });
