@@ -1,9 +1,9 @@
 //! Describes the ProtoBuf for the File Structure (Blobs)
 
 syntax = "proto2";
+package osmpbf;
 
 option java_package = "com.osm";
-package osmpbf;
 
 message Blob {
   // When compressed, the uncompressed size

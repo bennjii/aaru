@@ -15,5 +15,4 @@ service ScanService {
   // In such that the input position may exist between edges on the graph, and therefore
   // is considered a "virtual" or "snapped" point.
   rpc ProximalPointSnapped(ScanSnappedRequest) returns (ScanPointSnappedResponse);
-
 }
