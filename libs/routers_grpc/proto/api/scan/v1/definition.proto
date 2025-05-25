@@ -1,27 +1,27 @@
 syntax = "proto3";
-package api.proximity.v1;
+package api.scan.v1;
 
 import "model/v1/geo.proto";
 
-message ProximalRequest {
+message ScanRequest {
   model.v1.Coordinate coordinate = 1;
 }
 
-message ProximalPointResponse {
+message ScanPointResponse {
   model.v1.Coordinate coordinate = 1;
 }
 
-message ProximalEdgeResponse {
+message ScanEdgeResponse {
   model.v1.Coordinate node = 1;
   repeated model.v1.RouteEdge edges = 2;
 }
 
 // Specifies the distance and a position from which to search
-message ProximalSnappedRequest {
+message ScanSnappedRequest {
   model.v1.Coordinate point = 1;
   double search_radius = 2;
 }
 
-message ProximalPointSnappedResponse {
+message ScanPointSnappedResponse {
   model.v1.Coordinate coordinate = 1;
 }

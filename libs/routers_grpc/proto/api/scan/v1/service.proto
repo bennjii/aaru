@@ -1,19 +1,19 @@
 syntax = "proto3";
-package api.proximity.v1;
+package api.scan.v1;
 
-import "api/proximity/v1/definition.proto";
+import "api/scan/v1/definition.proto";
 
-// The routing service
-service ProximityService {
+// The scan service, to find elements near or around a given position
+service ScanService {
   // Provides the coordinate of the closest point on the map to the input
-  rpc ProximalPoint(ProximalRequest) returns (ProximalPointResponse);
+  rpc ProximalPoint(ScanRequest) returns (ScanPointResponse);
 
   // Returns the edge(s) associated to the closest point to the input coordinate
-  rpc ProximalEdge(ProximalRequest) returns (ProximalEdgeResponse);
+  rpc ProximalEdge(ScanRequest) returns (ScanEdgeResponse);
 
   // Provides the closest coordinate upon the map to the input, which is interpolated.
   // In such that the input position may exist between edges on the graph, and therefore
   // is considered a "virtual" or "snapped" point.
-  rpc ProximalPointSnapped(ProximalSnappedRequest) returns (ProximalPointSnappedResponse);
+  rpc ProximalPointSnapped(ScanSnappedRequest) returns (ScanPointSnappedResponse);
 
 }

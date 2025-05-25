@@ -1,4 +1,4 @@
-use crate::Proximity;
+use crate::Scan;
 use crate::graph::traits::util::init_graph;
 use routers_fixtures::DISTRICT_OF_COLUMBIA;
 
@@ -16,7 +16,7 @@ fn projected_distance_check() {
     for point in &points {
         let point = Point(*point);
         let nodes = graph
-            .proximal_nodes_projected(&point, DISTANCE)
+            .scan_nodes_projected(&point, DISTANCE)
             .collect::<Vec<_>>();
 
         assert!(

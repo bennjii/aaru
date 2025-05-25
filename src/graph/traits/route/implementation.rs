@@ -1,5 +1,5 @@
 use crate::graph::{Graph, Weight};
-use crate::graph::{Proximity, Route};
+use crate::graph::{Route, Scan};
 
 use codec::{Entry, Node};
 
@@ -32,8 +32,8 @@ where
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
     fn route_points(&self, start: Point, finish: Point) -> Option<(Weight, Vec<Node<E>>)> {
-        let start_node = self.proximal_node(start)?;
-        let finish_node = self.proximal_node(finish)?;
+        let start_node = self.scan_node(start)?;
+        let finish_node = self.scan_node(finish)?;
         self.route_nodes(start_node.id, finish_node.id)
     }
 }

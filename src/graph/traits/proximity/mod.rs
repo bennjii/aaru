@@ -1,7 +1,7 @@
 pub mod definition;
 mod implementation;
 
-pub use definition::Proximity;
+pub use definition::Scan;
 
 #[cfg(test)]
 mod test;

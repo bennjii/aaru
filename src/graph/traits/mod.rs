@@ -3,7 +3,7 @@ pub mod proximity;
 pub mod route;
 
 pub use r#match::Match;
-pub use proximity::Proximity;
+pub use proximity::Scan;
 pub use route::Route;
 
 #[cfg(test)]

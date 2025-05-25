@@ -7,7 +7,7 @@ use geo::Point;
 use tracing::Level;
 
 /// Trait containing utility functions to find nodes and edges upon a root structure.
-pub trait Proximity<Ent>
+pub trait Scan<Ent>
 where
     Ent: Entry,
 {
@@ -21,7 +21,7 @@ where
     /// it may not select every node within the supplied distance, or it may select more nodes.
     /// This resolution method is however significantly cheaper than a circular scan, so a wider
     /// or shorter search radius may be required in some use-cases.
-    fn proximal_nodes<'a>(
+    fn scan_nodes<'a>(
         &'a self,
         point: &Point,
         distance: f64,
@@ -39,7 +39,7 @@ where
     /// it may not select every node within the supplied distance, or it may select more nodes.
     /// This resolution method is however significantly cheaper than a circular scan, so a wider
     /// or shorter search radius may be required in some use-cases.
-    fn proximal_edges<'a>(
+    fn scan_edges<'a>(
         &'a self,
         point: &Point,
         distance: f64,
@@ -49,7 +49,7 @@ where
 
     /// Searches for, and returns a reference to nearest node from the origin [point](Point).
     /// This node may not exist, and therefore the return type is optional.
-    fn proximal_node<'a>(&'a self, point: Point) -> Option<&'a Node<Ent>>
+    fn scan_node<'a>(&'a self, point: Point) -> Option<&'a Node<Ent>>
     where
         Ent: 'a;
 
@@ -62,7 +62,7 @@ where
     /// This is a bounded projection.
     ///
     /// [`Projected`]: https://en.wikipedia.org/wiki/Projection_(linear_algebra)
-    fn proximal_nodes_projected<'a>(
+    fn scan_nodes_projected<'a>(
         &'a self,
         point: &Point,
         distance: f64,

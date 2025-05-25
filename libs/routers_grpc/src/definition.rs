@@ -15,9 +15,9 @@ pub mod model {
 }
 
 pub mod optimise {
-    pub use super::api::optimise::v1::optimisation_service_client::OptimisationServiceClient;
-    pub use super::api::optimise::v1::optimisation_service_server::OptimisationService;
-    pub use super::api::optimise::v1::optimisation_service_server::OptimisationServiceServer;
+    pub use super::api::optimise::v1::optimise_service_client::OptimiseServiceClient;
+    pub use super::api::optimise::v1::optimise_service_server::OptimiseService;
+    pub use super::api::optimise::v1::optimise_service_server::OptimiseServiceServer;
 
     pub use super::api::optimise::v1::*;
 }
@@ -30,10 +30,10 @@ pub mod r#match {
     pub use super::api::r#match::v1::*;
 }
 
-pub mod proximity {
-    pub use super::api::proximity::v1::proximity_service_client::ProximityServiceClient;
-    pub use super::api::proximity::v1::proximity_service_server::ProximityService;
-    pub use super::api::proximity::v1::proximity_service_server::ProximityServiceServer;
+pub mod scan {
+    pub use super::api::scan::v1::scan_service_client::ScanServiceClient;
+    pub use super::api::scan::v1::scan_service_server::ScanService;
+    pub use super::api::scan::v1::scan_service_server::ScanServiceServer;
 
-    pub use super::api::proximity::v1::*;
+    pub use super::api::scan::v1::*;
 }

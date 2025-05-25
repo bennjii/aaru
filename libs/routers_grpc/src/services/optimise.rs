@@ -11,7 +11,7 @@ use routers::Route;
 use tracing::Level;
 
 #[tonic::async_trait]
-impl OptimisationService for Arc<RouteService> {
+impl OptimiseService for Arc<RouteService> {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn route(
         self: Arc<Self>,

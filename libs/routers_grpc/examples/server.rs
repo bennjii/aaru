@@ -1,15 +1,16 @@
 use routers_fixtures::{LOS_ANGELES, fixture_path};
 use routers_grpc::r#match::MatchServiceServer;
-use routers_grpc::optimise::OptimisationServiceServer;
-use routers_grpc::proximity::ProximityServiceServer;
+use routers_grpc::optimise::OptimiseServiceServer;
+use routers_grpc::scan::ScanServiceServer;
 use routers_grpc::{Tracer, proto, services::RouteService};
+
+use tonic_web::GrpcWebLayer;
+use tower_http::cors::{Any, CorsLayer};
 
 use dotenv::dotenv;
 use std::sync::Arc;
 use tonic::codegen::http::Method;
 use tonic::transport::Server;
-use tonic_web::GrpcWebLayer;
-use tower_http::cors::{Any, CorsLayer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -47,9 +48,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(GrpcWebLayer::new())
         .accept_http1(true)
         .tcp_nodelay(true)
-        .add_service(OptimisationServiceServer::new(router.clone()))
+        .add_service(OptimiseServiceServer::new(router.clone()))
         .add_service(MatchServiceServer::new(router.clone()))
-        .add_service(ProximityServiceServer::new(router.clone()))
+        .add_service(ScanServiceServer::new(router.clone()))
         .add_service(reflector)
         .serve(addr)
         .await?;

@@ -1,8 +1,8 @@
 use crate::definition::model::*;
-use crate::definition::proximity::*;
+use crate::definition::scan::*;
 use crate::services::RouteService;
 
-use routers::Proximity;
+use routers::Scan;
 
 use geo::{Distance, Haversine, Point, coord, point};
 use log::{debug, info};
@@ -15,19 +15,19 @@ use wkt::ToWkt;
 use tracing::Level;
 
 #[tonic::async_trait]
-impl ProximityService for Arc<RouteService> {
+impl ScanService for Arc<RouteService> {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn proximal_point(
         self: Arc<Self>,
-        request: Request<ProximalRequest>,
-    ) -> Result<Response<ProximalPointResponse>, Status> {
-        let ProximalRequest { coordinate } = request.into_inner();
+        request: Request<ScanRequest>,
+    ) -> Result<Response<ScanPointResponse>, Status> {
+        let ScanRequest { coordinate } = request.into_inner();
         let point = match coordinate {
             Some(coordinate) => point! { x: coordinate.longitude, y: coordinate.latitude },
             None => return Err(Status::invalid_argument("Missing Coordinate")),
         };
 
-        let nearest_point = self.graph.proximal_node(point).map_or(
+        let nearest_point = self.graph.scan_node(point).map_or(
             Err(Status::internal("Could not find appropriate point")),
             |coord| {
                 Ok(Coordinate {
@@ -37,7 +37,7 @@ impl ProximityService for Arc<RouteService> {
             },
         )?;
 
-        Ok(Response::new(ProximalPointResponse {
+        Ok(Response::new(ScanPointResponse {
             coordinate: Some(nearest_point),
         }))
     }
@@ -45,16 +45,16 @@ impl ProximityService for Arc<RouteService> {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn proximal_edge(
         self: Arc<Self>,
-        _request: Request<ProximalRequest>,
-    ) -> Result<Response<ProximalEdgeResponse>, Status> {
+        _request: Request<ScanRequest>,
+    ) -> Result<Response<ScanEdgeResponse>, Status> {
         unimplemented!()
     }
 
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn proximal_point_snapped(
         self: Arc<Self>,
-        request: Request<ProximalSnappedRequest>,
-    ) -> Result<Response<ProximalPointSnappedResponse>, Status> {
+        request: Request<ScanSnappedRequest>,
+    ) -> Result<Response<ScanPointSnappedResponse>, Status> {
         let (_, _, request) = request.into_parts();
 
         let point = request
@@ -70,7 +70,7 @@ impl ProximityService for Arc<RouteService> {
 
         let all_valids = self
             .graph
-            .proximal_nodes(&point, request.search_radius)
+            .scan_nodes(&point, request.search_radius)
             .map(|p| p.position.wkt_string())
             .collect::<Vec<_>>()
             .join(", ");
@@ -79,7 +79,7 @@ impl ProximityService for Arc<RouteService> {
 
         let mut nearest_points = self
             .graph
-            .proximal_nodes_projected(&point, request.search_radius)
+            .scan_nodes_projected(&point, request.search_radius)
             .collect::<Vec<_>>();
 
         debug!("Found {} points", nearest_points.len());
@@ -110,7 +110,7 @@ impl ProximityService for Arc<RouteService> {
             },
         )?;
 
-        Ok(Response::new(ProximalPointSnappedResponse {
+        Ok(Response::new(ScanPointSnappedResponse {
             coordinate: Some(nearest_point),
         }))
     }
