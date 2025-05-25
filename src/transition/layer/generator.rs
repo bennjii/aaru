@@ -1,5 +1,5 @@
 use crate::transition::*;
-use crate::{Graph, Scan};
+use crate::{Graph, Proximity};
 
 use codec::Entry;
 use geo::{Distance, Haversine, Point};
@@ -108,7 +108,7 @@ where
 
                     self.map
                         // We'll do a best-effort search (square) radius
-                        .nearest_projected_nodes(origin, self.search_distance)
+                        .proximal_nodes_projected(origin, self.search_distance)
                         .filter_map(|(point, edge)| {
                             let distance = Haversine.distance(point, *origin);
 

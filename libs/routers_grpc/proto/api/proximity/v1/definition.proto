@@ -3,25 +3,25 @@ package api.proximity.v1;
 
 import "model/v1/geo.proto";
 
-message ClosestRequest {
+message ProximalRequest {
   model.v1.Coordinate coordinate = 1;
 }
 
-message ClosestPointResponse {
+message ProximalPointResponse {
   model.v1.Coordinate coordinate = 1;
 }
 
-message ClosestEdgeResponse {
+message ProximalEdgeResponse {
   model.v1.Coordinate node = 1;
   repeated model.v1.RouteEdge edges = 2;
 }
 
 // Specifies the distance and a position from which to search
-message ClosestSnappedPointRequest {
+message ProximalSnappedRequest {
   model.v1.Coordinate point = 1;
   double search_radius = 2;
 }
 
-message ClosestSnappedPointResponse {
+message ProximalPointSnappedResponse {
   model.v1.Coordinate coordinate = 1;
 }

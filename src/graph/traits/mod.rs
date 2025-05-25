@@ -1,10 +1,10 @@
 pub mod r#match;
+pub mod proximity;
 pub mod route;
-pub mod scan;
 
 pub use r#match::Match;
+pub use proximity::Proximity;
 pub use route::Route;
-pub use scan::Scan;
 
 #[cfg(test)]
 mod util {
