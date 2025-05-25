@@ -30,7 +30,7 @@ message MatchResponse {
 message MatchedRoute {
   repeated model.v1.Coordinate snapped_shape = 1;
   repeated model.v1.Coordinate interpolated = 2;
-  repeated model.v1.EdgeInfo edges = 3;
+  repeated model.v1.RouteEdge edges = 3;
 
   string label = 4; // Not sure what this would be yet.
   uint32 cost = 5;

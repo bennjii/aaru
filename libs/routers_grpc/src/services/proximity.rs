@@ -18,9 +18,9 @@ impl ProximityService for Arc<RouteService> {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn closest_point(
         self: Arc<Self>,
-        request: Request<ClosestPointRequest>,
+        request: Request<ClosestRequest>,
     ) -> Result<Response<ClosestPointResponse>, Status> {
-        let ClosestPointRequest { coordinate } = request.into_inner();
+        let ClosestRequest { coordinate } = request.into_inner();
         let point = match coordinate {
             Some(coordinate) => point! { x: coordinate.longitude, y: coordinate.latitude },
             None => return Err(Status::invalid_argument("Missing Coordinate")),
@@ -39,6 +39,14 @@ impl ProximityService for Arc<RouteService> {
         Ok(Response::new(ClosestPointResponse {
             coordinate: Some(nearest_point),
         }))
+    }
+
+    #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
+    async fn closest_edge(
+        self: Arc<Self>,
+        request: Request<ClosestRequest>,
+    ) -> Result<Response<ClosestEdgeResponse>, Status> {
+        todo!()
     }
 
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]

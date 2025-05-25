@@ -1,4 +1,4 @@
-pub mod implementations;
+pub mod impls;
 pub mod item;
 pub mod traits;
 

@@ -6,13 +6,52 @@ message Coordinate {
   double longitude = 2;
 }
 
-// EdgeInfo
-//
+message NodeIdentifier {
+  int64 id = 1;
+  Coordinate coordinate = 2;
+}
+
+message EdgeIdentifier {
+  int64 id = 1;
+}
+
+// Optional metadata to provide context for the edge.
+// The values visible here are dependent on the data
+// available in the underlying map.
+message EdgeMetadata {
+  optional uint32 lane_count = 8;
+  optional uint32 speed_limit = 9;
+  optional string surface = 10;
+}
+
+// There is a `source` and `target` node within the edge,
+// with id, `id`. The edge's length is the length the matched
+// vehicle travelled, not its raw length.
+message Edge {
+  // The underlying map identification for the edge.
+  // In OSM for example, this is the Edge-ID.
+  EdgeIdentifier id = 1;
+
+  // The source node the edge begins from
+  NodeIdentifier source = 2;
+
+  // The target node the edge ends at
+  NodeIdentifier target = 3;
+
+  // Describes all the possible names of the given edge,
+  // including road names. Used to identify or display the edge.
+  repeated string names = 4;
+
+  // Length of the edge, in meters.
+  uint32 length = 7;
+}
+
 // Describes the edges within the graph that was transitioned.
 // This allows for the evaluation of features such as those derived
 // from street names, consistency of edge transitions, etc.
 //
 // The edge is described by the following diagram:
+// ```
 //
 //                             75%
 //                          Departure
@@ -21,37 +60,28 @@ message Coordinate {
 //   Start of edge       |
 //                     Join
 //                      50%
-//
-// Where there is a `source` and `target` node within the edge,
-// with id, `id`. The edge's length is the length the matched
-// vehicle travelled, not its raw length.
-//
-// The edge contains multiple "names", which describe all the
-// possible names of the given edge, including road names.
-//
+// ```
 // The `join_percent` and `depart_percent` describe the percentage
 // of the edge that the vehicle was on when it joined and departed
 // the edge, respectively, see diagram.
 //
-// The `length` is the length of the edge in the match, in meters,
+// The `routed_length` is the length of the edge in the match, in meters,
 // not the length of the underlying edge.
-//
-// The final fields are largely optional, surfacing underlying data
-// attributes on the OSM edge to make analysis convenient. This
-// includes: `speed_limit`, `surface`, and `lane_count`.
-//
-message EdgeInfo {
-  uint32 id = 1;
-  uint32 source = 2;
-  uint32 target = 3;
+message RouteEdge {
+  // The edge information for the routed component.
+  // Note:
+  //  As seen in the message comment, there is no guarantee the entire edge is utilised.
+  //  Therefore, this message is used to determine the utilised edge segment.
+  Edge edge = 1;
 
-  repeated string names = 4;
+  // TODO: Direction (?)
 
+  // Length of the routed segment of the edge, in meters.
+  uint32 routed_length = 7;
+
+  // Join %. See message comment.
   uint32 join_percent = 5;
-  uint32 depart_percent = 6;
-  uint32 length = 7;
 
-  uint32 lane_count = 8;
-  uint32 speed_limit = 9;
-  string surface = 10;
+  // Depart %. See message comment.
+  uint32 depart_percent = 6;
 }

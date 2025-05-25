@@ -6,10 +6,14 @@ import "api/proximity/v1/definition.proto";
 // The routing service
 service ProximityService {
   // Provides the coordinate of the closest point on the map to the input
-  rpc ClosestPoint(ClosestPointRequest) returns (ClosestPointResponse);
+  rpc ClosestPoint(ClosestRequest) returns (ClosestPointResponse);
+
+  // Returns the edge(s) associated to the closest point to the input coordinate
+  rpc ClosestEdge(ClosestRequest) returns (ClosestEdgeResponse);
 
   // Provides the closest coordinate upon the map to the input, which is interpolated.
   // In such that the input position may exist between edges on the graph, and therefore
   // is considered a "virtual" or "snapped" point.
   rpc ClosestSnappedPoint(ClosestSnappedPointRequest) returns (ClosestSnappedPointResponse);
+
 }
