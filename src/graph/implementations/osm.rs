@@ -9,11 +9,11 @@ use log::{debug, info};
 use rstar::RTree;
 use rustc_hash::FxHashMap;
 
-use crate::{DirectionAwareEdgeId, Edge, FatEdge};
+use crate::{DirectionAwareEdgeId, Edge, FatEdge, PredicateCache};
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 impl Graph<OsmEntryId> {
@@ -170,9 +170,12 @@ impl Graph<OsmEntryId> {
 
         Ok(Graph {
             graph,
+            hash,
+
             index: tree,
             index_edge: tree_edge,
-            hash,
+
+            cache: Arc::new(Mutex::new(PredicateCache::default())),
         })
     }
 }

@@ -3,7 +3,7 @@ pub mod services;
 pub mod definition;
 pub use definition::*;
 
-mod sdk;
+pub mod sdk;
 #[cfg(feature = "telemetry")]
 pub mod trace;
 

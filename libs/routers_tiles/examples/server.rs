@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     // Create the tracer first.
-    Tracer::new();
+    Tracer::init();
 
     // Set the address to serve from
     let addr = tokio::net::TcpListener::bind(format!("localhost:{port}")).await?;

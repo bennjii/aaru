@@ -1,7 +1,10 @@
 use crate::transition::*;
 
+use crate::EndAttachError::{EndsAlreadyAttached, LayerMissing, WriteLockFailed};
 use codec::Entry;
 use pathfinding::num_traits::{ConstZero, Zero};
+use petgraph::algo::astar;
+use petgraph::graph::EdgeReference;
 use petgraph::prelude::EdgeRef;
 use petgraph::{Directed, Graph};
 use scc::HashMap;
@@ -44,12 +47,16 @@ impl<E> Candidates<E>
 where
     E: Entry,
 {
-    pub fn attach_ends(&mut self, layers: &Layers) -> Option<(CandidateId, CandidateId)> {
+    pub fn attach_ends(
+        &mut self,
+        layers: &Layers,
+    ) -> Result<(CandidateId, CandidateId), EndAttachError> {
         if self.ends.is_some() {
-            return None;
+            return Err(EndsAlreadyAttached);
         }
 
-        let mut graph = self.graph.write().unwrap();
+        let mut graph = self.graph.write().map_err(|_| WriteLockFailed)?;
+
         let source = graph.add_node(CandidateRef::butt());
         let target = graph.add_node(CandidateRef::butt());
 
@@ -71,20 +78,29 @@ where
         // the target.
 
         // Attach the initial layer
-        layers.first()?.nodes.iter().for_each(|node| {
-            graph.add_edge(source, *node, CandidateEdge::zero());
-        });
+        layers
+            .first()
+            .ok_or(LayerMissing)?
+            .nodes
+            .iter()
+            .for_each(|node| {
+                graph.add_edge(source, *node, CandidateEdge::zero());
+            });
 
         // Attach to the final layer
-        layers.last()?.nodes.iter().for_each(|node| {
-            graph.add_edge(*node, target, CandidateEdge::zero());
-        });
+        layers
+            .last()
+            .ok_or(LayerMissing)?
+            .nodes
+            .iter()
+            .for_each(|node| {
+                graph.add_edge(*node, target, CandidateEdge::zero());
+            });
 
         drop(graph);
-        let ends = Some((source, target));
-        self.ends = ends;
-
-        ends
+        let ends = (source, target);
+        self.ends = Some(ends);
+        Ok(ends)
     }
 
     /// Collapses transition layers, `layers`, into a single vector of
@@ -96,34 +112,36 @@ where
     /// Takes an owned value to indicate the structure is [terminal].
     ///
     /// [terminal]: Cannot be used again
-    pub fn collapse(self) -> Option<Collapse<E>> {
-        let (source, target) = self.ends?;
+    pub fn collapse(self) -> Result<Collapse<E>, CollapseError> {
+        let (source, target) = self.ends.ok_or(CollapseError::NoEnds)?;
 
         // There should be exclusive read-access by the time collapse is called.
         // This will block access to any other client using this candidate structure,
         // however this function
-        let graph = self.graph.read().unwrap();
-        let (cost, route) = petgraph::algo::astar(
-            &*graph,
-            source,
-            |node| node == target,
-            |e| {
-                // Decaying Transition Cost
-                let transition_cost = e.weight().weight;
+        let graph = self
+            .graph
+            .read()
+            .map_err(|_| CollapseError::ReadLockFailed)?;
 
-                // Loosely-Decaying Emission Cost
-                let emission_cost = graph
-                    .node_weight(e.target())
-                    .map_or(u32::MAX, |v| v.weight());
+        let cost_fn = |e: EdgeReference<CandidateEdge>| {
+            // Decaying Transition Cost
+            let transition_cost = e.weight().weight;
 
-                transition_cost + emission_cost
-            },
-            |_| u32::ZERO,
-        )?;
+            // Loosely-Decaying Emission Cost
+            let emission_cost = graph
+                .node_weight(e.target())
+                .map_or(u32::MAX, |v| v.weight());
+
+            transition_cost + emission_cost
+        };
+
+        let zero = |_| u32::ZERO;
+
+        let (cost, route) = astar(&*graph, source, |node| node == target, cost_fn, zero)
+            .ok_or(CollapseError::NoPathFound)?;
 
         drop(graph);
-        // TODO: Deprecate and move to all_forward strat.
-        Some(Collapse::new(cost, vec![], route, self))
+        Ok(Collapse::new(cost, vec![], route, self))
     }
 
     /// TODO: Provide docs

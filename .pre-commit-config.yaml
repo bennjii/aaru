@@ -5,6 +5,7 @@ repos:
       - id: fmt
       - id: check
       - id: clippy
+        args: ["--all-targets", "--workspace"]
 
   - repo: https://github.com/est31/cargo-udeps
     rev: v0.1.47

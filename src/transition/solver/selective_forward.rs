@@ -268,7 +268,7 @@ where
             transition
                 .candidates
                 .attach_ends(&transition.layers)
-                .ok_or(MatchError::CollapseFailure)?
+                .map_err(MatchError::EndAttachFailure)?
         };
 
         debug!("Attached Ends");
@@ -291,7 +291,7 @@ where
             |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
-            return Err(MatchError::CollapseFailure);
+            return Err(MatchError::CollapseFailure(CollapseError::NoPathFound));
         };
 
         info!("Total cost of solve: {}", cost.weight);

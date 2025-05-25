@@ -1,4 +1,4 @@
-use crate::{DirectionAwareEdgeId, FatEdge};
+use crate::{DirectionAwareEdgeId, FatEdge, PredicateCache};
 use codec::primitive::{Entry, Node};
 
 use geo::Point;
@@ -8,7 +8,7 @@ use rustc_hash::{FxHashMap, FxHasher};
 
 use std::fmt::{Debug, Formatter};
 use std::hash::BuildHasherDefault;
-
+use std::sync::{Arc, Mutex};
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
@@ -27,9 +27,12 @@ where
     E: Entry,
 {
     pub(crate) graph: GraphStructure<E>,
+    pub(crate) hash: FxHashMap<E, Node<E>>,
+
     pub(crate) index: RTree<Node<E>>,
     pub(crate) index_edge: RTree<FatEdge<E>>,
-    pub(crate) hash: FxHashMap<E, Node<E>>,
+
+    pub(crate) cache: Arc<Mutex<PredicateCache<E>>>,
 }
 
 impl<E> Debug for Graph<E>
