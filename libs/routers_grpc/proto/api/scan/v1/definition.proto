@@ -3,25 +3,29 @@ package api.scan.v1;
 
 import "model/v1/geo.proto";
 
-message ScanRequest {
+message PointRequest {
   model.v1.Coordinate coordinate = 1;
 }
 
-message ScanPointResponse {
+message EdgeRequest {
   model.v1.Coordinate coordinate = 1;
 }
 
-message ScanEdgeResponse {
+message PointResponse {
+  model.v1.Coordinate coordinate = 1;
+}
+
+message EdgeResponse {
   model.v1.Coordinate node = 1;
   repeated model.v1.RouteEdge edges = 2;
 }
 
 // Specifies the distance and a position from which to search
-message ScanSnappedRequest {
+message PointSnappedRequest {
   model.v1.Coordinate point = 1;
   double search_radius = 2;
 }
 
-message ScanPointSnappedResponse {
+message PointSnappedResponse {
   model.v1.Coordinate coordinate = 1;
 }

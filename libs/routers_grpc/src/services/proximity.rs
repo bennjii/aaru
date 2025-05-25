@@ -17,11 +17,11 @@ use tracing::Level;
 #[tonic::async_trait]
 impl ScanService for Arc<RouteService> {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
-    async fn proximal_point(
+    async fn point(
         self: Arc<Self>,
-        request: Request<ScanRequest>,
-    ) -> Result<Response<ScanPointResponse>, Status> {
-        let ScanRequest { coordinate } = request.into_inner();
+        request: Request<PointRequest>,
+    ) -> Result<Response<PointResponse>, Status> {
+        let PointRequest { coordinate } = request.into_inner();
         let point = match coordinate {
             Some(coordinate) => point! { x: coordinate.longitude, y: coordinate.latitude },
             None => return Err(Status::invalid_argument("Missing Coordinate")),
@@ -37,24 +37,24 @@ impl ScanService for Arc<RouteService> {
             },
         )?;
 
-        Ok(Response::new(ScanPointResponse {
+        Ok(Response::new(PointResponse {
             coordinate: Some(nearest_point),
         }))
     }
 
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
-    async fn proximal_edge(
+    async fn edge(
         self: Arc<Self>,
-        _request: Request<ScanRequest>,
-    ) -> Result<Response<ScanEdgeResponse>, Status> {
+        _request: Request<EdgeRequest>,
+    ) -> Result<Response<EdgeResponse>, Status> {
         unimplemented!()
     }
 
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
-    async fn proximal_point_snapped(
+    async fn point_snapped(
         self: Arc<Self>,
-        request: Request<ScanSnappedRequest>,
-    ) -> Result<Response<ScanPointSnappedResponse>, Status> {
+        request: Request<PointSnappedRequest>,
+    ) -> Result<Response<PointSnappedResponse>, Status> {
         let (_, _, request) = request.into_parts();
 
         let point = request
@@ -110,7 +110,7 @@ impl ScanService for Arc<RouteService> {
             },
         )?;
 
-        Ok(Response::new(ScanPointSnappedResponse {
+        Ok(Response::new(PointSnappedResponse {
             coordinate: Some(nearest_point),
         }))
     }
