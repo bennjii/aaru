@@ -11,11 +11,15 @@ use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use wkt::ToWkt;
 
+use codec::Entry;
 #[cfg(feature = "telemetry")]
 use tracing::Level;
 
 #[tonic::async_trait]
-impl ScanService for Arc<RouteService> {
+impl<E> ScanService for Arc<RouteService<E>>
+where
+    E: Entry + 'static,
+{
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn point(
         self: Arc<Self>,

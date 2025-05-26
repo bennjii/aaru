@@ -1,5 +1,6 @@
 use routers::Graph;
 
+use codec::Entry;
 use codec::osm::element::variants::OsmEntryId;
 use std::path::PathBuf;
 
@@ -8,12 +9,17 @@ pub mod optimise;
 pub mod proximity;
 
 #[derive(Debug)]
-pub struct RouteService {
-    pub graph: Graph<OsmEntryId>,
+pub struct RouteService<E>
+where
+    E: Entry,
+{
+    pub graph: Graph<E>,
 }
 
-impl RouteService {
-    pub fn from_file(file: PathBuf) -> Result<RouteService, Box<dyn std::error::Error>> {
+impl RouteService<OsmEntryId> {
+    pub fn from_file(
+        file: PathBuf,
+    ) -> Result<RouteService<OsmEntryId>, Box<dyn std::error::Error>> {
         let graph =
             Graph::new(file.as_os_str().to_ascii_lowercase()).map_err(|e| format!("{:?}", e))?;
 

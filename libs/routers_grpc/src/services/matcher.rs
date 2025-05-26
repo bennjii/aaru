@@ -1,4 +1,4 @@
-use geo::{LineString, coord};
+use std::ops::Deref;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
@@ -6,29 +6,18 @@ use crate::definition::r#match::*;
 use crate::definition::model::*;
 
 use crate::services::RouteService;
-use routers::Match;
+use codec::Entry;
+use routers::{Collapse, Match};
 #[cfg(feature = "telemetry")]
 use tracing::Level;
 
-#[tonic::async_trait]
-impl MatchService for Arc<RouteService> {
-    #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
-    async fn r#match(
-        self: Arc<Self>,
-        request: Request<MatchRequest>,
-    ) -> Result<Response<MatchResponse>, Status> {
-        let map_match = request.into_inner();
-        let coordinates = map_match
-            .data
-            .iter()
-            .map(|coord| coord! { x: coord.longitude, y: coord.latitude })
-            .collect::<LineString>();
+struct Util;
 
-        let result = self
-            .graph
-            .map_match(coordinates)
-            .map_err(|err| Status::internal(format!("{:?}", err)))?;
-
+impl Util {
+    fn post_process_match<E: Entry>(
+        service: impl Deref<Target = RouteService<E>>,
+        result: Collapse<E>,
+    ) -> Vec<MatchedRoute> {
         let snapped_shape = result
             .matched()
             .iter()
@@ -39,7 +28,7 @@ impl MatchService for Arc<RouteService> {
             .collect::<Vec<_>>();
 
         let interpolated = result
-            .interpolated(&self.graph)
+            .interpolated(&service.graph)
             .coords()
             .map(|node| Coordinate {
                 latitude: node.y,
@@ -57,9 +46,33 @@ impl MatchService for Arc<RouteService> {
             cost: 0,
         };
 
+        vec![matching]
+    }
+}
+
+#[tonic::async_trait]
+// TODO: Arc:Arc - Remove double usage.
+impl<E> MatchService for Arc<RouteService<E>>
+where
+    E: Entry + 'static,
+{
+    #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
+    async fn r#match(
+        self: Arc<Self>,
+        request: Request<MatchRequest>,
+    ) -> Result<Response<MatchResponse>, Status> {
+        let map_match = request.into_inner();
+        let coordinates = map_match.linestring();
+
+        let result = self
+            .graph
+            .r#match(coordinates)
+            .map_err(|e| e.to_string())
+            .map_err(Status::internal)?;
+
         Ok(Response::new(MatchResponse {
             // TODO: Vector to allow trip-splitting in the future.
-            matches: vec![matching],
+            matches: Util::post_process_match(self.deref().deref(), result),
             // TODO: Aggregate all the errored trips.
             warnings: vec![],
         }))
@@ -68,8 +81,22 @@ impl MatchService for Arc<RouteService> {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
     async fn snap(
         self: Arc<Self>,
-        _request: Request<SnapRequest>,
+        request: Request<SnapRequest>,
     ) -> Result<Response<SnapResponse>, Status> {
-        unimplemented!()
+        let map_match = request.into_inner();
+        let coordinates = map_match.linestring();
+
+        let result = self
+            .graph
+            .snap(coordinates)
+            .map_err(|e| e.to_string())
+            .map_err(Status::internal)?;
+
+        Ok(Response::new(SnapResponse {
+            // TODO: Vector to allow trip-splitting in the future.
+            matches: Util::post_process_match(self.deref().deref(), result),
+            // TODO: Aggregate all the errored trips.
+            warnings: vec![],
+        }))
     }
 }

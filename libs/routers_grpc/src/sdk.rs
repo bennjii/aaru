@@ -1,7 +1,7 @@
 //! Defines internal translations and relevant utilities
 //! in order to make the model useful as an SDK.
 
-use crate::r#match::MatchResponse;
+use crate::r#match::{MatchRequest, MatchResponse, SnapRequest};
 use crate::model::Coordinate;
 
 use geo::{Coord, LineString, coord};
@@ -54,6 +54,18 @@ impl MatchResponse {
 
     pub fn snapped(&self) -> Option<Coordinates> {
         Some(Coordinates(self.matches.first()?.snapped_shape.clone()))
+    }
+}
+
+impl MatchRequest {
+    pub fn linestring(self) -> LineString {
+        Into::<LineString>::into(Coordinates(self.data))
+    }
+}
+
+impl SnapRequest {
+    pub fn linestring(self) -> LineString {
+        Into::<LineString>::into(Coordinates(self.data))
     }
 }
 

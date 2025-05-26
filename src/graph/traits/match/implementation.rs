@@ -12,7 +12,7 @@ where
     E: Entry,
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    fn map_match(&self, linestring: LineString) -> Result<Collapse<E>, MatchError> {
+    fn r#match(&self, linestring: LineString) -> Result<Collapse<E>, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         let costing = CostingStrategies::default();
@@ -24,5 +24,10 @@ where
         // & Collapse the layers into a final vector
         let cache = Arc::clone(&self.cache);
         transition.solve(SelectiveForwardSolver::default().use_cache(cache))
+    }
+
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
+    fn snap(&self, _linestring: LineString) -> Result<Collapse<E>, MatchError> {
+        unimplemented!()
     }
 }
