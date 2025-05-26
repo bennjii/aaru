@@ -121,7 +121,7 @@ where
     /// # Example
     /// ```
     /// use geo::Point;
-    /// use codec::osm::element::variants::OsmEntryId;
+    /// use codec::osm::OsmEntryId;
     /// use codec::primitive::Node;
     /// use routers::transition::Trip;
     ///

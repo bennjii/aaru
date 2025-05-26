@@ -9,7 +9,7 @@ pub use route::Route;
 #[cfg(test)]
 mod util {
     use crate::graph::Graph;
-    use codec::osm::element::variants::OsmEntryId;
+    use codec::osm::OsmEntryId;
     use routers_fixtures::fixture_path;
 
     use std::error::Error;

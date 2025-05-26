@@ -21,7 +21,7 @@ type NodeId = usize;
 ///
 /// ```rust
 /// use geo::LineString;
-/// use codec::osm::element::variants::OsmEntryId;
+/// use codec::osm::OsmEntryId;
 /// use routers::{Graph, Transition};
 /// use routers::transition::{CostingStrategies, SelectiveForwardSolver};
 ///

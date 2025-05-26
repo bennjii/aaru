@@ -1,7 +1,7 @@
 use routers::Graph;
 
 use codec::Entry;
-use codec::osm::element::variants::OsmEntryId;
+use codec::osm::OsmEntryId;
 use std::path::PathBuf;
 
 pub mod matcher;

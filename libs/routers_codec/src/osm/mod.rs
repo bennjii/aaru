@@ -19,6 +19,8 @@ pub use blob::iterator::BlobIterator;
 #[doc(inline)]
 pub use block::iterator::BlockIterator;
 #[doc(inline)]
+pub use element::OsmEntryId;
+#[doc(inline)]
 pub use element::iterator::ElementIterator;
 #[doc(inline)]
 pub use element::processed_iterator::ProcessedElementIterator;

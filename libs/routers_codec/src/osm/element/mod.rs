@@ -17,3 +17,5 @@ pub use item::ProcessedElement;
 pub use iterator::ElementIterator;
 #[doc(inline)]
 pub use processed_iterator::ProcessedElementIterator;
+#[doc(inline)]
+pub use variants::OsmEntryId;

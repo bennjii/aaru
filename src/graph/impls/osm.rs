@@ -1,8 +1,8 @@
 use crate::graph::item::{Graph, GraphStructure, Weight};
 
 use codec::Node;
+use codec::osm::OsmEntryId;
 use codec::osm::element::ProcessedElement;
-use codec::osm::element::variants::OsmEntryId;
 use codec::osm::{Parallel, ProcessedElementIterator};
 
 use log::{debug, info};
