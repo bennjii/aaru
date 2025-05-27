@@ -103,6 +103,15 @@ where
     pub id: DirectionAwareEdgeId<E>,
 }
 
+impl<E> Edge<E>
+where
+    E: Entry,
+{
+    pub const fn id(&self) -> &E {
+        &self.id.id
+    }
+}
+
 impl<'a, E> From<(E, E, &'a (Weight, DirectionAwareEdgeId<E>))> for Edge<E>
 where
     E: Entry,

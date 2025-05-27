@@ -88,7 +88,10 @@ pub trait Solver<Ent> {
     /// or due to blown-out costings. There are other reasons this may occur given
     /// the functionality is statistical and therefore prone to out-of-bound failures
     /// which are less deterministic than a brute-force model.
-    fn solve<E, T>(&self, transition: Transition<E, T, Ent>) -> Result<Collapse<Ent>, MatchError>
+    fn solve<E, T>(
+        &self,
+        transition: Transition<E, T, Ent>,
+    ) -> Result<CollapsedPath<Ent>, MatchError>
     where
         Ent: Entry,
         E: EmissionStrategy + Send + Sync,

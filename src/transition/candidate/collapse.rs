@@ -5,7 +5,7 @@ use codec::Entry;
 use geo::LineString;
 
 /// The collapsed solution to a transition graph.
-pub struct Collapse<E>
+pub struct CollapsedPath<E>
 where
     E: Entry,
 {
@@ -15,7 +15,7 @@ where
     pub cost: u32,
 
     /// The route as a vector of [`CandidateId`]s.
-    /// To obtain the list of [`Candidate`]s, use [`Collapse::matched`]
+    /// To obtain the list of [`Candidate`]s, use [`CollapsedPath::matched`]
     pub route: Vec<CandidateId>,
 
     /// The interpolated nodes of the collapsed route.
@@ -23,13 +23,13 @@ where
     /// Each node contains the interpolated path between the candidates in those layers.
     ///
     /// To obtain the geographic representation of this interpolation,
-    /// use the [`Collapse::interpolated`] method.
+    /// use the [`CollapsedPath::interpolated`] method.
     pub interpolated: Vec<Reachable<E>>,
 
     candidates: Candidates<E>,
 }
 
-impl<E> Collapse<E>
+impl<E> CollapsedPath<E>
 where
     E: Entry,
 {

@@ -112,7 +112,7 @@ where
     /// Takes an owned value to indicate the structure is [terminal].
     ///
     /// [terminal]: Cannot be used again
-    pub fn collapse(self) -> Result<Collapse<E>, CollapseError> {
+    pub fn collapse(self) -> Result<CollapsedPath<E>, CollapseError> {
         let (source, target) = self.ends.ok_or(CollapseError::NoEnds)?;
 
         // There should be exclusive read-access by the time collapse is called.
@@ -141,7 +141,7 @@ where
             .ok_or(CollapseError::NoPathFound)?;
 
         drop(graph);
-        Ok(Collapse::new(cost, vec![], route, self))
+        Ok(CollapsedPath::new(cost, vec![], route, self))
     }
 
     /// TODO: Provide docs

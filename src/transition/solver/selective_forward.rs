@@ -258,7 +258,7 @@ where
     fn solve<E, T>(
         &self,
         mut transition: Transition<E, T, Ent>,
-    ) -> Result<Collapse<Ent>, MatchError>
+    ) -> Result<CollapsedPath<Ent>, MatchError>
     where
         E: EmissionStrategy + Send + Sync,
         T: TransitionStrategy<Ent> + Send + Sync,
@@ -309,7 +309,7 @@ where
             })
             .collect::<Vec<_>>();
 
-        Ok(Collapse::new(
+        Ok(CollapsedPath::new(
             cost.weight,
             reached,
             path,

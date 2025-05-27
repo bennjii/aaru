@@ -7,12 +7,12 @@ use geo::LineString;
 use log::info;
 use std::sync::Arc;
 
-impl<E> Match<E> for Graph<E>
+impl<E, Meta> Match<E, Meta> for Graph<E>
 where
     E: Entry,
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    fn r#match(&self, linestring: LineString) -> Result<Collapse<E>, MatchError> {
+    fn r#match(&self, linestring: LineString) -> Result<RoutedPath<E, Meta>, MatchError> {
         info!("Finding matched route for {} positions", linestring.0.len());
 
         let costing = CostingStrategies::default();
@@ -23,11 +23,13 @@ where
         // Yield the transition layers of each level
         // & Collapse the layers into a final vector
         let cache = Arc::clone(&self.cache);
-        transition.solve(SelectiveForwardSolver::default().use_cache(cache))
+        let solution = transition.solve(SelectiveForwardSolver::default().use_cache(cache))?;
+
+        Ok(RoutedPath::new(solution))
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]
-    fn snap(&self, _linestring: LineString) -> Result<Collapse<E>, MatchError> {
+    fn snap(&self, _linestring: LineString) -> Result<RoutedPath<E, Meta>, MatchError> {
         unimplemented!()
     }
 }

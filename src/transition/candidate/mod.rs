@@ -4,6 +4,7 @@ pub mod collapse;
 pub mod entry;
 pub mod graph;
 pub mod ident;
+pub mod route;
 
 #[doc(inline)]
 pub use collapse::*;
@@ -13,3 +14,5 @@ pub use entry::*;
 pub use graph::*;
 #[doc(inline)]
 pub use ident::*;
+#[doc(inline)]
+pub use route::*;

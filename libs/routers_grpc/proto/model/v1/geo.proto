@@ -38,10 +38,12 @@ message Edge {
   // The target node the edge ends at
   NodeIdentifier target = 3;
 
+  // Length of the edge, in meters.
+  uint32 length = 4;
+
   // Describes all the possible names of the given edge,
   // including road names. Used to identify or display the edge.
-  repeated string names = 4;
+  repeated string names = 5;
 
-  // Length of the edge, in meters.
-  uint32 length = 7;
+  EdgeMetadata metadata = 6;
 }

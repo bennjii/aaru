@@ -74,7 +74,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
             let coordinates: LineString<f64> = LineString::try_from_wkt_str(sc.input_linestring)
                 .expect("Linestring must parse successfully.");
 
-            let _ = graph
+            let _: RoutedPath<_, ()> = graph
                 .r#match(black_box(coordinates.clone()))
                 .expect("Match must complete successfully");
 
@@ -90,13 +90,15 @@ fn target_benchmark(c: &mut criterion::Criterion) {
 
             group.bench_function(format!("match: {}", sc.name), |b| {
                 b.iter(|| {
-                    let result = graph
+                    let result: RoutedPath<_, ()> = graph
                         .r#match(coordinates.clone())
                         .expect("Match must complete successfully");
 
+                    // TODO: Update match fn here.
                     let edges = result
-                        .edges()
-                        .map(|edge| edge.id.index().identifier)
+                        .discretized
+                        .iter()
+                        .map(|element| element.edge.id().identifier)
                         .collect::<Vec<_>>();
 
                     assert_subsequence(sc.expected_linestring, &edges);

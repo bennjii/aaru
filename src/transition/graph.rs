@@ -17,7 +17,7 @@ type NodeId = usize;
 ///
 /// Below is an example that can interpolate a trip using map-matching. To
 /// see all the available ways to interpret the resultant solution, see
-/// the [`Collapse`] structure.
+/// the [`CollapsedPath`] structure.
 ///
 /// ```rust
 /// use geo::LineString;
@@ -101,13 +101,13 @@ where
     }
 
     /// Solves the transition graph, using the provided [`Solver`].
-    pub fn solve(self, solver: impl Solver<Ent>) -> Result<Collapse<Ent>, MatchError> {
+    pub fn solve(self, solver: impl Solver<Ent>) -> Result<CollapsedPath<Ent>, MatchError> {
         // Indirection to call.
         solver.solve(self)
     }
 
     /// Collapses the Hidden Markov Model (See [HMM]) into a
-    /// [`Collapse`] result (solve).
+    /// [`CollapsedPath`] result (solve).
     ///
     /// Consumes the transition structure in doing so.
     /// This is because it makes irreversible modifications
@@ -116,7 +116,7 @@ where
     /// not be re-used.
     ///
     /// [HMM]: https://en.wikipedia.org/wiki/Hidden_Markov_model
-    pub(crate) fn collapse(self) -> Result<Collapse<Ent>, MatchError> {
+    pub(crate) fn collapse(self) -> Result<CollapsedPath<Ent>, MatchError> {
         // Use the candidates to collapse the graph into a single route.
         self.candidates
             .collapse()
