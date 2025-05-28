@@ -1,6 +1,6 @@
 use crate::FatEdge;
 use crate::graph::Graph;
-use crate::graph::proximity::definition::Scan;
+use crate::graph::Scan;
 
 use codec::Entry;
 use codec::primitive::Node;

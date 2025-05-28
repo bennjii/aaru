@@ -25,7 +25,6 @@ message MatchRequest {
 
 message MatchResponse {
   repeated model.v1.MatchedRoute matches = 1;
-  repeated string warnings = 2;
 }
 
 message SnapRequest {
@@ -47,5 +46,4 @@ message SnapRequest {
 
 message SnapResponse {
   repeated model.v1.MatchedRoute matches = 1;
-  repeated string warnings = 2;
 }

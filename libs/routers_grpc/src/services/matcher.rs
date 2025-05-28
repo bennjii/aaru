@@ -14,7 +14,7 @@ use tracing::Level;
 struct Util;
 
 impl Util {
-    fn post_process_match<E: Entry, Meta>(
+    fn process<E: Entry, Meta>(
         _service: impl Deref<Target = RouteService<E>>,
         _result: RoutedPath<E, Meta>,
     ) -> Vec<MatchedRoute> {
@@ -54,7 +54,7 @@ impl Util {
 
 #[tonic::async_trait]
 // TODO: Arc:Arc - Remove double usage.
-impl<E> MatchService for Arc<RouteService<E>>
+impl<E> MatchService for RouteService<E>
 where
     E: Entry + 'static,
 {
@@ -74,9 +74,7 @@ where
 
         Ok(Response::new(MatchResponse {
             // TODO: Vector to allow trip-splitting in the future.
-            matches: Util::post_process_match(self.deref().deref(), result),
-            // TODO: Aggregate all the errored trips.
-            warnings: vec![],
+            matches: Util::process(self.deref(), result),
         }))
     }
 
@@ -95,10 +93,7 @@ where
             .map_err(Status::internal)?;
 
         Ok(Response::new(SnapResponse {
-            // TODO: Vector to allow trip-splitting in the future.
-            matches: Util::post_process_match(self.deref().deref(), result),
-            // TODO: Aggregate all the errored trips.
-            warnings: vec![],
+            matches: Util::process(self.deref(), result),
         }))
     }
 }

@@ -1,6 +1,6 @@
-pub mod r#match;
-pub mod proximity;
-pub mod route;
+mod r#match;
+mod proximity;
+mod route;
 
 pub use r#match::Match;
 pub use proximity::Scan;

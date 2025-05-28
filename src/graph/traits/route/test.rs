@@ -1,4 +1,4 @@
-use crate::graph::route::definition::Route;
+use crate::graph::Route;
 use crate::graph::traits::util::init_graph;
 use codec::Node;
 use codec::osm::OsmEntryId;

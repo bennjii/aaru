@@ -12,7 +12,7 @@ use routers::Route;
 use tracing::Level;
 
 #[tonic::async_trait]
-impl<E> OptimiseService for Arc<RouteService<E>>
+impl<E> OptimiseService for RouteService<E>
 where
     E: Entry + 'static,
 {

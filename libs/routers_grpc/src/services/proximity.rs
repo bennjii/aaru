@@ -16,7 +16,7 @@ use codec::Entry;
 use tracing::Level;
 
 #[tonic::async_trait]
-impl<E> ScanService for Arc<RouteService<E>>
+impl<E> ScanService for RouteService<E>
 where
     E: Entry + 'static,
 {

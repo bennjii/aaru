@@ -48,9 +48,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(GrpcWebLayer::new())
         .accept_http1(true)
         .tcp_nodelay(true)
-        .add_service(OptimiseServiceServer::new(router.clone()))
-        .add_service(MatchServiceServer::new(router.clone()))
-        .add_service(ScanServiceServer::new(router.clone()))
+        .add_service(OptimiseServiceServer::from_arc(router.clone()))
+        .add_service(MatchServiceServer::from_arc(router.clone()))
+        .add_service(ScanServiceServer::from_arc(router.clone()))
         .add_service(reflector)
         .serve(addr)
         .await?;
