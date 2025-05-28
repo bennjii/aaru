@@ -43,11 +43,14 @@ message RouteEdge {
   uint32 routed_length = 7;
 }
 
-message MatchedRoute {
-  repeated Coordinate snapped_shape = 1;
-  repeated Coordinate interpolated = 2;
-  repeated RouteEdge edges = 3;
+message RouteElement {
+  Coordinate coordinate = 1;
+  RouteEdge edge = 2;
+}
 
-  string label = 4; // Not sure what this would be yet.
+message MatchedRoute {
+  repeated RouteElement discretized = 1;
+  repeated RouteElement interpolated = 2;
+
   uint32 cost = 5;
 }

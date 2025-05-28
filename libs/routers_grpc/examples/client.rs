@@ -25,7 +25,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = client.r#match(route).await?;
 
-    let matched = response.get_ref().snapped().ok_or("no linestring value")?;
+    let matched = response
+        .get_ref()
+        .discretized()
+        .ok_or("no linestring value")?;
     let interpolated = response
         .get_ref()
         .interpolated()

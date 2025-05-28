@@ -22,6 +22,10 @@ message EdgeMetadata {
   optional uint32 lane_count = 8;
   optional uint32 speed_limit = 9;
   optional string surface = 10;
+
+  // Describes all the possible names of the given edge,
+  // including road names. Used to identify or display the edge.
+  repeated string names = 5;
 }
 
 // There is a `source` and `target` node within the edge,
@@ -41,9 +45,5 @@ message Edge {
   // Length of the edge, in meters.
   uint32 length = 4;
 
-  // Describes all the possible names of the given edge,
-  // including road names. Used to identify or display the edge.
-  repeated string names = 5;
-
-  EdgeMetadata metadata = 6;
+  EdgeMetadata metadata = 5;
 }

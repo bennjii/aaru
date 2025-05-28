@@ -23,7 +23,7 @@ message EdgeResponse {
 
 // Specifies the distance and a position from which to search
 message PointSnappedRequest {
-  model.v1.Coordinate point = 1;
+  model.v1.Coordinate coordinate = 1;
   double search_radius = 2;
 }
 

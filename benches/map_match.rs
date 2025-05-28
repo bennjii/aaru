@@ -94,7 +94,6 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                         .r#match(coordinates.clone())
                         .expect("Match must complete successfully");
 
-                    // TODO: Update match fn here.
                     let edges = result
                         .discretized
                         .iter()

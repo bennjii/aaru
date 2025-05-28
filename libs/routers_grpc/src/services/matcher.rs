@@ -1,3 +1,4 @@
+use geo::{Coord, Point};
 use std::ops::Deref;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
@@ -7,48 +8,66 @@ use crate::definition::model::*;
 
 use crate::services::RouteService;
 use codec::{Entry, Metadata};
-use routers::{Match, RoutedPath};
+use routers::{Match, Path, RoutedPath};
 #[cfg(feature = "telemetry")]
 use tracing::Level;
 
 struct Util;
 
 impl Util {
-    fn process<E: Entry, M: Metadata>(
-        _service: impl Deref<Target = RouteService<E, M>>,
-        _result: RoutedPath<E, M>,
-    ) -> Vec<MatchedRoute> {
-        unimplemented!();
+    fn coordinate_from_point(point: Point) -> Coordinate {
+        <geo::Point as Into<Coord>>::into(point).into()
+    }
 
-        // let snapped_shape = result
-        //     .matched()
-        //     .iter()
-        //     .map(|node| Coordinate {
-        //         latitude: node.position.y(),
-        //         longitude: node.position.x(),
-        //     })
-        //     .collect::<Vec<_>>();
-        //
-        // let interpolated = result
-        //     .interpolated(&service.graph)
-        //     .coords()
-        //     .map(|node| Coordinate {
-        //         latitude: node.y,
-        //         longitude: node.x,
-        //     })
-        //     .collect::<Vec<_>>();
-        //
-        // // TODO: Correctly updraw this
-        // let matching = MatchedRoute {
-        //     snapped_shape,
-        //     interpolated,
-        //
-        //     edges: vec![],
-        //     label: "!".to_string(),
-        //     cost: 0,
-        // };
-        //
-        // vec![matching]
+    fn route_from_path<E: Entry, M: Metadata>(
+        service: impl Deref<Target = RouteService<E, M>>,
+        input: Path<E, M>,
+    ) -> Vec<RouteElement> {
+        input
+            .iter()
+            .map(|entry| RouteElement {
+                coordinate: Some(Util::coordinate_from_point(entry.point)),
+                edge: Some(RouteEdge {
+                    edge: Some(Edge {
+                        id: Some(EdgeIdentifier {
+                            id: entry.edge.id().identifier(),
+                        }),
+                        source: Some(NodeIdentifier {
+                            id: entry.edge.source.id.identifier(),
+                            coordinate: Some(Util::coordinate_from_point(
+                                entry.edge.source.position,
+                            )),
+                        }),
+                        target: Some(NodeIdentifier {
+                            id: entry.edge.target.id.identifier(),
+                            coordinate: Some(Util::coordinate_from_point(
+                                entry.edge.target.position,
+                            )),
+                        }),
+                        length: 0,
+                        metadata: Some((service.pick)(entry.metadata.clone())),
+                    }),
+                    join_percent: 0,
+                    depart_percent: 100,
+                    routed_length: 0,
+                }),
+            })
+            .collect::<Vec<_>>()
+    }
+    fn process<E: Entry, M: Metadata>(
+        service: impl Deref<Target = RouteService<E, M>>,
+        result: RoutedPath<E, M>,
+    ) -> Vec<MatchedRoute> {
+        let interpolated = Util::route_from_path(service.deref(), result.interpolated);
+        let discretized = Util::route_from_path(service.deref(), result.discretized);
+
+        let matched_route = MatchedRoute {
+            interpolated,
+            discretized,
+            cost: 0,
+        };
+
+        vec![matched_route]
     }
 }
 
@@ -73,8 +92,8 @@ where
             .map_err(|e| e.to_string())
             .map_err(Status::internal)?;
 
+        // TODO: Vector to allow trip-splitting in the future.
         Ok(Response::new(MatchResponse {
-            // TODO: Vector to allow trip-splitting in the future.
             matches: Util::process(self.deref(), result),
         }))
     }

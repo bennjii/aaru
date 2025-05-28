@@ -49,11 +49,27 @@ impl Deref for Coordinates {
 
 impl MatchResponse {
     pub fn interpolated(&self) -> Option<Coordinates> {
-        Some(Coordinates(self.matches.first()?.interpolated.clone()))
+        let path = self
+            .matches
+            .first()?
+            .interpolated
+            .iter()
+            .filter_map(|element| element.coordinate)
+            .collect::<Vec<_>>();
+
+        Some(Coordinates(path))
     }
 
-    pub fn snapped(&self) -> Option<Coordinates> {
-        Some(Coordinates(self.matches.first()?.snapped_shape.clone()))
+    pub fn discretized(&self) -> Option<Coordinates> {
+        let path = self
+            .matches
+            .first()?
+            .discretized
+            .iter()
+            .filter_map(|element| element.coordinate)
+            .collect::<Vec<_>>();
+
+        Some(Coordinates(path))
     }
 }
 
@@ -73,9 +89,8 @@ impl TryFrom<MatchResponse> for LineString {
     type Error = StdError;
 
     fn try_from(value: MatchResponse) -> Result<Self, Self::Error> {
-        let route = value.matches.first().ok_or(StdError)?;
+        let linestring = value.discretized().ok_or(StdError)?.into();
 
-        let linestring = Coordinates(route.snapped_shape.clone()).into();
         Ok(linestring)
     }
 }

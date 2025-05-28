@@ -49,7 +49,7 @@ where
             .into_iter()
             .flat_map(|reachable| reachable.path)
             .flat_map(|edge| edge.fatten(graph))
-            .map(PathElement::from_fat)
+            .flat_map(|edge| PathElement::from_fat(edge, graph))
             .collect::<Path<E, M>>();
 
         RoutedPath {
@@ -106,7 +106,7 @@ where
     pub point: Point,
     pub edge: FatEdge<E>,
 
-    metadata: M,
+    pub metadata: M,
 }
 
 impl<E, M> PathElement<E, M>
@@ -118,15 +118,15 @@ where
         Some(PathElement {
             point: candidate.position,
             edge: candidate.edge.fatten(graph)?,
-            metadata: todo!(),
+            metadata: graph.meta.get(candidate.edge.id())?.clone(),
         })
     }
 
-    pub fn from_fat(edge: FatEdge<E>) -> Self {
-        PathElement {
+    pub fn from_fat(edge: FatEdge<E>, graph: &Graph<E, M>) -> Option<Self> {
+        Some(PathElement {
             point: edge.source.position,
-            metadata: todo!(),
+            metadata: graph.meta.get(edge.id())?.clone(),
             edge,
-        }
+        })
     }
 }

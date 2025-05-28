@@ -63,7 +63,7 @@ where
         let (_, _, request) = request.into_parts();
 
         let point = request
-            .point
+            .coordinate
             .map(|v| Point(coord! { x: v.longitude, y: v.latitude }))
             .ok_or(Status::invalid_argument("Missing Point"))?;
 
