@@ -26,7 +26,7 @@ where
     /// use the [`CollapsedPath::interpolated`] method.
     pub interpolated: Vec<Reachable<E>>,
 
-    candidates: Candidates<E>,
+    pub candidates: Candidates<E>,
 }
 
 impl<E> CollapsedPath<E>

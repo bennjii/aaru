@@ -24,7 +24,9 @@ where
         let cache = Arc::clone(&self.cache);
         let solver = SelectiveForwardSolver::default().use_cache(cache);
 
-        transition.solve(solver).map(RoutedPath::new)
+        transition
+            .solve(solver)
+            .map(|collapsed| RoutedPath::new(collapsed, self))
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, level = Level::INFO))]

@@ -110,6 +110,17 @@ where
     pub const fn id(&self) -> &E {
         &self.id.id
     }
+
+    /// Upsizes a [`Edge`] into a [`FatEdge`].
+    #[inline]
+    pub fn fatten(&self, graph: &Graph<E>) -> Option<FatEdge<E>> {
+        Some(FatEdge {
+            source: *graph.hash.get(&self.source)?,
+            target: *graph.hash.get(&self.target)?,
+            id: self.id,
+            weight: self.weight,
+        })
+    }
 }
 
 impl<'a, E> From<(E, E, &'a (Weight, DirectionAwareEdgeId<E>))> for Edge<E>
@@ -155,6 +166,10 @@ impl<E> FatEdge<E>
 where
     E: Entry,
 {
+    pub const fn id(&self) -> &E {
+        &self.id.id
+    }
+
     /// Downsizes a [`FatEdge`] to an [`Edge`].
     #[inline]
     pub fn thin(&self) -> Edge<E> {

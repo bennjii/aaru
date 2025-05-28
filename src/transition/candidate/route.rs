@@ -2,6 +2,7 @@ use crate::transition::candidate::*;
 use codec::Entry;
 use std::ops::Deref;
 
+use crate::Graph;
 use geo::Point;
 
 /// A route representing the parsed output from a function
@@ -29,8 +30,30 @@ impl<E, Meta> RoutedPath<E, Meta>
 where
     E: Entry,
 {
-    pub fn new(_collapsed_path: CollapsedPath<E>) -> Self {
-        todo!();
+    pub fn new(collapsed_path: CollapsedPath<E>, graph: &Graph<E>) -> Self {
+        // Collect the collapsed route, providing graph context.
+        let discretized = collapsed_path
+            .route
+            .iter()
+            .flat_map(|id| collapsed_path.candidates.candidate(id))
+            .flat_map(|candidate| PathElement::new(candidate, graph))
+            .collect::<Path<E, Meta>>();
+
+        // Collect and interpolate required information from the
+        // collapsed path. Derives routing information for a
+        // informative response.
+        let interpolated = collapsed_path
+            .interpolated
+            .into_iter()
+            .flat_map(|reachable| reachable.path)
+            .flat_map(|edge| edge.fatten(graph))
+            .map(PathElement::from_fat)
+            .collect::<Path<E, Meta>>();
+
+        RoutedPath {
+            discretized,
+            interpolated,
+        }
     }
 }
 
@@ -42,6 +65,17 @@ where
 {
     /// The elements which construct the path.
     elements: Vec<PathElement<E, Meta>>,
+}
+
+impl<E, Meta> FromIterator<PathElement<E, Meta>> for Path<E, Meta>
+where
+    E: Entry,
+{
+    fn from_iter<I: IntoIterator<Item = PathElement<E, Meta>>>(iter: I) -> Self {
+        let elements = iter.into_iter().collect::<Vec<_>>();
+
+        Path { elements }
+    }
 }
 
 impl<E, Meta> Deref for Path<E, Meta>
@@ -64,7 +98,28 @@ where
     E: Entry,
 {
     pub point: Point,
-    pub edge: Edge<E>,
+    pub edge: FatEdge<E>,
 
     metadata: Meta,
+}
+
+impl<E, Meta> PathElement<E, Meta>
+where
+    E: Entry,
+{
+    pub fn new(candidate: Candidate<E>, graph: &Graph<E>) -> Option<Self> {
+        Some(PathElement {
+            point: candidate.position,
+            edge: candidate.edge.fatten(graph)?,
+            metadata: todo!(),
+        })
+    }
+
+    pub fn from_fat(edge: FatEdge<E>) -> Self {
+        PathElement {
+            point: edge.source.position,
+            metadata: todo!(),
+            edge,
+        }
+    }
 }
