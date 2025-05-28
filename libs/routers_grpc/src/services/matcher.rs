@@ -6,7 +6,7 @@ use crate::definition::r#match::*;
 use crate::definition::model::*;
 
 use crate::services::RouteService;
-use codec::Entry;
+use codec::{Entry, Metadata};
 use routers::{Match, RoutedPath};
 #[cfg(feature = "telemetry")]
 use tracing::Level;
@@ -14,9 +14,9 @@ use tracing::Level;
 struct Util;
 
 impl Util {
-    fn process<E: Entry, Meta>(
-        _service: impl Deref<Target = RouteService<E>>,
-        _result: RoutedPath<E, Meta>,
+    fn process<E: Entry, M: Metadata>(
+        _service: impl Deref<Target = RouteService<E, M>>,
+        _result: RoutedPath<E, M>,
     ) -> Vec<MatchedRoute> {
         unimplemented!();
 
@@ -54,8 +54,9 @@ impl Util {
 
 #[tonic::async_trait]
 // TODO: Arc:Arc - Remove double usage.
-impl<E> MatchService for RouteService<E>
+impl<E, M> MatchService for RouteService<E, M>
 where
+    M: Metadata + 'static,
     E: Entry + 'static,
 {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
@@ -66,7 +67,7 @@ where
         let map_match = request.into_inner();
         let coordinates = map_match.linestring();
 
-        let result: RoutedPath<_, ()> = self
+        let result = self
             .graph
             .r#match(coordinates)
             .map_err(|e| e.to_string())
@@ -86,7 +87,7 @@ where
         let map_match = request.into_inner();
         let coordinates = map_match.linestring();
 
-        let result: RoutedPath<_, ()> = self
+        let result = self
             .graph
             .snap(coordinates)
             .map_err(|e| e.to_string())

@@ -1,15 +1,16 @@
 use crate::graph::{Graph, Weight};
 use crate::graph::{Route, Scan};
 
-use codec::{Entry, Node};
+use codec::{Entry, Metadata, Node};
 
 use geo::Point;
 use log::debug;
 use petgraph::visit::EdgeRef;
 
-impl<E> Route<E> for Graph<E>
+impl<E, M> Route<E> for Graph<E, M>
 where
     E: Entry,
+    M: Metadata,
 {
     fn route_nodes(&self, start_node: E, finish_node: E) -> Option<(Weight, Vec<Node<E>>)> {
         debug!("Routing {start_node:?} -> {finish_node:?}");

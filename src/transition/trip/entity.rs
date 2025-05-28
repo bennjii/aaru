@@ -1,6 +1,6 @@
 use crate::Graph;
-use codec::Entry;
 use codec::primitive::Node;
+use codec::{Entry, Metadata};
 use geo::{Bearing, Distance, Haversine, LineString};
 
 /// Utilities to calculate metadata of a trip.
@@ -38,7 +38,7 @@ where
 
     // TODO: This should be done lazily, since we may not need the points but possibly OK as is.
     /// Creates a new trip from a slice of [`NodeIx`]s, and a map to lookup their location.
-    pub fn new_with_map(map: &Graph<E>, nodes: &[E]) -> Self {
+    pub fn new_with_map<M: Metadata>(map: &Graph<E, M>, nodes: &[E]) -> Self {
         let resolved = map.get_line(nodes);
 
         let nodes = resolved

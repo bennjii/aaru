@@ -23,6 +23,11 @@ impl Way {
     }
 
     #[inline]
+    pub fn tags_owned(self) -> Tags {
+        self.tags
+    }
+
+    #[inline]
     pub fn tags(&self) -> &Tags {
         &self.tags
     }

@@ -8,6 +8,7 @@ pub use relation::*;
 pub use way::*;
 
 pub mod common {
+    use crate::Metadata;
     use crate::osm::PrimitiveBlock;
     #[cfg(debug_assertions)]
     use crate::osm::relation::MemberType;
@@ -294,6 +295,8 @@ pub mod common {
 
     #[derive(Clone, Debug)]
     pub struct Tags(HashMap<TagString, TagString>);
+
+    impl Metadata for Tags {}
 
     pub trait Taggable {
         fn indices(&self) -> impl Iterator<Item = (&u32, &u32)>;

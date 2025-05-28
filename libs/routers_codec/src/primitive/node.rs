@@ -3,6 +3,7 @@ use geo::{Destination, Distance, Euclidean, Geodesic, Point};
 use rstar::{AABB, Envelope};
 use std::fmt::Debug;
 
+// TODO: Document
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Node<E>
 where
@@ -21,6 +22,7 @@ where
         Self { id, position }
     }
 
+    // TODO: Document
     pub fn bounding(&self, distance: f64) -> AABB<Point> {
         let bottom_right = Geodesic.destination(self.position, 135.0, distance);
         let top_left = Geodesic.destination(self.position, 315.0, distance);

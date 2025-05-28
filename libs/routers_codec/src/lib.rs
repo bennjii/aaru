@@ -11,4 +11,5 @@ pub mod primitive;
 
 pub use primitive::Edge;
 pub use primitive::Entry;
+pub use primitive::Metadata;
 pub use primitive::Node;

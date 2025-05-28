@@ -1,11 +1,12 @@
 use crate::transition::{MatchError, RoutedPath};
 
-use codec::Entry;
+use codec::{Entry, Metadata};
 use geo::LineString;
 
-pub trait Match<E, Meta>
+pub trait Match<E, M>
 where
     E: Entry,
+    M: Metadata,
 {
     /// Matches a given [linestring](LineString) against the map.
     ///
@@ -13,10 +14,10 @@ where
     /// using the [`Transition`](crate::Transition) module
     /// to collapse the given input onto the map, finding
     /// appropriate matching for each input value.
-    fn r#match(&self, linestring: LineString) -> Result<RoutedPath<E, Meta>, MatchError>;
+    fn r#match(&self, linestring: LineString) -> Result<RoutedPath<E, M>, MatchError>;
 
     /// Snaps a given linestring against the map.
     ///
     /// TODO: Docs
-    fn snap(&self, linestring: LineString) -> Result<RoutedPath<E, Meta>, MatchError>;
+    fn snap(&self, linestring: LineString) -> Result<RoutedPath<E, M>, MatchError>;
 }

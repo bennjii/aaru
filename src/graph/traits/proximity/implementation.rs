@@ -2,8 +2,8 @@ use crate::FatEdge;
 use crate::graph::Graph;
 use crate::graph::Scan;
 
-use codec::Entry;
 use codec::primitive::Node;
+use codec::{Entry, Metadata};
 
 use geo::{Destination, Geodesic, Haversine, InterpolatableLine, Line, LineLocatePoint, Point};
 use rstar::AABB;
@@ -11,15 +11,16 @@ use rstar::AABB;
 #[cfg(feature = "tracing")]
 use tracing::Level;
 
-impl<Ent> Scan<Ent> for Graph<Ent>
+impl<E, M> Scan<E> for Graph<E, M>
 where
-    Ent: Entry,
+    E: Entry,
+    M: Metadata,
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
     #[inline]
-    fn scan_nodes<'a>(&'a self, point: &Point, distance: f64) -> impl Iterator<Item = &'a Node<Ent>>
+    fn scan_nodes<'a>(&'a self, point: &Point, distance: f64) -> impl Iterator<Item = &'a Node<E>>
     where
-        Ent: 'a,
+        E: 'a,
     {
         let bottom_right = Geodesic.destination(*point, 135.0, distance);
         let top_left = Geodesic.destination(*point, 315.0, distance);
@@ -34,9 +35,9 @@ where
         &'a self,
         point: &Point,
         distance: f64,
-    ) -> impl Iterator<Item = &'a FatEdge<Ent>>
+    ) -> impl Iterator<Item = &'a FatEdge<E>>
     where
-        Ent: 'a,
+        E: 'a,
     {
         let bottom_right = Geodesic.destination(*point, 135.0, distance);
         let top_left = Geodesic.destination(*point, 315.0, distance);
@@ -47,9 +48,9 @@ where
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = Level::INFO, skip(self)))]
     #[inline]
-    fn scan_node<'a>(&'a self, point: Point) -> Option<&'a Node<Ent>>
+    fn scan_node<'a>(&'a self, point: Point) -> Option<&'a Node<E>>
     where
-        Ent: 'a,
+        E: 'a,
     {
         self.index.nearest_neighbor(&point)
     }
@@ -60,9 +61,9 @@ where
         &'a self,
         point: &Point,
         distance: f64,
-    ) -> impl Iterator<Item = (Point, &'a FatEdge<Ent>)>
+    ) -> impl Iterator<Item = (Point, &'a FatEdge<E>)>
     where
-        Ent: 'a,
+        E: 'a,
     {
         // Total overhead of this function is negligible.
         self.scan_edges(point, distance).filter_map(move |edge| {

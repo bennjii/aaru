@@ -1,7 +1,7 @@
 use crate::Graph;
 use crate::transition::Reachable;
 use crate::transition::candidate::*;
-use codec::Entry;
+use codec::{Entry, Metadata};
 use geo::LineString;
 
 /// The collapsed solution to a transition graph.
@@ -62,7 +62,7 @@ where
 
     /// Returns the interpolated route from the collapse as a [`LineString`].
     /// This can therefore be used to show the expected turn decisions made by the provided input.
-    pub fn interpolated(&self, map: &Graph<E>) -> LineString {
+    pub fn interpolated<M: Metadata>(&self, map: &Graph<E, M>) -> LineString {
         self.interpolated
             .iter()
             .enumerate()

@@ -12,3 +12,5 @@ pub trait Entry:
 {
     fn identifier(&self) -> i64;
 }
+
+pub trait Metadata: Clone + Debug + Send + Sync {}

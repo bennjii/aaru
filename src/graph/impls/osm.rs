@@ -2,7 +2,7 @@ use crate::graph::item::{Graph, GraphStructure, Weight};
 
 use codec::Node;
 use codec::osm::OsmEntryId;
-use codec::osm::element::ProcessedElement;
+use codec::osm::element::{ProcessedElement, Tags};
 use codec::osm::{Parallel, ProcessedElementIterator};
 
 use log::{debug, info};
@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-impl Graph<OsmEntryId> {
+impl Graph<OsmEntryId, Tags> {
     /// The weighting mapping of node keys to weight.
     pub fn weights<'a>() -> Result<HashMap<&'a str, Weight>, Box<dyn Error>> {
         let mut weights: HashMap<&str, Weight> = HashMap::new();
@@ -64,6 +64,8 @@ impl Graph<OsmEntryId> {
         info!("Ingesting...");
 
         let global_graph = Mutex::new(GraphStructure::new());
+        let meta = Mutex::new(FxHashMap::default());
+
         let (nodes, edges): (Vec<Node<OsmEntryId>>, Vec<Edge<OsmEntryId>>) = reader.par_red(
             |mut trees: (Vec<Node<OsmEntryId>>, Vec<Edge<OsmEntryId>>),
              element: ProcessedElement| {
@@ -84,6 +86,10 @@ impl Graph<OsmEntryId> {
                         };
 
                         let bidirectional = !way.tags().unidirectional();
+                        let _ = meta
+                            .lock()
+                            .unwrap()
+                            .insert(way.id(), way.clone().tags_owned());
 
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {
@@ -171,6 +177,8 @@ impl Graph<OsmEntryId> {
         Ok(Graph {
             graph,
             hash,
+
+            meta: meta.into_inner().unwrap(),
 
             index: tree,
             index_edge: tree_edge,

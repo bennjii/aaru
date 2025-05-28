@@ -11,13 +11,14 @@ use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use wkt::ToWkt;
 
-use codec::Entry;
+use codec::{Entry, Metadata};
 #[cfg(feature = "telemetry")]
 use tracing::Level;
 
 #[tonic::async_trait]
-impl<E> ScanService for RouteService<E>
+impl<E, M> ScanService for RouteService<E, M>
 where
+    M: Metadata + 'static,
     E: Entry + 'static,
 {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
