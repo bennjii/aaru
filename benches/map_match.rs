@@ -95,7 +95,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                         .expect("Match must complete successfully");
 
                     let edges = result
-                        .discretized
+                        .interpolated
                         .iter()
                         .map(|element| element.edge.id().identifier)
                         .collect::<Vec<_>>();
