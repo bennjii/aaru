@@ -31,6 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = tonic_build::configure()
         .file_descriptor_set_path(out_dir.join("routers_descriptor.bin"))
         .use_arc_self(true)
+        .message_attribute(
+            ".",
+            "#[derive(::derive_builder::Builder)] #[builder(setter(into, strip_option), default)]",
+        )
         .protoc_arg("--experimental_allow_proto3_optional")
         .include_file("_includes.rs")
         .compile_protos(&routers, &includes)
@@ -38,6 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Failed to build. {}", e);
         tonic_build::configure()
             .file_descriptor_set_path(out_dir.join("routers_descriptor.bin"))
+            .message_attribute(".", "#[derive(::derive_builder::Builder)] #[builder(setter(into, strip_option), default)]")
             .use_arc_self(true)
             .include_file("_includes.rs")
             .compile_protos(&routers, &includes)?

@@ -19,9 +19,8 @@ message Coordinate {
 // The values visible here are dependent on the data
 // available in the underlying map.
 message EdgeMetadata {
-  optional uint32 lane_count = 8;
-  optional uint32 speed_limit = 9;
-  optional string surface = 10;
+  optional uint32 lane_count = 1;
+  optional uint32 speed_limit = 2;
 
   // Describes all the possible names of the given edge,
   // including road names. Used to identify or display the edge.
@@ -43,7 +42,7 @@ message Edge {
   NodeIdentifier target = 3;
 
   // Length of the edge, in meters.
-  uint32 length = 4;
+  double length = 4;
 
   EdgeMetadata metadata = 5;
 }

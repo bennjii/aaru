@@ -12,7 +12,9 @@ pub mod common {
     use crate::osm::PrimitiveBlock;
     #[cfg(debug_assertions)]
     use crate::osm::relation::MemberType;
-    use crate::primitive::Entry;
+    use crate::primitive::{Entry, GenericMetadata};
+    use std::num::NonZeroU8;
+    use std::str::FromStr;
     use std::{
         collections::HashMap,
         hash::{Hash, Hasher},
@@ -287,16 +289,30 @@ pub mod common {
         const HIGHWAY: &'static str = "highway";
         const ONE_WAY: &'static str = "oneway";
         const JUNCTION: &'static str = "junction";
+        const LANES: &'static str = "lanes";
 
         pub fn recover(k: usize, block: &PrimitiveBlock) -> TagString {
             TagString::from(String::from_utf8_lossy(&block.stringtable.s[k]).into_owned())
+        }
+
+        pub fn parse<F: FromStr>(&self) -> Option<F> {
+            FromStr::from_str(self.as_str()).ok()
         }
     }
 
     #[derive(Clone, Debug)]
     pub struct Tags(HashMap<TagString, TagString>);
 
-    impl Metadata for Tags {}
+    impl Metadata for Tags {
+        fn pick(&self) -> GenericMetadata {
+            GenericMetadata {
+                lane_count: self
+                    .get(TagString::LANES)
+                    .and_then(TagString::parse::<NonZeroU8>),
+                ..GenericMetadata::default()
+            }
+        }
+    }
 
     pub trait Taggable {
         fn indices(&self) -> impl Iterator<Item = (&u32, &u32)>;

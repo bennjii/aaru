@@ -1,5 +1,4 @@
-use geo::{Coord, Point};
-use std::ops::Deref;
+use geo::{Coord, Distance, Geodesic, Point};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
@@ -19,47 +18,34 @@ impl Util {
         <geo::Point as Into<Coord>>::into(point).into()
     }
 
-    fn route_from_path<E: Entry, M: Metadata>(
-        service: impl Deref<Target = RouteService<E, M>>,
-        input: Path<E, M>,
-    ) -> Vec<RouteElement> {
+    fn route_from_path<E: Entry, M: Metadata>(input: Path<E, M>) -> Vec<RouteElement> {
         input
             .iter()
-            .map(|entry| RouteElement {
-                coordinate: Some(Util::coordinate_from_point(entry.point)),
-                edge: Some(RouteEdge {
-                    edge: Some(Edge {
-                        id: Some(EdgeIdentifier {
-                            id: entry.edge.id().identifier(),
-                        }),
-                        source: Some(NodeIdentifier {
-                            id: entry.edge.source.id.identifier(),
-                            coordinate: Some(Util::coordinate_from_point(
-                                entry.edge.source.position,
-                            )),
-                        }),
-                        target: Some(NodeIdentifier {
-                            id: entry.edge.target.id.identifier(),
-                            coordinate: Some(Util::coordinate_from_point(
-                                entry.edge.target.position,
-                            )),
-                        }),
-                        length: 0,
-                        metadata: Some((service.pick)(entry.metadata.clone())),
-                    }),
-                    join_percent: 0,
-                    depart_percent: 100,
-                    routed_length: 0,
-                }),
+            .flat_map(|entry| {
+                let edge = EdgeBuilder::default()
+                    .id(entry.edge.id().identifier())
+                    .source(entry.edge.source)
+                    .target(entry.edge.target)
+                    .metadata(entry.metadata.pick())
+                    .length(
+                        Geodesic.distance(entry.edge.source.position, entry.edge.target.position),
+                    )
+                    .build()
+                    .unwrap();
+
+                RouteElementBuilder::default()
+                    .coordinate(Util::coordinate_from_point(entry.point))
+                    .edge(RouteEdge {
+                        edge: Some(edge),
+                        ..RouteEdge::default()
+                    })
+                    .build()
             })
             .collect::<Vec<_>>()
     }
-    fn process<E: Entry, M: Metadata>(
-        service: impl Deref<Target = RouteService<E, M>>,
-        result: RoutedPath<E, M>,
-    ) -> Vec<MatchedRoute> {
-        let interpolated = Util::route_from_path(service.deref(), result.interpolated);
-        let discretized = Util::route_from_path(service.deref(), result.discretized);
+    fn process<E: Entry, M: Metadata>(result: RoutedPath<E, M>) -> Vec<MatchedRoute> {
+        let interpolated = Util::route_from_path(result.interpolated);
+        let discretized = Util::route_from_path(result.discretized);
 
         let matched_route = MatchedRoute {
             interpolated,
@@ -94,7 +80,7 @@ where
 
         // TODO: Vector to allow trip-splitting in the future.
         Ok(Response::new(MatchResponse {
-            matches: Util::process(self.deref(), result),
+            matches: Util::process(result),
         }))
     }
 
@@ -113,7 +99,7 @@ where
             .map_err(Status::internal)?;
 
         Ok(Response::new(SnapResponse {
-            matches: Util::process(self.deref(), result),
+            matches: Util::process(result),
         }))
     }
 }
