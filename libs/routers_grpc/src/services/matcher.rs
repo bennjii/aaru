@@ -43,6 +43,7 @@ impl Util {
             })
             .collect::<Vec<_>>()
     }
+
     fn process<E: Entry, M: Metadata>(result: RoutedPath<E, M>) -> Vec<MatchedRoute> {
         let interpolated = Util::route_from_path(result.interpolated);
         let discretized = Util::route_from_path(result.discretized);
@@ -58,7 +59,6 @@ impl Util {
 }
 
 #[tonic::async_trait]
-// TODO: Arc:Arc - Remove double usage.
 impl<E, M> MatchService for RouteService<E, M>
 where
     M: Metadata + 'static,
