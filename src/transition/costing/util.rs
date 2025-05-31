@@ -1,5 +1,5 @@
 use crate::transition::*;
-use codec::Entry;
+use codec::{Entry, Metadata};
 use std::f64::consts::E;
 
 const PRECISION: f64 = 1_000.0f64;
@@ -52,15 +52,16 @@ pub trait Strategy<Ctx> {
     }
 }
 
-pub trait Costing<Emission, Transition, Ent>
+pub trait Costing<Emission, Transition, E, M>
 where
-    Ent: Entry,
-    Transition: TransitionStrategy<Ent>,
+    E: Entry,
+    M: Metadata,
+    Transition: TransitionStrategy<E, M>,
     Emission: EmissionStrategy,
 {
     /// The emission costing function, returning a u32 cost value.
     fn emission(&self, context: EmissionContext) -> u32;
 
     /// The emission costing function, returning a u32 cost value.
-    fn transition(&self, context: TransitionContext<Ent>) -> u32;
+    fn transition(&self, context: TransitionContext<E, M>) -> u32;
 }

@@ -5,24 +5,22 @@
 
 pub mod candidate;
 pub mod costing;
-pub mod graph;
+pub mod entity;
 pub mod layer;
 pub mod primitives;
 pub mod solver;
 pub mod trip;
 
 // Re-Exports
-// #[doc(hidden)]
+#[doc(inline)]
 pub use candidate::*;
-// #[doc(hidden)]
+#[doc(inline)]
 pub use costing::*;
-// #[doc(hidden)]
-pub use graph::*;
-// #[doc(hidden)]
-pub use layer::*;
-// #[doc(hidden)]
+#[doc(inline)]
 pub use primitives::*;
-// #[doc(hidden)]
+#[doc(inline)]
 pub use solver::*;
-// #[doc(hidden)]
+
+pub use entity::*;
+pub use layer::*;
 pub use trip::*;

@@ -1,4 +1,4 @@
-use geo::{LineString, coord};
+use geo::{Coord, Distance, Geodesic, Point};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
@@ -6,70 +6,100 @@ use crate::definition::r#match::*;
 use crate::definition::model::*;
 
 use crate::services::RouteService;
-use routers::Match;
+use codec::{Entry, Metadata};
+use routers::{Match, Path, RoutedPath};
 #[cfg(feature = "telemetry")]
 use tracing::Level;
 
+struct Util;
+
+impl Util {
+    fn coordinate_from_point(point: Point) -> Coordinate {
+        <geo::Point as Into<Coord>>::into(point).into()
+    }
+
+    fn route_from_path<E: Entry, M: Metadata>(input: Path<E, M>) -> Vec<RouteElement> {
+        input
+            .iter()
+            .flat_map(|entry| {
+                let edge = EdgeBuilder::default()
+                    .id(entry.edge.id().identifier())
+                    .source(entry.edge.source)
+                    .target(entry.edge.target)
+                    .metadata(entry.metadata.pick())
+                    .length(
+                        Geodesic.distance(entry.edge.source.position, entry.edge.target.position),
+                    )
+                    .build()
+                    .unwrap();
+
+                RouteElementBuilder::default()
+                    .coordinate(Util::coordinate_from_point(entry.point))
+                    .edge(RouteEdge {
+                        edge: Some(edge),
+                        ..RouteEdge::default()
+                    })
+                    .build()
+            })
+            .collect::<Vec<_>>()
+    }
+
+    fn process<E: Entry, M: Metadata>(result: RoutedPath<E, M>) -> Vec<MatchedRoute> {
+        let interpolated = Util::route_from_path(result.interpolated);
+        let discretized = Util::route_from_path(result.discretized);
+
+        let matched_route = MatchedRoute {
+            interpolated,
+            discretized,
+            cost: 0,
+        };
+
+        vec![matched_route]
+    }
+}
+
 #[tonic::async_trait]
-impl MatchService for Arc<RouteService> {
+impl<E, M> MatchService for RouteService<E, M>
+where
+    M: Metadata + 'static,
+    E: Entry + 'static,
+{
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
     async fn r#match(
         self: Arc<Self>,
         request: Request<MatchRequest>,
     ) -> Result<Response<MatchResponse>, Status> {
         let map_match = request.into_inner();
-        let coordinates = map_match
-            .data
-            .iter()
-            .map(|coord| coord! { x: coord.longitude, y: coord.latitude })
-            .collect::<LineString>();
+        let coordinates = map_match.linestring();
 
         let result = self
             .graph
-            .map_match(coordinates)
-            .map_err(|err| Status::internal(format!("{:?}", err)))?;
+            .r#match(coordinates)
+            .map_err(|e| e.to_string())
+            .map_err(Status::internal)?;
 
-        let snapped_shape = result
-            .matched()
-            .iter()
-            .map(|node| Coordinate {
-                latitude: node.position.y(),
-                longitude: node.position.x(),
-            })
-            .collect::<Vec<_>>();
-
-        let interpolated = result
-            .interpolated(&self.graph)
-            .coords()
-            .map(|node| Coordinate {
-                latitude: node.y,
-                longitude: node.x,
-            })
-            .collect::<Vec<_>>();
-
-        // TODO: Correctly updraw this
-        let matching = MatchedRoute {
-            snapped_shape,
-            interpolated,
-
-            edges: vec![],
-            label: "!".to_string(),
-            cost: 0,
-        };
-
+        // TODO: Vector to allow trip-splitting in the future.
         Ok(Response::new(MatchResponse {
-            // TODO: Vector to allow trip-splitting in the future.
-            matches: vec![matching],
-            // TODO: Aggregate all the errored trips.
-            warnings: vec![],
+            matches: Util::process(result),
         }))
     }
 
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
     async fn snap(
         self: Arc<Self>,
-        _request: Request<SnapRequest>,
+        request: Request<SnapRequest>,
     ) -> Result<Response<SnapResponse>, Status> {
-        unimplemented!()
+        let map_match = request.into_inner();
+        let coordinates = map_match.linestring();
+
+        let result = self
+            .graph
+            .snap(coordinates)
+            .map_err(|e| e.to_string())
+            .map_err(Status::internal)?;
+
+        Ok(Response::new(SnapResponse {
+            matches: Util::process(result),
+        }))
     }
 }

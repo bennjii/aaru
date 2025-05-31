@@ -1,5 +1,5 @@
 use crate::transition::Trip;
-use codec::osm::element::variants::OsmEntryId;
+use codec::osm::OsmEntryId;
 
 use approx::assert_relative_eq;
 use codec::primitive::Node;

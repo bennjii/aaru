@@ -1,7 +1,7 @@
 use crate::transition::*;
 use crate::{Graph, Scan};
 
-use codec::Entry;
+use codec::{Entry, Metadata};
 use geo::{Distance, Haversine, Point};
 use itertools::Itertools;
 use measure_time::debug_time;
@@ -43,11 +43,12 @@ const DEFAULT_FILTER_DISTANCE: f64 = 250.0; // 250m
 /// represents a candidate transition point, within the `distance`
 /// search radius of the linestring point, which was found by the
 /// projection of the linestring point upon the closest edges within this radius.
-pub struct LayerGenerator<'a, E, T, Ent>
+pub struct LayerGenerator<'a, Emmis, Trans, E, M>
 where
-    Ent: Entry,
-    E: EmissionStrategy,
-    T: TransitionStrategy<Ent>,
+    M: Metadata,
+    E: Entry,
+    Emmis: EmissionStrategy,
+    Trans: TransitionStrategy<E, M>,
 {
     /// The maximum distance by which the generator will search for nodes,
     /// allowing it to find edges which may be comprised of distant nodes.
@@ -66,20 +67,24 @@ where
     ///
     /// This is required as a caching technique since the costs for a candidate
     /// need only be calculated once.
-    pub heuristics: &'a CostingStrategies<E, T, Ent>,
+    pub heuristics: &'a CostingStrategies<Emmis, Trans, E, M>,
 
     /// The routing map used to pull candidates from, and provide layout context.
-    map: &'a Graph<Ent>,
+    map: &'a Graph<E, M>,
 }
 
-impl<'a, E, T, Ent> LayerGenerator<'a, E, T, Ent>
+impl<'a, Emmis, Trans, E, M> LayerGenerator<'a, Emmis, Trans, E, M>
 where
-    Ent: Entry,
-    E: EmissionStrategy + Send + Sync,
-    T: TransitionStrategy<Ent> + Send + Sync,
+    E: Entry,
+    M: Metadata,
+    Emmis: EmissionStrategy + Send + Sync,
+    Trans: TransitionStrategy<E, M> + Send + Sync,
 {
     /// Creates a [`LayerGenerator`] from a map and costing heuristics.
-    pub fn new(map: &'a Graph<Ent>, heuristics: &'a CostingStrategies<E, T, Ent>) -> Self {
+    pub fn new(
+        map: &'a Graph<E, M>,
+        heuristics: &'a CostingStrategies<Emmis, Trans, E, M>,
+    ) -> Self {
         LayerGenerator {
             map,
             heuristics,
@@ -91,7 +96,7 @@ where
 
     /// Utilises the configured search and filter distances to produce
     /// the candidates and layers required to match the initial input.
-    pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates<Ent>) {
+    pub fn with_points(&self, input: &[Point]) -> (Layers, Candidates<E>) {
         let candidates = Candidates::default();
 
         // In parallel, create each layer, and collect into a single structure.
@@ -108,7 +113,7 @@ where
 
                     self.map
                         // We'll do a best-effort search (square) radius
-                        .nearest_projected_nodes(origin, self.search_distance)
+                        .scan_nodes_projected(origin, self.search_distance)
                         .filter_map(|(point, edge)| {
                             let distance = Haversine.distance(point, *origin);
 

@@ -1,6 +1,7 @@
 use crate::graph::Graph;
 use crate::transition::*;
 
+use codec::Metadata;
 use codec::primitive::Entry;
 use geo::LineString;
 
@@ -17,16 +18,17 @@ type NodeId = usize;
 ///
 /// Below is an example that can interpolate a trip using map-matching. To
 /// see all the available ways to interpret the resultant solution, see
-/// the [`Collapse`] structure.
+/// the [`CollapsedPath`] structure.
 ///
 /// ```rust
 /// use geo::LineString;
-/// use codec::osm::element::variants::OsmEntryId;
+/// use codec::osm::element::Tags;
+/// use codec::osm::OsmEntryId;
 /// use routers::{Graph, Transition};
 /// use routers::transition::{CostingStrategies, SelectiveForwardSolver};
 ///
 /// // An example function to find the interpolated path of a trip.
-/// fn match_trip(map: &Graph<OsmEntryId>, route: LineString) -> Option<LineString> {
+/// fn match_trip(map: &Graph<OsmEntryId, Tags>, route: LineString) -> Option<LineString> {
 ///     // Use the default costing strategies
 ///     let costing = CostingStrategies::default();
 ///
@@ -44,24 +46,26 @@ type NodeId = usize;
 ///     Some(solution.interpolated(map))
 /// }
 /// ```
-pub struct Transition<'a, E, T, Ent>
+pub struct Transition<'a, Emission, Transition, E, M>
 where
-    Ent: Entry,
-    E: EmissionStrategy,
-    T: TransitionStrategy<Ent>,
+    E: Entry,
+    M: Metadata,
+    Emission: EmissionStrategy,
+    Transition: TransitionStrategy<E, M>,
 {
-    pub(crate) map: &'a Graph<Ent>,
-    pub(crate) heuristics: CostingStrategies<E, T, Ent>,
+    pub(crate) map: &'a Graph<E, M>,
+    pub(crate) heuristics: CostingStrategies<Emission, Transition, E, M>,
 
-    pub(crate) candidates: Candidates<Ent>,
+    pub(crate) candidates: Candidates<E>,
     pub(crate) layers: Layers,
 }
 
-impl<'a, E, T, Ent> Transition<'a, E, T, Ent>
+impl<'a, Emmis, Trans, E, M> Transition<'a, Emmis, Trans, E, M>
 where
-    Ent: Entry,
-    E: EmissionStrategy + Send + Sync,
-    T: TransitionStrategy<Ent> + Send + Sync,
+    E: Entry,
+    M: Metadata,
+    Emmis: EmissionStrategy + Send + Sync,
+    Trans: TransitionStrategy<E, M> + Send + Sync,
 {
     /// Creates a new transition graph from the input linestring and heuristics.
     ///
@@ -74,10 +78,10 @@ where
     /// Therefore, this function may be more expensive than intended for some cases,
     /// plan accordingly.
     pub fn new(
-        map: &'a Graph<Ent>,
+        map: &'a Graph<E, M>,
         linestring: LineString,
-        heuristics: CostingStrategies<E, T, Ent>,
-    ) -> Transition<'a, E, T, Ent> {
+        heuristics: CostingStrategies<Emmis, Trans, E, M>,
+    ) -> Transition<'a, Emmis, Trans, E, M> {
         let points = linestring.into_points();
         let generator = LayerGenerator::new(map, &heuristics);
 
@@ -93,7 +97,7 @@ where
     }
 
     /// Converts the transition graph into a [`RoutingContext`].
-    pub fn context(&self) -> RoutingContext<Ent> {
+    pub fn context(&self) -> RoutingContext<E, M> {
         RoutingContext {
             candidates: &self.candidates,
             map: self.map,
@@ -101,13 +105,13 @@ where
     }
 
     /// Solves the transition graph, using the provided [`Solver`].
-    pub fn solve(self, solver: impl Solver<Ent>) -> Result<Collapse<Ent>, MatchError> {
+    pub fn solve(self, solver: impl Solver<E, M>) -> Result<CollapsedPath<E>, MatchError> {
         // Indirection to call.
         solver.solve(self)
     }
 
     /// Collapses the Hidden Markov Model (See [HMM]) into a
-    /// [`Collapse`] result (solve).
+    /// [`CollapsedPath`] result (solve).
     ///
     /// Consumes the transition structure in doing so.
     /// This is because it makes irreversible modifications
@@ -116,7 +120,7 @@ where
     /// not be re-used.
     ///
     /// [HMM]: https://en.wikipedia.org/wiki/Hidden_Markov_model
-    pub(crate) fn collapse(self) -> Result<Collapse<Ent>, MatchError> {
+    pub(crate) fn collapse(self) -> Result<CollapsedPath<E>, MatchError> {
         // Use the candidates to collapse the graph into a single route.
         self.candidates
             .collapse()

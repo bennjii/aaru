@@ -15,6 +15,7 @@ codec = { path = "../routers_codec", package = "routers_codec" }
 # Protobuf Handling
 prost = { version = "0.13.3" }
 prost-types = "0.13.4"
+derive_builder = "0.20.2"
 
 # gRPC Server Dependencies
 tonic = { version = "0.13.1", features = [] }

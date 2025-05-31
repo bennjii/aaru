@@ -1,22 +1,32 @@
 use routers::Graph;
 
-use codec::osm::element::variants::OsmEntryId;
+use crate::model::EdgeMetadata;
+use codec::osm::OsmEntryId;
+use codec::osm::element::Tags;
+use codec::{Entry, Metadata};
 use std::path::PathBuf;
 
 pub mod matcher;
 pub mod optimise;
 pub mod proximity;
 
-#[derive(Debug)]
-pub struct RouteService {
-    pub graph: Graph<OsmEntryId>,
+pub struct RouteService<E, M>
+where
+    E: Entry,
+    M: Metadata,
+{
+    pub graph: Graph<E, M>,
+    pub pick: Box<dyn Fn(M) -> EdgeMetadata + Sync + Send>,
 }
 
-impl RouteService {
-    pub fn from_file(file: PathBuf) -> Result<RouteService, Box<dyn std::error::Error>> {
+impl RouteService<OsmEntryId, Tags> {
+    pub fn from_file(file: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         let graph =
             Graph::new(file.as_os_str().to_ascii_lowercase()).map_err(|e| format!("{:?}", e))?;
 
-        Ok(RouteService { graph })
+        Ok(RouteService {
+            graph,
+            pick: Box::new(|_| EdgeMetadata::default()),
+        })
     }
 }

@@ -1,6 +1,6 @@
 use crate::Graph;
 use crate::transition::*;
-use codec::Entry;
+use codec::{Entry, Metadata};
 
 /// A base context provided to costing methods.
 ///
@@ -11,17 +11,19 @@ use codec::Entry;
 /// Provides access to the base map [`map`](#field.map).
 /// It also provides a reference to the [`candidates`](#field.candidates) chosen in prior stages.
 #[derive(Clone, Copy, Debug)]
-pub struct RoutingContext<'a, E>
+pub struct RoutingContext<'a, E, M>
 where
     E: Entry + 'a,
+    M: Metadata + 'a,
 {
     pub candidates: &'a Candidates<E>,
-    pub map: &'a Graph<E>,
+    pub map: &'a Graph<E, M>,
 }
 
-impl<E> RoutingContext<'_, E>
+impl<E, M> RoutingContext<'_, E, M>
 where
     E: Entry,
+    M: Metadata,
 {
     /// Obtain a [candidate](Candidate), should it exist, by its [identifier](CandidateId).
     pub fn candidate(&self, candidate: &CandidateId) -> Option<Candidate<E>> {

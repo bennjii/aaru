@@ -4,6 +4,7 @@ package api.match.v1;
 import "google/protobuf/timestamp.proto";
 import "model/v1/costing.proto";
 import "model/v1/geo.proto";
+import "model/v1/route.proto";
 
 message MatchRequest {
   // A list of coordinates to match
@@ -23,17 +24,7 @@ message MatchRequest {
 }
 
 message MatchResponse {
-  repeated MatchedRoute matches = 1;
-  repeated string warnings = 2;
-}
-
-message MatchedRoute {
-  repeated model.v1.Coordinate snapped_shape = 1;
-  repeated model.v1.Coordinate interpolated = 2;
-  repeated model.v1.EdgeInfo edges = 3;
-
-  string label = 4; // Not sure what this would be yet.
-  uint32 cost = 5;
+  repeated model.v1.MatchedRoute matches = 1;
 }
 
 message SnapRequest {
@@ -54,6 +45,5 @@ message SnapRequest {
 }
 
 message SnapResponse {
-  repeated MatchedRoute matches = 1;
-  repeated string warnings = 2;
+  repeated model.v1.MatchedRoute matches = 1;
 }

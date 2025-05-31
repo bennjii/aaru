@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
-use codec::Entry;
+use codec::{Entry, Metadata};
 use geo::{Distance, Haversine};
 use itertools::Itertools;
 use pathfinding::num_traits::Zero;
@@ -18,32 +18,38 @@ use petgraph::prelude::EdgeRef;
 /// A Upper-Bounded Dijkstra (UBD) algorithm.
 ///
 /// TODO: Docs
-pub struct SelectiveForwardSolver<Ent>
+pub struct SelectiveForwardSolver<E, M>
 where
-    Ent: Entry,
+    E: Entry,
+    M: Metadata,
 {
     // Internally holds a successors cache
-    predicate: Arc<Mutex<PredicateCache<Ent>>>,
-    reachable_hash: RefCell<FxHashMap<(usize, usize), Reachable<Ent>>>,
+    predicate: Arc<Mutex<PredicateCache<E, M>>>,
+    reachable_hash: RefCell<FxHashMap<(usize, usize), Reachable<E>>>,
+
+    _marker: std::marker::PhantomData<M>,
 }
 
-impl<Ent> Default for SelectiveForwardSolver<Ent>
+impl<E, M> Default for SelectiveForwardSolver<E, M>
 where
-    Ent: Entry,
+    E: Entry,
+    M: Metadata,
 {
     fn default() -> Self {
         Self {
             predicate: Arc::new(Mutex::new(PredicateCache::default())),
             reachable_hash: RefCell::new(FxHashMap::default()),
+            _marker: std::marker::PhantomData,
         }
     }
 }
 
-impl<Ent> SelectiveForwardSolver<Ent>
+impl<E, M> SelectiveForwardSolver<E, M>
 where
-    Ent: Entry,
+    E: Entry,
+    M: Metadata,
 {
-    pub fn use_cache(self, cache: Arc<Mutex<PredicateCache<Ent>>>) -> Self {
+    pub fn use_cache(self, cache: Arc<Mutex<PredicateCache<E, M>>>) -> Self {
         Self {
             predicate: cache,
             ..self
@@ -82,16 +88,16 @@ where
         None
     }
 
-    fn reach<'a, 'b, E, T>(
+    fn reach<'a, 'b, Emmis, Trans>(
         &'b self,
-        transition: &'b Transition<'b, E, T, Ent>,
-        context: RoutingContext<'b, Ent>,
+        transition: &'b Transition<'b, Emmis, Trans, E, M>,
+        context: &'b RoutingContext<'b, E, M>,
         (start, end): (CandidateId, CandidateId),
         source: &CandidateId,
     ) -> Vec<(CandidateId, CandidateEdge)>
     where
-        E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy<Ent> + Send + Sync,
+        Emmis: EmissionStrategy + Send + Sync,
+        Trans: TransitionStrategy<E, M> + Send + Sync,
         'b: 'a,
     {
         let graph_ref = Arc::clone(&transition.candidates.graph);
@@ -175,10 +181,10 @@ where
     /// to reach the target.
     fn reachable<'a>(
         &self,
-        ctx: RoutingContext<'a, Ent>,
+        ctx: &'a RoutingContext<'a, E, M>,
         source: &CandidateId,
         targets: &'a [CandidateId],
-    ) -> Option<Vec<Reachable<Ent>>> {
+    ) -> Option<Vec<Reachable<E>>> {
         let source_candidate = ctx.candidate(source)?;
 
         // Upper-Bounded reachable map containing a Child:Parent relation
@@ -188,7 +194,7 @@ where
             self.predicate
                 .lock()
                 .unwrap()
-                .query(&ctx, source_candidate.edge.target)
+                .query(ctx, source_candidate.edge.target)
                 .clone()
         };
 
@@ -251,17 +257,18 @@ where
     }
 }
 
-impl<Ent> Solver<Ent> for SelectiveForwardSolver<Ent>
+impl<E, M> Solver<E, M> for SelectiveForwardSolver<E, M>
 where
-    Ent: Entry,
+    E: Entry,
+    M: Metadata,
 {
-    fn solve<E, T>(
+    fn solve<Emmis, Trans>(
         &self,
-        mut transition: Transition<E, T, Ent>,
-    ) -> Result<Collapse<Ent>, MatchError>
+        mut transition: Transition<Emmis, Trans, E, M>,
+    ) -> Result<CollapsedPath<E>, MatchError>
     where
-        E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy<Ent> + Send + Sync,
+        Emmis: EmissionStrategy + Send + Sync,
+        Trans: TransitionStrategy<E, M> + Send + Sync,
     {
         let (start, end) = {
             // Compute cost ~= free
@@ -287,7 +294,7 @@ where
 
         let Some((path, cost)) = astar(
             &start,
-            |source| self.reach(&transition, context, (start, end), source),
+            |source| self.reach(&transition, &context, (start, end), source),
             |_| CandidateEdge::zero(),
             |node| *node == end,
         ) else {
@@ -309,7 +316,7 @@ where
             })
             .collect::<Vec<_>>();
 
-        Ok(Collapse::new(
+        Ok(CollapsedPath::new(
             cost.weight,
             reached,
             path,

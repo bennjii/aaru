@@ -2,8 +2,8 @@ use crate::Graph;
 use crate::graph::Weight;
 use crate::transition::RoutingContext;
 
-use codec::Entry;
 use codec::primitive::Node;
+use codec::{Entry, Metadata};
 use geo::{Distance, Haversine, LineLocatePoint, LineString, Point};
 use pathfinding::num_traits::Zero;
 use petgraph::Direction;
@@ -103,6 +103,26 @@ where
     pub id: DirectionAwareEdgeId<E>,
 }
 
+impl<E> Edge<E>
+where
+    E: Entry,
+{
+    pub const fn id(&self) -> &E {
+        &self.id.id
+    }
+
+    /// Upsizes a [`Edge`] into a [`FatEdge`].
+    #[inline]
+    pub fn fatten<M: Metadata>(&self, graph: &Graph<E, M>) -> Option<FatEdge<E>> {
+        Some(FatEdge {
+            source: *graph.hash.get(&self.source)?,
+            target: *graph.hash.get(&self.target)?,
+            id: self.id,
+            weight: self.weight,
+        })
+    }
+}
+
 impl<'a, E> From<(E, E, &'a (Weight, DirectionAwareEdgeId<E>))> for Edge<E>
 where
     E: Entry,
@@ -146,6 +166,10 @@ impl<E> FatEdge<E>
 where
     E: Entry,
 {
+    pub const fn id(&self) -> &E {
+        &self.id.id
+    }
+
     /// Downsizes a [`FatEdge`] to an [`Edge`].
     #[inline]
     pub fn thin(&self) -> Edge<E> {
@@ -241,7 +265,7 @@ where
     ///                0.4              0.9
     ///               (40%)            (90%)
     ///
-    pub fn percentage(&self, graph: &Graph<E>) -> Option<f64> {
+    pub fn percentage<M: Metadata>(&self, graph: &Graph<E, M>) -> Option<f64> {
         let edge = graph
             .get_line(&[self.edge.source, self.edge.target])
             .into_iter()
@@ -251,7 +275,11 @@ where
     }
 
     /// Calculates the offset, in meters, of the candidate to it's edge by the [`VirtualTail`].
-    pub fn offset(&self, ctx: &RoutingContext<E>, variant: VirtualTail) -> Option<f64> {
+    pub fn offset<M: Metadata>(
+        &self,
+        ctx: &RoutingContext<E, M>,
+        variant: VirtualTail,
+    ) -> Option<f64> {
         match variant {
             VirtualTail::ToSource => {
                 let source = ctx.map.get_position(&self.edge.source)?;

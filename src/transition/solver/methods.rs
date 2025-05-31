@@ -1,4 +1,5 @@
 use crate::transition::*;
+use codec::Metadata;
 use codec::primitive::Entry;
 use itertools::Either;
 
@@ -78,7 +79,11 @@ where
 /// in order to solve the transition graph.
 ///
 /// Functionality is implemented using the [`Solver::solve`] method.
-pub trait Solver<Ent> {
+pub trait Solver<E, M>
+where
+    E: Entry,
+    M: Metadata,
+{
     /// Refines a single node within an initial layer to all nodes in the
     /// following layer with their respective emission and transition
     /// probabilities in the hidden markov model.
@@ -88,9 +93,11 @@ pub trait Solver<Ent> {
     /// or due to blown-out costings. There are other reasons this may occur given
     /// the functionality is statistical and therefore prone to out-of-bound failures
     /// which are less deterministic than a brute-force model.
-    fn solve<E, T>(&self, transition: Transition<E, T, Ent>) -> Result<Collapse<Ent>, MatchError>
+    fn solve<Emmis, Trans>(
+        &self,
+        transition: Transition<Emmis, Trans, E, M>,
+    ) -> Result<CollapsedPath<E>, MatchError>
     where
-        Ent: Entry,
-        E: EmissionStrategy + Send + Sync,
-        T: TransitionStrategy<Ent> + Send + Sync;
+        Emmis: EmissionStrategy + Send + Sync,
+        Trans: TransitionStrategy<E, M> + Send + Sync;
 }

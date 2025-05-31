@@ -1,7 +1,7 @@
-use crate::graph::route::definition::Route;
+use crate::graph::Route;
 use crate::graph::traits::util::init_graph;
 use codec::Node;
-use codec::osm::element::variants::OsmEntryId;
+use codec::osm::OsmEntryId;
 use geo::{LineString, Point, coord};
 use routers_fixtures::DISTRICT_OF_COLUMBIA;
 use std::error::Error;

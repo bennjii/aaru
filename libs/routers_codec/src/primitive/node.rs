@@ -3,6 +3,9 @@ use geo::{Destination, Distance, Euclidean, Geodesic, Point};
 use rstar::{AABB, Envelope};
 use std::fmt::Debug;
 
+/// The standardised node primitive containing a generic
+/// identifier which must implement [Entry], and contain
+/// some given [Point].
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Node<E>
 where
@@ -21,6 +24,8 @@ where
         Self { id, position }
     }
 
+    /// Constructs the rectangular Axis-Aligned Bounding Box ([AABB](rstar::AABB))
+    /// for the square [distance](#param.distance) around the node position.
     pub fn bounding(&self, distance: f64) -> AABB<Point> {
         let bottom_right = Geodesic.destination(self.position, 135.0, distance);
         let top_left = Geodesic.destination(self.position, 315.0, distance);

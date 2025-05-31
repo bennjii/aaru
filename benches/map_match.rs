@@ -75,7 +75,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
                 .expect("Linestring must parse successfully.");
 
             let _ = graph
-                .map_match(black_box(coordinates.clone()))
+                .r#match(black_box(coordinates.clone()))
                 .expect("Match must complete successfully");
 
             group.bench_function(format!("layer-gen: {}", sc.name), |b| {
@@ -91,12 +91,13 @@ fn target_benchmark(c: &mut criterion::Criterion) {
             group.bench_function(format!("match: {}", sc.name), |b| {
                 b.iter(|| {
                     let result = graph
-                        .map_match(coordinates.clone())
+                        .r#match(coordinates.clone())
                         .expect("Match must complete successfully");
 
                     let edges = result
-                        .edges()
-                        .map(|edge| edge.id.index().identifier)
+                        .interpolated
+                        .iter()
+                        .map(|element| element.edge.id().identifier)
                         .collect::<Vec<_>>();
 
                     assert_subsequence(sc.expected_linestring, &edges);

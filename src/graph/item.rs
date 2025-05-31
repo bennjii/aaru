@@ -1,5 +1,5 @@
 use crate::{DirectionAwareEdgeId, FatEdge, PredicateCache};
-use codec::primitive::{Entry, Node};
+use codec::primitive::{Entry, Metadata, Node};
 
 use geo::Point;
 use petgraph::prelude::DiGraphMap;
@@ -22,31 +22,35 @@ pub(crate) const MAX_WEIGHT: Weight = u32::MAX as Weight;
 /// Routing graph.
 ///
 /// TODO: ... can be ingested from an `.osm.pbf` file, and can be actioned upon using `route(start, end)`.
-pub struct Graph<E>
+pub struct Graph<E, M>
 where
     E: Entry,
+    M: Metadata,
 {
     pub(crate) graph: GraphStructure<E>,
     pub(crate) hash: FxHashMap<E, Node<E>>,
+    pub(crate) meta: FxHashMap<E, M>,
 
     pub(crate) index: RTree<Node<E>>,
     pub(crate) index_edge: RTree<FatEdge<E>>,
 
-    pub(crate) cache: Arc<Mutex<PredicateCache<E>>>,
+    pub(crate) cache: Arc<Mutex<PredicateCache<E, M>>>,
 }
 
-impl<E> Debug for Graph<E>
+impl<E, M> Debug for Graph<E, M>
 where
     E: Entry,
+    M: Metadata,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Graph with Nodes: {}", self.hash.len())
     }
 }
 
-impl<E> Graph<E>
+impl<E, M> Graph<E, M>
 where
     E: Entry,
+    M: Metadata,
 {
     pub fn index(&self) -> &RTree<Node<E>> {
         &self.index

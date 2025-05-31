@@ -1,14 +1,15 @@
 use crate::transition::candidate::{Candidate, CandidateId};
 use crate::transition::{ResolutionMethod, RoutingContext, Strategy, Trip, VirtualTail};
-use codec::Entry;
+use codec::{Entry, Metadata};
 use geo::{Distance, Haversine};
 
-pub trait TransitionStrategy<E>: for<'a> Strategy<TransitionContext<'a, E>> {}
-impl<T, E> TransitionStrategy<E> for T where T: for<'a> Strategy<TransitionContext<'a, E>> {}
+pub trait TransitionStrategy<E, M>: for<'a> Strategy<TransitionContext<'a, E, M>> {}
+impl<T, E, M> TransitionStrategy<E, M> for T where T: for<'a> Strategy<TransitionContext<'a, E, M>> {}
 
 #[derive(Clone, Debug)]
-pub struct TransitionContext<'a, E>
+pub struct TransitionContext<'a, E, M>
 where
+    M: Metadata + 'a,
     E: Entry + 'a,
 {
     /// The optimal path travelled between the
@@ -31,7 +32,7 @@ where
 
     /// Further context to provide access to determine routing information,
     /// such as node positions upon the map, and referencing other candidates.
-    pub routing_context: RoutingContext<'a, E>,
+    pub routing_context: &'a RoutingContext<'a, E, M>,
 
     /// The length between the layer nodes
     pub layer_width: f64,
@@ -82,9 +83,10 @@ impl TransitionLengths {
     }
 }
 
-impl<E> TransitionContext<'_, E>
+impl<E, M> TransitionContext<'_, E, M>
 where
     E: Entry,
+    M: Metadata,
 {
     /// Obtains the source [candidate](Candidate) from the context.
     pub fn source_candidate(&self) -> Candidate<E> {
@@ -113,8 +115,8 @@ where
                 // Also validate that this isn't the only way we need to calculate the distances,
                 // since its perfectly possible to need the other way around (virt. tail) depending on which
                 // invariants are upheld upstream
-                let inner_offset = source.offset(&self.routing_context, VirtualTail::ToTarget)?;
-                let outer_offset = target.offset(&self.routing_context, VirtualTail::ToSource)?;
+                let inner_offset = source.offset(self.routing_context, VirtualTail::ToTarget)?;
+                let outer_offset = target.offset(self.routing_context, VirtualTail::ToSource)?;
 
                 Some(inner_offset + outer_offset)
             }
