@@ -1,4 +1,5 @@
 use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString};
 
@@ -250,6 +251,56 @@ impl FromStr for ComparisonOperator {
     }
 }
 
+impl Display for Condition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self.condition_type {
+            ConditionType::TimeDate(td) => {
+                if let Some(comment) = &td.comment {
+                    write!(f, "{} \"{}\"", td.opening_hours, comment)
+                } else {
+                    write!(f, "{}", td.opening_hours)
+                }
+            }
+            ConditionType::Season(season) => write!(f, "{}", season),
+            ConditionType::RoadCondition(road) => write!(f, "{}", road),
+            ConditionType::VehicleProperty(vp) => {
+                let unit_str = vp.unit.as_deref().unwrap_or("");
+                write!(f, "{}{}{}{}", vp.property, vp.operator, vp.value, unit_str)
+            }
+            ConditionType::VehicleUsage(vu) => match vu {
+                VehicleUsageCondition::Occupants { operator, count } => {
+                    write!(f, "occupants{}{}", operator, count)
+                }
+                VehicleUsageCondition::Hazmat => write!(f, "hazmat"),
+                VehicleUsageCondition::Load(load) => write!(f, "{}", load),
+            },
+            ConditionType::UserGroup(ug) => write!(f, "{}", ug),
+            ConditionType::Purpose(purpose) => write!(f, "{}", purpose),
+            ConditionType::StayDuration(sd) => {
+                write!(
+                    f,
+                    "stay {} {} {}",
+                    sd.operator, sd.duration.value, sd.duration.unit
+                )
+            }
+            ConditionType::Combined(combined) => {
+                write!(
+                    f,
+                    "{} {} {}",
+                    Condition {
+                        condition_type: *combined.left.clone()
+                    },
+                    combined.operator,
+                    Condition {
+                        condition_type: *combined.right.clone()
+                    }
+                )
+            }
+            ConditionType::Raw(raw) => write!(f, "{}", raw),
+        }
+    }
+}
+
 impl Condition {
     /// Parse a condition string into a Condition struct
     ///
@@ -335,55 +386,6 @@ impl Condition {
         Ok(Condition {
             condition_type: ConditionType::Raw(cleaned.to_string()),
         })
-    }
-
-    /// Convert condition back to string representation
-    pub fn to_string(&self) -> String {
-        match &self.condition_type {
-            ConditionType::TimeDate(td) => {
-                if let Some(comment) = &td.comment {
-                    format!("{} \"{}\"", td.opening_hours, comment)
-                } else {
-                    td.opening_hours.clone()
-                }
-            }
-            ConditionType::Season(season) => season.to_string(),
-            ConditionType::RoadCondition(road) => road.to_string(),
-            ConditionType::VehicleProperty(vp) => {
-                let unit_str = vp.unit.as_deref().unwrap_or("");
-                format!("{}{}{}{}", vp.property, vp.operator, vp.value, unit_str)
-            }
-            ConditionType::VehicleUsage(vu) => match vu {
-                VehicleUsageCondition::Occupants { operator, count } => {
-                    format!("occupants{}{}", operator, count)
-                }
-                VehicleUsageCondition::Hazmat => "hazmat".to_string(),
-                VehicleUsageCondition::Load(load) => load.clone(),
-            },
-            ConditionType::UserGroup(ug) => ug.to_string(),
-            ConditionType::Purpose(purpose) => purpose.to_string(),
-            ConditionType::StayDuration(sd) => {
-                format!(
-                    "stay {} {} {}",
-                    sd.operator, sd.duration.value, sd.duration.unit
-                )
-            }
-            ConditionType::Combined(combined) => {
-                format!(
-                    "{} {} {}",
-                    Condition {
-                        condition_type: *combined.left.clone()
-                    }
-                    .to_string(),
-                    combined.operator,
-                    Condition {
-                        condition_type: *combined.right.clone()
-                    }
-                    .to_string()
-                )
-            }
-            ConditionType::Raw(raw) => raw.clone(),
-        }
     }
 
     // Private parsing methods
