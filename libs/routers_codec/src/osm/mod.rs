@@ -5,6 +5,8 @@ pub mod blob;
 pub mod block;
 pub mod element;
 
+pub mod parsers;
+
 // Hidden modules
 #[doc(hidden)]
 pub mod error;
@@ -36,6 +38,8 @@ pub use element::item::Element;
 pub use model::*;
 #[doc(inline)]
 pub use parallel::Parallel;
+#[doc(inline)]
+pub use parsers::*;
 
 // Protocol Buffer Includes
 pub mod model {

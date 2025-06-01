@@ -2443,6 +2443,7 @@ name = "routers_codec"
 version = "0.1.1"
 dependencies = [
  "bytes",
+ "chrono",
  "codspeed-criterion-compat",
  "either",
  "flate2",
@@ -2453,8 +2454,10 @@ dependencies = [
  "prost",
  "prost-build",
  "rayon",
+ "regex",
  "routers_fixtures",
  "rstar",
+ "strum",
  "test-log",
  "tracing",
  "tracing-subscriber",

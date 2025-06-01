@@ -286,10 +286,11 @@ pub mod common {
     }
 
     impl TagString {
-        const HIGHWAY: &'static str = "highway";
-        const ONE_WAY: &'static str = "oneway";
-        const JUNCTION: &'static str = "junction";
-        const LANES: &'static str = "lanes";
+        pub(crate) const HIGHWAY: &'static str = "highway";
+        pub(crate) const ONE_WAY: &'static str = "oneway";
+        pub(crate) const JUNCTION: &'static str = "junction";
+        pub(crate) const LANES: &'static str = "lanes";
+        pub(crate) const MAX_SPEED: &'static str = "maxspeed";
 
         pub fn recover(k: usize, block: &PrimitiveBlock) -> TagString {
             TagString::from(String::from_utf8_lossy(&block.stringtable.s[k]).into_owned())
@@ -306,9 +307,8 @@ pub mod common {
     impl Metadata for Tags {
         fn pick(&self) -> GenericMetadata {
             GenericMetadata {
-                lane_count: self
-                    .get(TagString::LANES)
-                    .and_then(TagString::parse::<NonZeroU8>),
+                lane_count: self.r#as::<NonZeroU8>(TagString::LANES),
+                speed_limit: self.r#as::<NonZeroU8>(TagString::MAX_SPEED),
                 ..GenericMetadata::default()
             }
         }
@@ -349,6 +349,10 @@ pub mod common {
 
         fn get(&self, assoc: &str) -> Option<&TagString> {
             self.0.get(&Tags::r#use(assoc))
+        }
+
+        fn r#as<F: FromStr>(&self, assoc: &str) -> Option<F> {
+            self.get(assoc).and_then(TagString::parse::<F>)
         }
 
         #[inline]
