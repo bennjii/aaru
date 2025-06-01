@@ -54,8 +54,8 @@ impl SpeedValue {
             "none" => SpeedValue::None,
             "walk" => SpeedValue::Walk,
 
-            // Unspecified
-            _ => return None,
+            // Unspecified, by default, is kph
+            _ => SpeedValue::Kmh(numeric),
         })
     }
 }

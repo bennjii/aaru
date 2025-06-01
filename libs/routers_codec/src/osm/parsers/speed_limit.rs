@@ -88,8 +88,14 @@ impl PossiblyConditionalSpeedLimit {
         let captures = re.captures(value)?;
 
         let (value, unit) = (
-            captures.get(1)?.as_str().to_lowercase(),
-            captures.get(2)?.as_str().to_lowercase(),
+            captures
+                .get(1)
+                .map(|v| v.as_str().to_lowercase())
+                .unwrap_or_default(),
+            captures
+                .get(2)
+                .map(|v| v.as_str().to_lowercase())
+                .unwrap_or_default(),
         );
 
         SpeedValue::parse(value, unit)
@@ -165,13 +171,15 @@ impl SpeedLimit {
         // I.e. maxspeed:lanes:conditional=20 @ ()|10 @ (Mo-Fr 10:00-12:00)
         let limit = if label.contains(subtypes::LANES) {
             let per_lane_limit = value
-                .split("|")
+                .split_terminator("|")
                 .map(PossiblyConditionalSpeedLimit::parse)
                 .collect::<Vec<_>>();
 
             SpeedLimitVariant::PerLane(PerLaneSpeedLimit(per_lane_limit))
         } else {
-            SpeedLimitVariant::Blanket(PossiblyConditionalSpeedLimit::parse(value.as_str())?)
+            let as_str = value.as_str();
+            let speed_limit = PossiblyConditionalSpeedLimit::parse(as_str)?;
+            SpeedLimitVariant::Blanket(speed_limit)
         };
 
         Some(Self { limit, restriction })
@@ -194,7 +202,7 @@ impl Parser for SpeedLimitCollection {
         let known_limits = tags
             .iter()
             .filter(|(key, _)| key.starts_with(TagString::MAX_SPEED))
-            .filter_map(|(key, value)| SpeedLimit::parse_tag(key, value))
+            .filter_map(|(l, v)| SpeedLimit::parse_tag(l, v))
             .collect::<Vec<_>>();
 
         if known_limits.is_empty() {
@@ -248,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_parsing_lanes() {
-        let parsed_limit = parse_singular("maxspeed", "100|80|80|80|80|80");
+        let parsed_limit = parse_singular("maxspeed:lanes", "100|80|80|80|80|80");
 
         assert!(
             parsed_limit.restriction.transport_mode.is_none(),
@@ -275,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_parsing_lanes_with_missing() {
-        let parsed_limit = parse_singular("maxspeed", "|50");
+        let parsed_limit = parse_singular("maxspeed:lanes", "|50");
 
         matches!(parsed_limit.limit, PerLane(..));
 
