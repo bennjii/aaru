@@ -14,7 +14,7 @@ mod subtypes {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Restriction {
+pub struct Restriction {
     /// ...
     ///
     /// See: https://wiki.openstreetmap.org/wiki/Key:access#Transport_mode_restrictions
@@ -52,17 +52,17 @@ impl Restriction {
 /// This may be spread across a lane representation in the SpeedLimit
 /// structure.
 #[derive(Clone, Debug)]
-struct PossiblyConditionalSpeedLimit {
+pub struct PossiblyConditionalSpeedLimit {
     /// Represents the speed limit on a singular lane.
     ///
     /// See: https://wiki.openstreetmap.org/wiki/Key:lanes
-    speed: SpeedValue,
+    pub speed: SpeedValue,
 
     /// The general condition requirements which are separate from
     /// other general conditions. These appear in the post-fix brackets.
     ///
     /// See: https://wiki.openstreetmap.org/wiki/Key:maxspeed:conditional
-    condition: Option<Condition>,
+    pub condition: Option<Condition>,
 }
 
 impl PossiblyConditionalSpeedLimit {
@@ -124,7 +124,7 @@ impl PossiblyConditionalSpeedLimit {
 }
 
 #[derive(Clone, Debug)]
-struct PerLaneSpeedLimit(Vec<Option<PossiblyConditionalSpeedLimit>>);
+pub struct PerLaneSpeedLimit(Vec<Option<PossiblyConditionalSpeedLimit>>);
 
 impl Deref for PerLaneSpeedLimit {
     type Target = Vec<Option<PossiblyConditionalSpeedLimit>>;
@@ -135,7 +135,7 @@ impl Deref for PerLaneSpeedLimit {
 }
 
 impl PerLaneSpeedLimit {
-    fn in_kmh(self) -> Vec<Option<Speed>> {
+    pub fn in_kmh(self) -> Vec<Option<Speed>> {
         self.iter()
             .map(|lane| lane.as_ref().and_then(|lan| lan.speed.in_kmh()))
             .collect::<Vec<_>>()
@@ -143,7 +143,7 @@ impl PerLaneSpeedLimit {
 }
 
 #[derive(Clone, Debug)]
-enum SpeedLimitVariant {
+pub enum SpeedLimitVariant {
     /// Applies to every lane within the way, and is
     /// therefore non-dependent on lanes.
     Blanket(PossiblyConditionalSpeedLimit),
@@ -156,9 +156,9 @@ enum SpeedLimitVariant {
 }
 
 #[derive(Clone, Debug)]
-struct SpeedLimit {
-    restriction: Restriction,
-    limit: SpeedLimitVariant,
+pub struct SpeedLimit {
+    pub restriction: Restriction,
+    pub limit: SpeedLimitVariant,
 }
 
 impl SpeedLimit {
@@ -213,14 +213,15 @@ impl Parser for SpeedLimitCollection {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use crate::osm::Parser;
     use crate::osm::element::{TagString, Tags};
     use crate::osm::speed_limit::SpeedLimitVariant::{Blanket, PerLane};
     use crate::osm::speed_limit::{SpeedLimit, SpeedLimitCollection};
+    use std::collections::HashMap;
 
+    #[cfg(test)]
     fn parse_singular(key: &str, value: &str) -> SpeedLimit {
         let mut tags = HashMap::new();
         tags.insert(TagString::from(key), TagString::from(value));
