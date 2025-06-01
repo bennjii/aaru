@@ -1,6 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
-use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+use strum::{Display, EnumIter, EnumString};
 
 /// Represents a complete conditional restriction condition
 /// Examples: "Tu-Fr 00:00-24:00", "winter", "snow", "weight < 7.5"
@@ -64,7 +64,7 @@ pub struct TimeDateCondition {
 }
 
 /// Seasonal time restrictions
-#[derive(Debug, Clone, PartialEq, Display, EnumString, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Display, EnumString, EnumIter)]
 #[strum(serialize_all = "lowercase")]
 pub enum SeasonCondition {
     /// Winter season (dates vary by location/year)
@@ -350,7 +350,7 @@ impl Condition {
             ConditionType::Season(season) => season.to_string(),
             ConditionType::RoadCondition(road) => road.to_string(),
             ConditionType::VehicleProperty(vp) => {
-                let unit_str = vp.unit.as_ref().map(|u| u.as_str()).unwrap_or("");
+                let unit_str = vp.unit.as_deref().unwrap_or("");
                 format!("{}{}{}{}", vp.property, vp.operator, vp.value, unit_str)
             }
             ConditionType::VehicleUsage(vu) => match vu {
@@ -502,8 +502,7 @@ impl Condition {
         }
 
         // Check for occupants condition
-        if s.starts_with("occupants") {
-            let rest = &s[9..]; // Skip "occupants"
+        if let Some(rest) = s.strip_prefix("occupants") {
             let operators = ["<=", ">=", "<", ">", "="];
 
             for op_str in &operators {

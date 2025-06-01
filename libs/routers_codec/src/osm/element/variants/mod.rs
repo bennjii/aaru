@@ -322,6 +322,10 @@ pub mod common {
     }
 
     impl Tags {
+        pub fn new(map: HashMap<TagString, TagString>) -> Self {
+            Tags(map)
+        }
+
         /// Takes an iterator of indicies within the string table of the
         /// associated block, and recovers the strings at the specified
         /// indexes, to generate an associative hashmap of the tag keys and values.

@@ -1,7 +1,8 @@
 use std::fmt;
 
-type Speed = u16;
+pub type Speed = u16;
 
+#[derive(Clone, Copy, Debug)]
 pub enum SpeedValue {
     /// Speed in kilometers per hour
     Kmh(Speed),
@@ -29,6 +30,33 @@ impl SpeedValue {
             // Non-transformative
             _ => None,
         }
+    }
+
+    /// Parses a speed value from a given speed-string.
+    /// An example value might be `50 mph`. In which case,
+    /// the returned value must be `Some(Mph(50))`.
+    ///
+    /// To convert/standardise a speed value, you may use
+    /// the `in_kmh(..)` function to represent the speed
+    /// value in kilometers per hour.
+    pub fn parse(value: String, unit: String) -> Option<Self> {
+        let numeric = value.parse::<Speed>().ok()?;
+
+        Some(match unit.as_str() {
+            // Numeric units
+            "mph" => SpeedValue::Mph(numeric),
+            "kph" => SpeedValue::Kmh(numeric),
+            "knots" => SpeedValue::Knots(numeric),
+
+            // Non-numeric
+            "variable" => SpeedValue::Variable,
+            "inherited" => SpeedValue::Inherited,
+            "none" => SpeedValue::None,
+            "walk" => SpeedValue::Walk,
+
+            // Unspecified
+            _ => return None,
+        })
     }
 }
 

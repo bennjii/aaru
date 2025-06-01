@@ -1,328 +1,390 @@
-use strum::{AsRefStr, Display, EnumIter, EnumString};
+use strum::{AsRefStr, Display, EnumString};
 
-/// Land-based transportation modes with hierarchical structure
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
+/// Flattened transport mode enumeration for easy string parsing
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
-pub enum LandTransportMode {
-    /// General access restriction for all land-based transport
-    Access,
+pub enum TransportMode {
+    // === LAND TRANSPORT ===
 
-    // === Non-vehicle transport ===
-    /// Pedestrians on foot
+    // General access
+    #[strum(serialize = "access")]
+    LandAccess,
+
+    // Non-vehicle transport
     #[strum(serialize = "foot")]
     Foot,
-    /// Dogs being walked (usually by pedestrians)
     #[strum(serialize = "dog")]
     Dog,
-    /// Cross-country skiing
     #[strum(serialize = "ski")]
     Ski,
-    /// Nordic/cross-country skiing specifically
     #[strum(serialize = "ski:nordic")]
     SkiNordic,
-    /// Alpine/downhill skiing
     #[strum(serialize = "ski:alpine")]
     SkiAlpine,
-    /// Telemark skiing (free-heel)
     #[strum(serialize = "ski:telemark")]
     SkiTelemark,
-    /// Inline skating/rollerblading
     #[strum(serialize = "inline_skates")]
     InlineSkates,
-    /// Horse riders/equestrians
     #[strum(serialize = "horse")]
     Horse,
-    /// Person carrying a boat (portage)
     #[strum(serialize = "portage")]
     Portage,
 
-    // === Vehicle transport (top-level category) ===
-    /// Any vehicle (motorized or non-motorized)
-    #[strum(serialize = "vehicle")]
-    Vehicle(VehicleType),
-}
-
-/// Vehicle types - encompasses both motorized and non-motorized vehicles
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum VehicleType {
-    /// Non-motorized vehicles
-    NonMotorized(NonMotorizedVehicle),
-    /// Motorized vehicles
-    Motorized(MotorizedVehicle),
-}
-
-/// Non-motorized vehicle types
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum NonMotorizedVehicle {
-    /// Single-tracked non-motorized vehicles
-    SingleTracked(NonMotorizedSingleTrack),
-    /// Double-tracked non-motorized vehicles
-    DoubleTracked(NonMotorizedDoubleTrack),
-}
-
-/// Single-tracked non-motorized vehicles
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum NonMotorizedSingleTrack {
-    /// Bicycles/cyclists
+    // Non-motorized single-tracked vehicles
     #[strum(serialize = "bicycle")]
     Bicycle,
-    /// Electric bicycles (speed limited, e.g., 25 km/h)
     #[strum(serialize = "electric_bicycle")]
     ElectricBicycle,
-    /// Mountain bikes (when different restrictions apply)
     #[strum(serialize = "mtb")]
     Mtb,
-    /// Cargo bikes for transporting heavy/bulky loads
     #[strum(serialize = "cargo_bike")]
     CargoBike,
-    /// Kick scooters (non-motorized, human-powered)
     #[strum(serialize = "kick_scooter")]
     KickScooter,
-}
 
-/// Double-tracked non-motorized vehicles
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum NonMotorizedDoubleTrack {
-    /// Horse-drawn carriages or other animal-drawn vehicles
+    // Non-motorized double-tracked vehicles
     #[strum(serialize = "carriage")]
     Carriage,
-    /// Human-powered pedal vehicles with 2 tracks
     #[strum(serialize = "cycle_rickshaw")]
     CycleRickshaw,
-    /// Hand-pulled or hand-pushed carts
     #[strum(serialize = "hand_cart")]
     HandCart,
-    /// Trailers that need to be towed by another vehicle
     #[strum(serialize = "trailer")]
     Trailer,
-    /// Travel trailers/caravans
     #[strum(serialize = "caravan")]
     Caravan,
-}
 
-/// Motorized vehicle types
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum MotorizedVehicle {
-    /// All motorized vehicles (top-level category)
+    // General vehicle categories
+    #[strum(serialize = "vehicle")]
+    Vehicle,
     #[strum(serialize = "motor_vehicle")]
     MotorVehicle,
-    /// Single-tracked motorized vehicles
-    SingleTracked(MotorizedSingleTrack),
-    /// Double-tracked motorized vehicles
-    DoubleTracked(MotorizedDoubleTrack),
-    /// Vehicles categorized by use/purpose
-    ByUse(VehicleByUse),
-}
 
-/// Single-tracked motorized vehicles
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum MotorizedSingleTrack {
-    /// Motorcycles (2-wheeled, allowed on motorways)
+    // Motorized single-tracked vehicles
     #[strum(serialize = "motorcycle")]
     Motorcycle,
-    /// Mopeds (motorized bicycles, speed restricted, ~50cc/45km/h)
     #[strum(serialize = "moped")]
     Moped,
-    /// Speed pedelecs (electric bikes up to 45km/h, license required)
     #[strum(serialize = "speed_pedelec")]
     SpeedPedelec,
-    /// Mofa (low performance moped, max ~25km/h)
     #[strum(serialize = "mofa")]
     Mofa,
-    /// Small electric vehicles (electric scooters, 20-30km/h)
     #[strum(serialize = "small_electric_vehicle")]
     SmallElectricVehicle,
-}
 
-/// Double-tracked motorized vehicles
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum MotorizedDoubleTrack {
-    /// Cars/automobiles (generic double-tracked motor vehicles)
+    // Motorized double-tracked vehicles
     #[strum(serialize = "motorcar")]
     Motorcar,
-    /// Motorhomes/RVs
     #[strum(serialize = "motorhome")]
     Motorhome,
-    /// Tourist buses (long-distance, non-public transport)
     #[strum(serialize = "tourist_bus")]
     TouristBus,
-    /// Coaches (long-distance bus travel)
     #[strum(serialize = "coach")]
     Coach,
-    /// Light commercial vehicles (goods vehicles ≤3.5 tonnes)
     #[strum(serialize = "goods")]
     Goods,
-    /// Heavy goods vehicles (>3.5 tonnes)
     #[strum(serialize = "hgv")]
     Hgv,
-    /// Articulated heavy goods vehicles
     #[strum(serialize = "hgv_articulated")]
     HgvArticulated,
-    /// B-double trucks (EuroCombi, up to 60t)
     #[strum(serialize = "bdouble")]
     Bdouble,
-    /// Agricultural motor vehicles (tractors, etc., 25km/h limit)
     #[strum(serialize = "agricultural")]
     Agricultural,
-    /// 3-wheeled motorized vehicles
     #[strum(serialize = "auto_rickshaw")]
     AutoRickshaw,
-    /// Neighborhood electric vehicles (small, low-speed)
     #[strum(serialize = "nev")]
     Nev,
-    /// Golf carts and similar small electric vehicles
     #[strum(serialize = "golf_cart")]
     GolfCart,
-    /// Microcars/light quadricycles
     #[strum(serialize = "microcar")]
     Microcar,
-    /// All-terrain vehicles/quads (≤1.27m width)
     #[strum(serialize = "atv")]
     Atv,
-    /// Off-highway vehicles (unlicensed off-road)
     #[strum(serialize = "ohv")]
     Ohv,
-    /// Snowmobiles
     #[strum(serialize = "snowmobile")]
     Snowmobile,
-}
 
-/// Vehicles categorized by use/purpose rather than physical characteristics
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum VehicleByUse {
-    /// Public service vehicles (general category)
+    // Vehicles by use/purpose
     #[strum(serialize = "psv")]
     Psv,
-    /// Buses (heavy public service vehicles)
     #[strum(serialize = "bus")]
     Bus,
-    /// Taxis
     #[strum(serialize = "taxi")]
     Taxi,
-    /// Minibuses (light public service vehicles)
     #[strum(serialize = "minibus")]
     Minibus,
-    /// Share taxis (demand responsive transit)
     #[strum(serialize = "share_taxi")]
     ShareTaxi,
-    /// High-occupancy vehicles/carpools
     #[strum(serialize = "hov")]
     Hov,
-    /// Carpool vehicles (alternative to hov)
     #[strum(serialize = "carpool")]
     Carpool,
-    /// Car sharing vehicles
     #[strum(serialize = "car_sharing")]
     CarSharing,
-    /// Emergency vehicles (ambulance, fire, police)
     #[strum(serialize = "emergency")]
     Emergency,
-    /// Vehicles carrying hazardous materials
     #[strum(serialize = "hazmat")]
     Hazmat,
-    /// Vehicles carrying water-polluting materials
     #[strum(serialize = "hazmat:water")]
     HazmatWater,
-    /// School buses
     #[strum(serialize = "school_bus")]
     SchoolBus,
-    /// Blue badge/disabled permit holders
     #[strum(serialize = "disabled")]
     Disabled,
-}
 
-/// Water-based transportation modes
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum WaterTransportMode {
-    /// General water-based access
-    Access,
-    /// Swimming (use without craft)
+    // === WATER TRANSPORT ===
+    #[strum(serialize = "water_access")]
+    WaterAccess,
     #[strum(serialize = "swimming")]
     Swimming,
-    /// Ice skating (when water is frozen)
     #[strum(serialize = "ice_skates")]
     IceSkates,
-    /// Small boats and pleasure crafts (<20m in CEVNI)
     #[strum(serialize = "boat")]
     Boat,
-    /// Motor boats and yachts using motor
     #[strum(serialize = "motorboat")]
     Motorboat,
-    /// Sailing boats using sails (not motor)
     #[strum(serialize = "sailboat")]
     Sailboat,
-    /// Boats without sail/motor (canoes, kayaks, dinghies)
     #[strum(serialize = "canoe")]
     Canoe,
-    /// Fishing vessels of any size
     #[strum(serialize = "fishing_vessel")]
     FishingVessel,
-    /// Commercial vessels of any size
     #[strum(serialize = "ship")]
     Ship,
-    /// Passenger ships (ferries, cruise ships)
     #[strum(serialize = "passenger")]
     Passenger,
-    /// Cargo ships (general)
     #[strum(serialize = "cargo")]
     Cargo,
-    /// Dry bulk cargo ships
     #[strum(serialize = "bulk")]
     Bulk,
-    /// Wet bulk cargo/compressed gas tankers
     #[strum(serialize = "tanker")]
     Tanker,
-    /// Gas tankers (compressed/liquefied gas)
     #[strum(serialize = "tanker:gas")]
     TankerGas,
-    /// Oil tankers (crude oil and products)
     #[strum(serialize = "tanker:oil")]
     TankerOil,
-    /// Chemical tankers
     #[strum(serialize = "tanker:chemical")]
     TankerChemical,
-    /// Single hull tankers (more restrictive rules)
     #[strum(serialize = "tanker:singlehull")]
     TankerSinglehull,
-    /// Container ships
     #[strum(serialize = "container")]
     Container,
-    /// IMDG dangerous cargo ships
     #[strum(serialize = "imdg")]
     Imdg,
-    /// ISPS regulated ships
     #[strum(serialize = "isps")]
     Isps,
+
+    // === RAIL TRANSPORT ===
+    #[strum(serialize = "rail_access")]
+    RailAccess,
+    // Add more rail-specific modes as needed
+    #[strum(serialize = "train")]
+    Train,
+    #[strum(serialize = "tram")]
+    Tram,
+    #[strum(serialize = "metro")]
+    Metro,
 }
 
-/// Rail-based transportation modes
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum RailTransportMode {
-    /// General rail-based access
-    Access,
-    // Note: Specific rail transport modes would be added here
-    // but the wiki section was truncated. Common ones might include:
-    // Train, Tram, Metro, etc.
+impl TransportMode {
+    /// Check if this is a land-based transport mode
+    pub fn is_land(&self) -> bool {
+        matches!(
+            self,
+            Self::LandAccess
+                | Self::Foot
+                | Self::Dog
+                | Self::Ski
+                | Self::SkiNordic
+                | Self::SkiAlpine
+                | Self::SkiTelemark
+                | Self::InlineSkates
+                | Self::Horse
+                | Self::Portage
+                | Self::Bicycle
+                | Self::ElectricBicycle
+                | Self::Mtb
+                | Self::CargoBike
+                | Self::KickScooter
+                | Self::Carriage
+                | Self::CycleRickshaw
+                | Self::HandCart
+                | Self::Trailer
+                | Self::Caravan
+                | Self::Vehicle
+                | Self::MotorVehicle
+                | Self::Motorcycle
+                | Self::Moped
+                | Self::SpeedPedelec
+                | Self::Mofa
+                | Self::SmallElectricVehicle
+                | Self::Motorcar
+                | Self::Motorhome
+                | Self::TouristBus
+                | Self::Coach
+                | Self::Goods
+                | Self::Hgv
+                | Self::HgvArticulated
+                | Self::Bdouble
+                | Self::Agricultural
+                | Self::AutoRickshaw
+                | Self::Nev
+                | Self::GolfCart
+                | Self::Microcar
+                | Self::Atv
+                | Self::Ohv
+                | Self::Snowmobile
+                | Self::Psv
+                | Self::Bus
+                | Self::Taxi
+                | Self::Minibus
+                | Self::ShareTaxi
+                | Self::Hov
+                | Self::Carpool
+                | Self::CarSharing
+                | Self::Emergency
+                | Self::Hazmat
+                | Self::HazmatWater
+                | Self::SchoolBus
+                | Self::Disabled
+        )
+    }
+
+    /// Check if this is a water-based transport mode
+    pub fn is_water(&self) -> bool {
+        matches!(
+            self,
+            Self::WaterAccess
+                | Self::Swimming
+                | Self::IceSkates
+                | Self::Boat
+                | Self::Motorboat
+                | Self::Sailboat
+                | Self::Canoe
+                | Self::FishingVessel
+                | Self::Ship
+                | Self::Passenger
+                | Self::Cargo
+                | Self::Bulk
+                | Self::Tanker
+                | Self::TankerGas
+                | Self::TankerOil
+                | Self::TankerChemical
+                | Self::TankerSinglehull
+                | Self::Container
+                | Self::Imdg
+                | Self::Isps
+        )
+    }
+
+    /// Check if this is a rail-based transport mode
+    pub fn is_rail(&self) -> bool {
+        matches!(
+            self,
+            Self::RailAccess | Self::Train | Self::Tram | Self::Metro
+        )
+    }
+
+    /// Check if this is a motorized vehicle
+    pub fn is_motorized(&self) -> bool {
+        matches!(
+            self,
+            Self::MotorVehicle
+                | Self::Motorcycle
+                | Self::Moped
+                | Self::SpeedPedelec
+                | Self::Mofa
+                | Self::SmallElectricVehicle
+                | Self::Motorcar
+                | Self::Motorhome
+                | Self::TouristBus
+                | Self::Coach
+                | Self::Goods
+                | Self::Hgv
+                | Self::HgvArticulated
+                | Self::Bdouble
+                | Self::Agricultural
+                | Self::AutoRickshaw
+                | Self::Nev
+                | Self::GolfCart
+                | Self::Microcar
+                | Self::Atv
+                | Self::Ohv
+                | Self::Snowmobile
+                | Self::Psv
+                | Self::Bus
+                | Self::Taxi
+                | Self::Minibus
+                | Self::ShareTaxi
+                | Self::Emergency
+                | Self::Motorboat
+        )
+    }
+
+    /// Check if this is a non-motorized vehicle
+    pub fn is_non_motorized(&self) -> bool {
+        matches!(
+            self,
+            Self::Bicycle
+                | Self::ElectricBicycle
+                | Self::Mtb
+                | Self::CargoBike
+                | Self::KickScooter
+                | Self::Carriage
+                | Self::CycleRickshaw
+                | Self::HandCart
+                | Self::Trailer
+                | Self::Caravan
+        )
+    }
 }
 
-/// Complete transport mode enumeration covering all categories
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
-pub enum TransportMode {
-    /// Land-based transportation
-    Land(LandTransportMode),
-    /// Water-based transportation
-    Water(WaterTransportMode),
-    /// Rail-based transportation
-    Rail(RailTransportMode),
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_parsing() {
+        // Test some common transport modes
+        assert_eq!(
+            TransportMode::from_str("foot").unwrap(),
+            TransportMode::Foot
+        );
+        assert_eq!(
+            TransportMode::from_str("bicycle").unwrap(),
+            TransportMode::Bicycle
+        );
+        assert_eq!(
+            TransportMode::from_str("motorcar").unwrap(),
+            TransportMode::Motorcar
+        );
+        assert_eq!(
+            TransportMode::from_str("boat").unwrap(),
+            TransportMode::Boat
+        );
+        assert_eq!(
+            TransportMode::from_str("hazmat:water").unwrap(),
+            TransportMode::HazmatWater
+        );
+
+        // Test serialization
+        assert_eq!(TransportMode::Foot.to_string(), "foot");
+        assert_eq!(TransportMode::HazmatWater.to_string(), "hazmat:water");
+    }
+
+    #[test]
+    fn test_categorization() {
+        assert!(TransportMode::Foot.is_land());
+        assert!(TransportMode::Boat.is_water());
+        assert!(TransportMode::Train.is_rail());
+
+        assert!(TransportMode::Motorcar.is_motorized());
+        assert!(TransportMode::Bicycle.is_non_motorized());
+
+        assert!(!TransportMode::Foot.is_motorized());
+        assert!(!TransportMode::Foot.is_non_motorized());
+    }
 }
