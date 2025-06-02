@@ -219,6 +219,7 @@ mod tests {
 
     use crate::osm::Parser;
     use crate::osm::element::{TagString, Tags};
+    use crate::osm::primitives::TransportMode;
     use crate::osm::primitives::condition::{ConditionType, TimeDateCondition};
     use crate::osm::primitives::opening_hours::{Time, TimeRange, Weekday, WeekdayRange};
     use crate::osm::speed_limit::SpeedLimitVariant::{Blanket, PerLane};
@@ -255,6 +256,47 @@ mod tests {
         matches!(
             parsed_limit.limit,
             Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 50)
+        );
+    }
+
+    #[test]
+    fn test_parsing_speed_limit_mph() {
+        let parsed_limit = parse_singular("maxspeed", "20 mph");
+
+        assert!(
+            parsed_limit.restriction.transport_mode.is_none(),
+            "must not specify a transport mode"
+        );
+        assert!(
+            parsed_limit.restriction.directionality.is_none(),
+            "must not specify a directionality"
+        );
+
+        matches!(
+            parsed_limit.limit,
+            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 32)
+        );
+    }
+
+    #[test]
+    fn test_parsing_speed_limit_transport_hgv() {
+        let parsed_limit = parse_singular("maxspeed:hgv", "20 mph");
+
+        assert!(
+            matches!(
+                parsed_limit.restriction.transport_mode,
+                Some(TransportMode::Hgv)
+            ),
+            "must not specify a transport mode"
+        );
+        assert!(
+            parsed_limit.restriction.directionality.is_none(),
+            "must not specify a directionality"
+        );
+
+        matches!(
+            parsed_limit.limit,
+            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 32)
         );
     }
 
@@ -347,8 +389,7 @@ mod tests {
 
     #[test]
     fn test_parsing_lanes_mph() {
-        let parsed_limit =
-            parse_singular("maxspeed:lanes:conditional", "65 mph|65 mph|65 mph|25 mph");
+        let parsed_limit = parse_singular("maxspeed:lanes", "65 mph|65 mph|65 mph|25 mph");
 
         matches!(parsed_limit.limit, PerLane(..));
 
