@@ -135,7 +135,7 @@ impl Deref for PerLaneSpeedLimit {
 }
 
 impl PerLaneSpeedLimit {
-    pub fn in_kmh(self) -> Vec<Option<Speed>> {
+    pub fn in_kmh(&self) -> Vec<Option<Speed>> {
         self.iter()
             .map(|lane| lane.as_ref().and_then(|lan| lan.speed.in_kmh()))
             .collect::<Vec<_>>()
@@ -215,11 +215,14 @@ impl Parser for SpeedLimitCollection {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use crate::osm::Parser;
     use crate::osm::element::{TagString, Tags};
+    use crate::osm::primitives::condition::{ConditionType, TimeDateCondition};
+    use crate::osm::primitives::opening_hours::{Time, TimeRange, Weekday, WeekdayRange};
     use crate::osm::speed_limit::SpeedLimitVariant::{Blanket, PerLane};
     use crate::osm::speed_limit::{SpeedLimit, SpeedLimitCollection};
-    use std::collections::HashMap;
 
     #[cfg(test)]
     fn parse_singular(key: &str, value: &str) -> SpeedLimit {
@@ -253,6 +256,48 @@ mod tests {
             parsed_limit.limit,
             Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 50)
         );
+    }
+
+    #[test]
+    fn test_parsing_conditional() {
+        let parsed_limit = parse_singular("maxspeed:conditional", "130 @ (19:00-06:00)");
+
+        assert!(
+            parsed_limit.restriction.transport_mode.is_none(),
+            "must not specify a transport mode"
+        );
+        assert!(
+            parsed_limit.restriction.directionality.is_none(),
+            "must not specify a directionality"
+        );
+
+        assert!(
+            matches!(parsed_limit.limit, Blanket(..)),
+            "must be a blanket assignment"
+        );
+        assert!(matches!(parsed_limit.limit, Blanket(ref limit) if {
+            limit.speed
+                .in_kmh()
+                .is_some_and(|limit| limit == 130)
+        }));
+        assert!(matches!(parsed_limit.limit, Blanket(ref limit) if {
+            let condition_type =  limit.condition.clone().unwrap().condition_type;
+            matches!(condition_type, ConditionType::TimeDate(TimeDateCondition {
+                opening_hours, ..
+            }) if {
+                // Overnight ruling: 19:00-06:00
+                opening_hours.rules[0].times[0] == TimeRange {
+                    start: Time {
+                        hour: 19,
+                        minute: 0,
+                    },
+                    end: Time {
+                        hour: 6,
+                        minute: 0,
+                    }
+                }
+            })
+        }));
     }
 
     #[test]
@@ -296,6 +341,93 @@ mod tests {
                 speeds.as_slice(),
                 &[None, Some(50)],
                 "must parse limits correctly"
+            );
+        }
+    }
+
+    #[test]
+    fn test_parsing_lanes_mph() {
+        let parsed_limit =
+            parse_singular("maxspeed:lanes:conditional", "65 mph|65 mph|65 mph|25 mph");
+
+        matches!(parsed_limit.limit, PerLane(..));
+
+        if let PerLane(lanes) = parsed_limit.limit {
+            let speeds = lanes.in_kmh();
+
+            assert_eq!(speeds.len(), 4, "must contain exactly 4 lanes");
+            assert_eq!(
+                speeds.as_slice(),
+                &[Some(104), Some(104), Some(104), Some(40)],
+                "must parse limits correctly"
+            );
+        }
+    }
+
+    #[test]
+    fn test_parsing_lanes_conditional() {
+        let parsed_limit = parse_singular(
+            "maxspeed:lanes:conditional",
+            "100 @ (22:00-06:00)|40 @ (Mo-Fr 07:00-9:00,16:00-20:00)|60",
+        );
+
+        matches!(parsed_limit.limit, PerLane(..));
+
+        if let PerLane(lanes) = parsed_limit.limit {
+            let speeds = lanes.in_kmh();
+
+            assert_eq!(speeds.len(), 3, "must contain exactly 3 lanes");
+            assert_eq!(
+                speeds.as_slice(),
+                &[Some(100), Some(40), Some(60)],
+                "must parse limits correctly"
+            );
+
+            // Expecting 22:00-06:00 condition
+            let lane_one = lanes[0].as_ref().unwrap();
+            let lane_one_condition = lane_one.condition.as_ref();
+
+            assert!(lane_one_condition.is_some(), "must specify a condition");
+            assert!(matches!(
+                lane_one_condition.unwrap().clone().condition_type,
+                ConditionType::TimeDate(date) if {
+                    date.opening_hours.rules[0].times[0] == TimeRange {
+                        start: Time { hour: 22, minute: 0 },
+                        end: Time { hour: 6, minute: 0}
+                    }
+                }
+            ));
+
+            // Expecting Mo-Fr 07:00-9:00,16:00-20:00 condition
+            let lane_two = lanes[1].as_ref().unwrap();
+            let lane_two_condition = lane_two.condition.as_ref();
+
+            assert!(lane_two_condition.is_some(), "must specify a condition");
+            assert!(matches!(
+                lane_two_condition.unwrap().clone().condition_type,
+                ConditionType::TimeDate(date) if {
+                    let rule =  date.opening_hours.rules[0].clone();
+
+                    rule.times == vec![
+                        TimeRange {
+                            start: Time { hour: 7, minute: 0 },
+                            end: Time { hour: 9, minute: 0 },
+                        },
+                        TimeRange {
+                            start: Time { hour: 16, minute: 0},
+                            end: Time { hour: 20, minute: 0},
+                        }
+                    ] && rule.weekdays == Some(WeekdayRange::Range(Weekday::Monday, Weekday::Friday))
+                }
+            ));
+
+            // Expecting no condition
+            let lane_three = lanes[2].as_ref().unwrap();
+            let lane_three_condition = lane_three.condition.as_ref();
+
+            assert!(
+                lane_three_condition.is_none(),
+                "must not specify a condition"
             );
         }
     }

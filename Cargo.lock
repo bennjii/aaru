@@ -2448,6 +2448,7 @@ dependencies = [
  "either",
  "flate2",
  "geo",
+ "itertools 0.14.0",
  "log",
  "mimalloc",
  "osmpbf",

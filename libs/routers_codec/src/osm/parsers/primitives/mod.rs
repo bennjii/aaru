@@ -2,6 +2,7 @@ pub mod access;
 pub mod condition;
 pub mod direction;
 pub mod lanes;
+pub mod opening_hours;
 pub mod speed;
 pub mod transport;
 

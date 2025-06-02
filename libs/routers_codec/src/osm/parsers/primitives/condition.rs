@@ -1,3 +1,4 @@
+use crate::osm::primitives::opening_hours::{OpeningHours, OpeningHoursParser};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -58,7 +59,7 @@ pub enum ConditionType {
 pub struct TimeDateCondition {
     /// Raw opening hours string
     /// Examples: "Mo-Fr 07:00-19:00", "sunrise-sunset", "Jan-Mar"
-    pub opening_hours: String,
+    pub opening_hours: OpeningHours,
     /// Optional comment in local language
     /// Example: "bij grote verkeersdrukte"
     pub comment: Option<String>,
@@ -426,39 +427,20 @@ impl Condition {
     }
 
     fn parse_time_date(s: &str) -> Result<TimeDateCondition, ParseError> {
-        // Check if it looks like an opening hours specification
-        // This is a simplified check - full opening hours parsing would be more complex
-        let time_patterns = [
-            r"\d{1,2}:\d{2}",                                   // HH:MM
-            r"Mo|Tu|We|Th|Fr|Sa|Su",                            // Day abbreviations
-            r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec", // Month abbreviations
-            r"sunrise|sunset",                                  // Special time values
-        ];
-
-        let has_time_pattern = time_patterns
-            .iter()
-            .any(|pattern| regex::Regex::new(pattern).unwrap().is_match(s));
-
-        if has_time_pattern {
-            // Check for comment in quotes
-            if let Some(quote_start) = s.find('"') {
-                let opening_hours = s[..quote_start].trim().to_string();
-                let comment_end = s.rfind('"').unwrap_or(s.len());
-                let comment = s[quote_start + 1..comment_end].to_string();
-
-                Ok(TimeDateCondition {
-                    opening_hours,
-                    comment: Some(comment),
-                })
-            } else {
-                Ok(TimeDateCondition {
-                    opening_hours: s.to_string(),
-                    comment: None,
-                })
-            }
+        let (comment, hours) = if let Some(quote_start) = s.find('"') {
+            let opening_hours = s[..quote_start].trim().to_string();
+            let comment_end = s.rfind('"').unwrap_or(s.len());
+            let comment = s[quote_start + 1..comment_end].to_string();
+            (Some(comment), opening_hours)
         } else {
-            Err(ParseError::NotTimeDate)
-        }
+            (None, s.to_string())
+        };
+
+        Ok(TimeDateCondition {
+            comment,
+            opening_hours: OpeningHoursParser::parse(&hours)
+                .map_err(|_| ParseError::NotTimeDate)?,
+        })
     }
 
     fn parse_season(s: &str) -> Result<SeasonCondition, ParseError> {
@@ -657,12 +639,29 @@ impl std::error::Error for ParseError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::osm::primitives::opening_hours::{
+        OpeningRule, Time, TimeRange, Weekday, WeekdayRange,
+    };
 
     #[test]
     fn test_parse_time_date() {
         let condition = Condition::parse("Tu-Fr 00:00-24:00").unwrap();
         if let ConditionType::TimeDate(td) = condition.condition_type {
-            assert_eq!(td.opening_hours, "Tu-Fr 00:00-24:00");
+            // "Tu-Fr 00:00-24:00"
+            assert_eq!(
+                td.opening_hours.rules[0],
+                OpeningRule {
+                    weekdays: Some(WeekdayRange::Range(Weekday::Tuesday, Weekday::Friday)),
+                    times: vec![TimeRange {
+                        start: Time { hour: 0, minute: 0 },
+                        end: Time {
+                            hour: 24,
+                            minute: 0
+                        }
+                    }],
+                    closed: false
+                }
+            );
             assert_eq!(td.comment, None);
         } else {
             panic!("Expected TimeDate condition");

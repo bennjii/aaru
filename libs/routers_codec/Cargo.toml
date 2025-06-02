@@ -36,6 +36,7 @@ tracing-subscriber = { workspace = true, optional = true }
 strum.workspace = true
 chrono = "0.4.41"
 regex = "1.11.1"
+itertools.workspace = true
 
 [dev-dependencies]
 routers_fixtures = { path = "../routers_fixtures" }
