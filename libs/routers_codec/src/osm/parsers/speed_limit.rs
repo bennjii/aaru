@@ -219,9 +219,9 @@ mod tests {
 
     use crate::osm::Parser;
     use crate::osm::element::{TagString, Tags};
-    use crate::osm::primitives::TransportMode;
     use crate::osm::primitives::condition::{ConditionType, TimeDateCondition};
     use crate::osm::primitives::opening_hours::{Time, TimeRange, Weekday, WeekdayRange};
+    use crate::osm::primitives::{Directionality, TransportMode};
     use crate::osm::speed_limit::SpeedLimitVariant::{Blanket, PerLane};
     use crate::osm::speed_limit::{SpeedLimit, SpeedLimitCollection};
 
@@ -287,11 +287,36 @@ mod tests {
                 parsed_limit.restriction.transport_mode,
                 Some(TransportMode::Hgv)
             ),
-            "must not specify a transport mode"
+            "must specify an HGV transport mode"
         );
         assert!(
             parsed_limit.restriction.directionality.is_none(),
             "must not specify a directionality"
+        );
+
+        matches!(
+            parsed_limit.limit,
+            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 32)
+        );
+    }
+
+    #[test]
+    fn test_parsing_speed_limit_transport_bus_backward() {
+        let parsed_limit = parse_singular("maxspeed:bus:backward", "70");
+
+        assert!(
+            matches!(
+                parsed_limit.restriction.transport_mode,
+                Some(TransportMode::Bus)
+            ),
+            "must specify a bus transport mode"
+        );
+        assert!(
+            matches!(
+                parsed_limit.restriction.directionality,
+                Some(Directionality::Backward)
+            ),
+            "must specify a backward directionality"
         );
 
         matches!(
