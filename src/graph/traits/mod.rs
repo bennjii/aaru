@@ -9,15 +9,15 @@ pub use route::Route;
 #[cfg(test)]
 mod util {
     use crate::graph::Graph;
-    use codec::osm::OsmEntryId;
+    use crate::impls::osm::OsmGraph;
+
     use routers_fixtures::fixture_path;
 
-    use codec::osm::element::Tags;
     use std::error::Error;
     use std::path::Path;
     use std::time::Instant;
 
-    pub(crate) fn init_graph(file: &str) -> Result<Graph<OsmEntryId, Tags>, Box<dyn Error>> {
+    pub(crate) fn init_graph(file: &str) -> Result<OsmGraph, Box<dyn Error>> {
         let time = Instant::now();
 
         let fixture = fixture_path(file);

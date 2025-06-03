@@ -1,22 +1,25 @@
 use crate::graph::item::{Graph, GraphStructure, Weight};
 
-use codec::Node;
 use codec::osm::OsmEntryId;
-use codec::osm::element::{ProcessedElement, Tags};
+use codec::osm::element::ProcessedElement;
 use codec::osm::{Parallel, ProcessedElementIterator};
+use codec::{Metadata, Node};
 
 use log::{debug, info};
 use rstar::RTree;
 use rustc_hash::FxHashMap;
 
 use crate::{DirectionAwareEdgeId, Edge, FatEdge, PredicateCache};
+use codec::osm::meta::OsmEdgeMetadata;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-impl Graph<OsmEntryId, Tags> {
+pub type OsmGraph = Graph<OsmEntryId, OsmEdgeMetadata>;
+
+impl OsmGraph {
     /// The weighting mapping of node keys to weight.
     pub fn weights<'a>() -> Result<HashMap<&'a str, Weight>, Box<dyn Error>> {
         let mut weights: HashMap<&str, Weight> = HashMap::new();
@@ -89,7 +92,7 @@ impl Graph<OsmEntryId, Tags> {
                         let _ = meta
                             .lock()
                             .unwrap()
-                            .insert(way.id(), way.clone().tags_owned());
+                            .insert(way.id(), OsmEdgeMetadata::pick(way.clone().tags()));
 
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {

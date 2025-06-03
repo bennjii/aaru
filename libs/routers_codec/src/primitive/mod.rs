@@ -7,9 +7,6 @@ pub mod node;
 pub use edge::Edge;
 pub use node::Node;
 
-// TODO: No domain-specific in primitive.
-use crate::osm::element::Tags;
-
 pub trait Entry:
     Default + Copy + Clone + PartialEq + Eq + Ord + Hash + Debug + Send + Sync
 {
@@ -17,5 +14,9 @@ pub trait Entry:
 }
 
 pub trait Metadata: Clone + Debug + Send + Sync {
-    fn pick(&self, tags: &Tags) -> Self;
+    type Raw<'a>
+    where
+        Self: 'a;
+
+    fn pick(raw: Self::Raw<'_>) -> Self;
 }

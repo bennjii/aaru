@@ -18,7 +18,10 @@ impl Util {
         <geo::Point as Into<Coord>>::into(point).into()
     }
 
-    fn route_from_path<E: Entry, M: Metadata>(input: Path<E, M>) -> Vec<RouteElement> {
+    fn route_from_path<E: Entry, M: Metadata>(input: Path<E, M>) -> Vec<RouteElement>
+    where
+        EdgeMetadata: for<'a> From<&'a M>,
+    {
         input
             .iter()
             .flat_map(|entry| {
@@ -26,7 +29,7 @@ impl Util {
                     .id(entry.edge.id().identifier())
                     .source(entry.edge.source)
                     .target(entry.edge.target)
-                    .metadata(entry.metadata.pick())
+                    .metadata(EdgeMetadata::from(&entry.metadata))
                     .length(
                         Geodesic.distance(entry.edge.source.position, entry.edge.target.position),
                     )
@@ -44,7 +47,10 @@ impl Util {
             .collect::<Vec<_>>()
     }
 
-    fn process<E: Entry, M: Metadata>(result: RoutedPath<E, M>) -> Vec<MatchedRoute> {
+    fn process<E: Entry, M: Metadata>(result: RoutedPath<E, M>) -> Vec<MatchedRoute>
+    where
+        EdgeMetadata: for<'a> From<&'a M>,
+    {
         let interpolated = Util::route_from_path(result.interpolated);
         let discretized = Util::route_from_path(result.discretized);
 
@@ -63,6 +69,7 @@ impl<E, M> MatchService for RouteService<E, M>
 where
     M: Metadata + 'static,
     E: Entry + 'static,
+    EdgeMetadata: for<'a> From<&'a M>,
 {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, level = Level::INFO))]
     async fn r#match(

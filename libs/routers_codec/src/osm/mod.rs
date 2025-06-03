@@ -15,7 +15,6 @@ pub mod parallel;
 #[doc(hidden)]
 pub mod test;
 
-use std::num::{NonZeroU16, NonZeroU8};
 // Inlined structs
 #[doc(inline)]
 pub use blob::iterator::BlobIterator;
@@ -66,15 +65,16 @@ pub mod meta {
     }
 
     impl Metadata for OsmEdgeMetadata {
-        fn pick(&self, tags: &Tags) -> Self {
+        type Raw<'a> = &'a Tags;
+
+        fn pick(raw: Self::Raw<'_>) -> Self {
             Self {
-                lane_count: tags.r#as::<NonZeroU8>(TagString::LANES),
-                speed_limit: tags
-                    .speed_limit(TraversalConditions {
-                        directionality: Directionality::BothWays,
-                        transport_mode: TransportMode::MotorVehicle,
-                        lane: None,
-                    }),
+                lane_count: raw.r#as::<NonZeroU8>(TagString::LANES),
+                speed_limit: raw.speed_limit(TraversalConditions {
+                    directionality: Directionality::BothWays,
+                    transport_mode: TransportMode::MotorVehicle,
+                    lane: None,
+                }),
                 ..Self::default()
             }
         }

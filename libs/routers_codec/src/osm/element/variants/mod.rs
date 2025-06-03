@@ -8,14 +8,12 @@ pub use relation::*;
 pub use way::*;
 
 pub mod common {
-    use crate::Metadata;
-    use crate::osm::primitives::{Directionality, TransportMode};
     #[cfg(debug_assertions)]
     use crate::osm::relation::MemberType;
-    use crate::osm::speed_limit::SpeedLimit;
-    use crate::osm::{PrimitiveBlock, TraversalConditions};
-    use crate::primitive::{Entry, GenericMetadata};
-    use std::num::NonZeroU8;
+
+    use crate::osm::PrimitiveBlock;
+    use crate::primitive::Entry;
+
     use std::str::FromStr;
     use std::{
         collections::HashMap,
@@ -305,22 +303,6 @@ pub mod common {
 
     #[derive(Clone, Debug)]
     pub struct Tags(HashMap<TagString, TagString>);
-
-    impl Metadata for Tags {
-        fn pick(&self) -> GenericMetadata {
-            GenericMetadata {
-                lane_count: self.r#as::<NonZeroU8>(TagString::LANES),
-                speed_limit: self
-                    .speed_limit(TraversalConditions {
-                        directionality: Directionality::BothWays,
-                        transport_mode: TransportMode::MotorVehicle,
-                        lane: None,
-                    })
-                    .and_then(|limit| limit.in_kmh()),
-                ..GenericMetadata::default()
-            }
-        }
-    }
 
     pub trait Taggable {
         fn indices(&self) -> impl Iterator<Item = (&u32, &u32)>;

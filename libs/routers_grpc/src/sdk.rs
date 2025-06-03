@@ -4,7 +4,7 @@
 use crate::r#match::{MatchRequest, MatchResponse, SnapRequest};
 use crate::model::{Coordinate, EdgeIdentifier, EdgeMetadata, NodeIdentifier};
 
-use codec::primitive::GenericMetadata;
+use codec::osm::meta::OsmEdgeMetadata;
 use codec::{Entry, Node};
 use geo::{Coord, LineString, coord};
 use std::fmt::Error as StdError;
@@ -75,12 +75,15 @@ impl MatchResponse {
     }
 }
 
-impl From<GenericMetadata> for EdgeMetadata {
-    fn from(val: GenericMetadata) -> Self {
+impl From<&OsmEdgeMetadata> for EdgeMetadata {
+    fn from(val: &OsmEdgeMetadata) -> Self {
         // TODO: Fill all the information out here...
         EdgeMetadata {
             lane_count: val.lane_count.map(|v| v.get() as u32),
-            speed_limit: val.speed_limit.map(|v| v.get() as u32),
+            speed_limit: val
+                .speed_limit
+                .and_then(|v| v.in_kmh())
+                .map(|speed| speed.get() as u32),
             names: vec![],
         }
     }
