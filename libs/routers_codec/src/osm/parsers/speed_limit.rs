@@ -1,6 +1,7 @@
 use std::ops::Deref;
 use std::str::FromStr;
 
+use crate::osm::TraversalConditions;
 use crate::osm::element::{TagString, Tags};
 use crate::osm::parsers::Parser;
 use crate::osm::primitives::speed::Speed;
@@ -124,7 +125,7 @@ impl PossiblyConditionalSpeedLimit {
 }
 
 #[derive(Clone, Debug)]
-pub struct PerLaneSpeedLimit(Vec<Option<PossiblyConditionalSpeedLimit>>);
+pub struct PerLaneSpeedLimit(pub Vec<Option<PossiblyConditionalSpeedLimit>>);
 
 impl Deref for PerLaneSpeedLimit {
     type Target = Vec<Option<PossiblyConditionalSpeedLimit>>;
@@ -156,12 +157,12 @@ pub enum SpeedLimitVariant {
 }
 
 #[derive(Clone, Debug)]
-pub struct SpeedLimit {
+pub struct SpeedLimitEntry {
     pub restriction: Restriction,
     pub limit: SpeedLimitVariant,
 }
 
-impl SpeedLimit {
+impl SpeedLimitEntry {
     fn parse_tag(label: &TagString, value: &TagString) -> Option<Self> {
         let restriction = Restriction::parse(label);
 
@@ -186,10 +187,62 @@ impl SpeedLimit {
     }
 }
 
-struct SpeedLimitCollection(Vec<SpeedLimit>);
+#[derive(Debug, Clone)]
+struct SpeedLimitCollection(Vec<SpeedLimitEntry>);
+
+pub trait SpeedLimit {
+    fn speed_limit(&self, traversal_conditions: TraversalConditions) -> Option<SpeedValue>;
+}
+
+impl SpeedLimit for Tags {
+    fn speed_limit(&self, traversal_conditions: TraversalConditions) -> Option<SpeedValue> {
+        SpeedLimitCollection::parse(self)
+            .map(|collection| collection.relevant_limits(traversal_conditions))
+            .and_then(|limits| limits.first().map(|limit| limit.speed))
+    }
+}
+
+trait SpeedLimitExt {
+    fn relevant_limits(
+        &self,
+        traversal_conditions: TraversalConditions,
+    ) -> Vec<PossiblyConditionalSpeedLimit>;
+}
+
+impl SpeedLimitExt for SpeedLimitCollection {
+    fn relevant_limits(
+        &self,
+        traversal_conditions: TraversalConditions,
+    ) -> Vec<PossiblyConditionalSpeedLimit> {
+        // Must match the conditions if they exist, otherwise blanketed.
+        self.0
+            .clone()
+            .into_iter()
+            .filter(|limit| {
+                limit
+                    .restriction
+                    .transport_mode
+                    .is_none_or(|mode| mode == traversal_conditions.transport_mode)
+            })
+            .filter(|limit| {
+                limit
+                    .restriction
+                    .directionality
+                    .is_none_or(|dir| dir == traversal_conditions.directionality)
+            })
+            .filter_map(|SpeedLimitEntry { limit, .. }| match limit {
+                SpeedLimitVariant::Blanket(blanket) => Some(blanket),
+                SpeedLimitVariant::PerLane(per_lane) => per_lane
+                    .get(traversal_conditions.lane?.get() as usize)
+                    .cloned()
+                    .and_then(|x| x),
+            })
+            .collect::<Vec<_>>()
+    }
+}
 
 impl Deref for SpeedLimitCollection {
-    type Target = Vec<SpeedLimit>;
+    type Target = Vec<SpeedLimitEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -197,12 +250,12 @@ impl Deref for SpeedLimitCollection {
 }
 
 impl Parser for SpeedLimitCollection {
-    fn parse(tags: Tags) -> Option<Self> {
+    fn parse(tags: &Tags) -> Option<Self> {
         // Standard structure follows:
         let known_limits = tags
             .iter()
             .filter(|(key, _)| key.starts_with(TagString::MAX_SPEED))
-            .filter_map(|(l, v)| SpeedLimit::parse_tag(l, v))
+            .filter_map(|(l, v)| SpeedLimitEntry::parse_tag(l, v))
             .collect::<Vec<_>>();
 
         if known_limits.is_empty() {
@@ -215,23 +268,23 @@ impl Parser for SpeedLimitCollection {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use crate::osm::Parser;
     use crate::osm::element::{TagString, Tags};
     use crate::osm::primitives::condition::{ConditionType, TimeDateCondition};
     use crate::osm::primitives::opening_hours::{Time, TimeRange, Weekday, WeekdayRange};
     use crate::osm::primitives::{Directionality, TransportMode};
     use crate::osm::speed_limit::SpeedLimitVariant::{Blanket, PerLane};
-    use crate::osm::speed_limit::{SpeedLimit, SpeedLimitCollection};
+    use crate::osm::speed_limit::{SpeedLimitCollection, SpeedLimitEntry};
+    use std::collections::HashMap;
+    use std::num::NonZeroU16;
 
     #[cfg(test)]
-    fn parse_singular(key: &str, value: &str) -> SpeedLimit {
+    fn parse_singular(key: &str, value: &str) -> SpeedLimitEntry {
         let mut tags = HashMap::new();
         tags.insert(TagString::from(key), TagString::from(value));
 
         let as_tags = Tags::new(tags);
-        let limit = SpeedLimitCollection::parse(as_tags);
+        let limit = SpeedLimitCollection::parse(&as_tags);
         assert!(limit.is_some(), "must parse successfully");
 
         let limits = limit.unwrap().0;
@@ -255,7 +308,7 @@ mod tests {
 
         matches!(
             parsed_limit.limit,
-            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 50)
+            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit.get() == 50)
         );
     }
 
@@ -274,7 +327,7 @@ mod tests {
 
         matches!(
             parsed_limit.limit,
-            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 32)
+            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit.get() == 32)
         );
     }
 
@@ -296,7 +349,7 @@ mod tests {
 
         matches!(
             parsed_limit.limit,
-            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 32)
+            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit.get() == 32)
         );
     }
 
@@ -321,7 +374,7 @@ mod tests {
 
         matches!(
             parsed_limit.limit,
-            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit == 32)
+            Blanket(limit) if limit.speed.in_kmh().is_some_and(|limit| limit.get() == 32)
         );
     }
 
@@ -345,7 +398,7 @@ mod tests {
         assert!(matches!(parsed_limit.limit, Blanket(ref limit) if {
             limit.speed
                 .in_kmh()
-                .is_some_and(|limit| limit == 130)
+                .is_some_and(|limit| limit.get() == 130)
         }));
         assert!(matches!(parsed_limit.limit, Blanket(ref limit) if {
             let condition_type =  limit.condition.clone().unwrap().condition_type;
@@ -386,11 +439,20 @@ mod tests {
             let speeds = lanes.in_kmh();
 
             assert_eq!(speeds.len(), 6, "must contain exactly 6 lanes");
-            assert_eq!(
-                speeds.as_slice(),
-                &[Some(100), Some(80), Some(80), Some(80), Some(80), Some(80)],
-                "must parse limits correctly"
-            );
+            unsafe {
+                assert_eq!(
+                    speeds.as_slice(),
+                    &[
+                        Some(NonZeroU16::new_unchecked(100)),
+                        Some(NonZeroU16::new_unchecked(80)),
+                        Some(NonZeroU16::new_unchecked(80)),
+                        Some(NonZeroU16::new_unchecked(80)),
+                        Some(NonZeroU16::new_unchecked(80)),
+                        Some(NonZeroU16::new_unchecked(80))
+                    ],
+                    "must parse limits correctly"
+                );
+            }
         }
     }
 
@@ -404,11 +466,13 @@ mod tests {
             let speeds = lanes.in_kmh();
 
             assert_eq!(speeds.len(), 2, "must contain exactly 2 lanes");
-            assert_eq!(
-                speeds.as_slice(),
-                &[None, Some(50)],
-                "must parse limits correctly"
-            );
+            unsafe {
+                assert_eq!(
+                    speeds.as_slice(),
+                    &[None, Some(NonZeroU16::new_unchecked(50))],
+                    "must parse limits correctly"
+                );
+            }
         }
     }
 
@@ -422,11 +486,18 @@ mod tests {
             let speeds = lanes.in_kmh();
 
             assert_eq!(speeds.len(), 4, "must contain exactly 4 lanes");
-            assert_eq!(
-                speeds.as_slice(),
-                &[Some(104), Some(104), Some(104), Some(40)],
-                "must parse limits correctly"
-            );
+            unsafe {
+                assert_eq!(
+                    speeds.as_slice(),
+                    &[
+                        Some(NonZeroU16::new_unchecked(104)),
+                        Some(NonZeroU16::new_unchecked(104)),
+                        Some(NonZeroU16::new_unchecked(104)),
+                        Some(NonZeroU16::new_unchecked(40))
+                    ],
+                    "must parse limits correctly"
+                );
+            }
         }
     }
 
@@ -443,11 +514,17 @@ mod tests {
             let speeds = lanes.in_kmh();
 
             assert_eq!(speeds.len(), 3, "must contain exactly 3 lanes");
-            assert_eq!(
-                speeds.as_slice(),
-                &[Some(100), Some(40), Some(60)],
-                "must parse limits correctly"
-            );
+            unsafe {
+                assert_eq!(
+                    speeds.as_slice(),
+                    &[
+                        Some(NonZeroU16::new_unchecked(100)),
+                        Some(NonZeroU16::new_unchecked(40)),
+                        Some(NonZeroU16::new_unchecked(60))
+                    ],
+                    "must parse limits correctly"
+                );
+            }
 
             // Expecting 22:00-06:00 condition
             let lane_one = lanes[0].as_ref().unwrap();

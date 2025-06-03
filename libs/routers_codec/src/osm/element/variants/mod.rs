@@ -9,9 +9,11 @@ pub use way::*;
 
 pub mod common {
     use crate::Metadata;
-    use crate::osm::PrimitiveBlock;
+    use crate::osm::primitives::{Directionality, TransportMode};
     #[cfg(debug_assertions)]
     use crate::osm::relation::MemberType;
+    use crate::osm::speed_limit::SpeedLimit;
+    use crate::osm::{PrimitiveBlock, TraversalConditions};
     use crate::primitive::{Entry, GenericMetadata};
     use std::num::NonZeroU8;
     use std::str::FromStr;
@@ -308,7 +310,13 @@ pub mod common {
         fn pick(&self) -> GenericMetadata {
             GenericMetadata {
                 lane_count: self.r#as::<NonZeroU8>(TagString::LANES),
-                speed_limit: self.r#as::<NonZeroU8>(TagString::MAX_SPEED),
+                speed_limit: self
+                    .speed_limit(TraversalConditions {
+                        directionality: Directionality::BothWays,
+                        transport_mode: TransportMode::MotorVehicle,
+                        lane: None,
+                    })
+                    .and_then(|limit| limit.in_kmh()),
                 ..GenericMetadata::default()
             }
         }

@@ -1,6 +1,7 @@
 use std::fmt;
+use std::num::NonZeroU16;
 
-pub type Speed = u16;
+pub type Speed = NonZeroU16;
 
 #[derive(Clone, Copy, Debug)]
 pub enum SpeedValue {
@@ -25,8 +26,12 @@ impl SpeedValue {
     pub fn in_kmh(&self) -> Option<Speed> {
         match self {
             SpeedValue::Kmh(speed) => Some(*speed),
-            SpeedValue::Mph(speed) => Some(((*speed as f64) * 1.609344) as Speed),
-            SpeedValue::Knots(speed) => Some(((*speed as f64) * 1.852) as Speed),
+            SpeedValue::Mph(speed) => {
+                Some(NonZeroU16::new(((speed.get() as f64) * 1.609344) as u16)?)
+            }
+            SpeedValue::Knots(speed) => {
+                Some(NonZeroU16::new(((speed.get() as f64) * 1.852) as u16)?)
+            }
             // Non-transformative
             _ => None,
         }

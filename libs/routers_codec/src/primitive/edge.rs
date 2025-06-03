@@ -1,6 +1,6 @@
 use crate::Entry;
 use std::fmt::Debug;
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroU16};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Edge<E>
@@ -14,7 +14,7 @@ where
 #[derive(Default)]
 pub struct GenericMetadata {
     pub lane_count: Option<NonZeroU8>,
-    pub speed_limit: Option<NonZeroU8>,
+    pub speed_limit: Option<NonZeroU16>,
 
     pub road_class: Option<String>,
 }
