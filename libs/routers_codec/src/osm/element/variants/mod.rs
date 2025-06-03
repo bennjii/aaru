@@ -363,7 +363,7 @@ pub mod common {
             self.0.get(&Tags::r#use(assoc))
         }
 
-        fn r#as<F: FromStr>(&self, assoc: &str) -> Option<F> {
+        pub(crate) fn r#as<F: FromStr>(&self, assoc: &str) -> Option<F> {
             self.get(assoc).and_then(TagString::parse::<F>)
         }
 

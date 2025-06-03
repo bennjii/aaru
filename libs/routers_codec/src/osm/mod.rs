@@ -15,6 +15,7 @@ pub mod parallel;
 #[doc(hidden)]
 pub mod test;
 
+use std::num::{NonZeroU16, NonZeroU8};
 // Inlined structs
 #[doc(inline)]
 pub use blob::iterator::BlobIterator;
@@ -45,4 +46,37 @@ pub use parsers::*;
 pub mod model {
     //! OpenStreetMaps Protobuf Definitions
     include!(concat!(env!("OUT_DIR"), "/osmpbf.rs"));
+}
+
+pub mod meta {
+    use std::num::NonZeroU8;
+
+    use crate::Metadata;
+    use crate::osm::element::{TagString, Tags};
+    use crate::osm::primitives::{AccessTag, Directionality, SpeedValue, TransportMode};
+    use crate::osm::{SpeedLimit, TraversalConditions};
+
+    // TODO: Rename
+    #[derive(Debug, Clone, Default)]
+    pub struct OsmEdgeMetadata {
+        pub lane_count: Option<NonZeroU8>,
+        pub speed_limit: Option<SpeedValue>,
+        pub access_tag: Option<AccessTag>,
+        pub road_class: Option<String>,
+    }
+
+    impl Metadata for OsmEdgeMetadata {
+        fn pick(&self, tags: &Tags) -> Self {
+            Self {
+                lane_count: tags.r#as::<NonZeroU8>(TagString::LANES),
+                speed_limit: tags
+                    .speed_limit(TraversalConditions {
+                        directionality: Directionality::BothWays,
+                        transport_mode: TransportMode::MotorVehicle,
+                        lane: None,
+                    }),
+                ..Self::default()
+            }
+        }
+    }
 }
