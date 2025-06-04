@@ -7,6 +7,8 @@ pub mod speed_limit;
 
 pub use speed_limit::SpeedLimit;
 
+// TODO: Internalise
+#[derive(Debug, Clone)]
 pub struct TraversalConditions {
     pub transport_mode: TransportMode,
     pub directionality: Directionality,

@@ -185,21 +185,19 @@ impl OpeningHoursParser {
             return Err("Empty rule".to_string());
         }
 
-        let mut weekdays = None;
-        let mut time_parts = Vec::new();
-        let mut parsing_times = false;
+        let (weekday_parts, time_parts): (Vec<_>, Vec<_>) = parts
+            .iter()
+            .scan(false, |parsing_times, part| {
+                *parsing_times |= OpeningHoursParser::looks_like_time(part);
+                Some((part, *parsing_times))
+            })
+            .partition(|(_part, is_time)| !*is_time);
 
-        // TODO: wtaf
-        for part in parts {
-            if let Ok(weekday) = OpeningHoursParser::parse_weekday_range(part) {
-                weekdays = Some(weekday);
-            } else if OpeningHoursParser::looks_like_time(part) {
-                parsing_times = true;
-                time_parts.push(part);
-            } else if parsing_times {
-                time_parts.push(part);
-            }
-        }
+        let weekdays = weekday_parts
+            .into_iter()
+            .find_map(|(part, _)| OpeningHoursParser::parse_weekday_range(part).ok());
+
+        let time_parts: Vec<_> = time_parts.into_iter().map(|(part, _)| *part).collect();
 
         // If no weekdays specified, apply to all days
         let times = if time_parts.is_empty() {

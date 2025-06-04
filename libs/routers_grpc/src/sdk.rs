@@ -4,7 +4,9 @@
 use crate::r#match::{MatchRequest, MatchResponse, SnapRequest};
 use crate::model::{Coordinate, EdgeIdentifier, EdgeMetadata, NodeIdentifier};
 
+use codec::osm::TraversalConditions;
 use codec::osm::meta::OsmEdgeMetadata;
+use codec::osm::speed_limit::SpeedLimitExt;
 use codec::{Entry, Node};
 use geo::{Coord, LineString, coord};
 use std::fmt::Error as StdError;
@@ -75,13 +77,18 @@ impl MatchResponse {
     }
 }
 
-impl From<&OsmEdgeMetadata> for EdgeMetadata {
-    fn from(val: &OsmEdgeMetadata) -> Self {
+type MetadataAndTraversal<'a> = (&'a OsmEdgeMetadata, &'a TraversalConditions);
+
+impl From<MetadataAndTraversal<'_>> for EdgeMetadata {
+    fn from((meta, cond): MetadataAndTraversal<'_>) -> Self {
         // TODO: Fill all the information out here...
         EdgeMetadata {
-            lane_count: val.lane_count.map(|v| v.get() as u32),
-            speed_limit: val
+            lane_count: meta.lane_count.map(|v| v.get() as u32),
+            speed_limit: meta
                 .speed_limit
+                .as_ref()
+                .map(|v| v.relevant_limits(cond.clone()))
+                .and_then(|v| v.first().map(|elem| elem.speed))
                 .and_then(|v| v.in_kmh())
                 .map(|speed| speed.get() as u32),
             names: vec![],

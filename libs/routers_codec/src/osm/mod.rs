@@ -51,15 +51,15 @@ pub mod meta {
     use std::num::NonZeroU8;
 
     use crate::Metadata;
+    use crate::osm::SpeedLimit;
     use crate::osm::element::{TagString, Tags};
-    use crate::osm::primitives::{AccessTag, Directionality, SpeedValue, TransportMode};
-    use crate::osm::{SpeedLimit, TraversalConditions};
+    use crate::osm::primitives::*;
+    use crate::osm::speed_limit::SpeedLimitCollection;
 
-    // TODO: Rename
     #[derive(Debug, Clone, Default)]
     pub struct OsmEdgeMetadata {
         pub lane_count: Option<NonZeroU8>,
-        pub speed_limit: Option<SpeedValue>,
+        pub speed_limit: Option<SpeedLimitCollection>,
         pub access_tag: Option<AccessTag>,
         pub road_class: Option<String>,
     }
@@ -70,11 +70,7 @@ pub mod meta {
         fn pick(raw: Self::Raw<'_>) -> Self {
             Self {
                 lane_count: raw.r#as::<NonZeroU8>(TagString::LANES),
-                speed_limit: raw.speed_limit(TraversalConditions {
-                    directionality: Directionality::BothWays,
-                    transport_mode: TransportMode::MotorVehicle,
-                    lane: None,
-                }),
+                speed_limit: raw.speed_limit(),
                 ..Self::default()
             }
         }

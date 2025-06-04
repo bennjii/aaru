@@ -10,5 +10,5 @@ pub use access::AccessTag;
 pub use condition::Condition;
 pub use direction::Directionality;
 pub use lanes::Lanes;
-pub use speed::SpeedValue;
+pub use speed::{Speed, SpeedValue};
 pub use transport::TransportMode;

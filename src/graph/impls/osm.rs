@@ -11,7 +11,6 @@ use rustc_hash::FxHashMap;
 
 use crate::{DirectionAwareEdgeId, Edge, FatEdge, PredicateCache};
 use codec::osm::meta::OsmEdgeMetadata;
-use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -21,8 +20,8 @@ pub type OsmGraph = Graph<OsmEntryId, OsmEdgeMetadata>;
 
 impl OsmGraph {
     /// The weighting mapping of node keys to weight.
-    pub fn weights<'a>() -> Result<HashMap<&'a str, Weight>, Box<dyn Error>> {
-        let mut weights: HashMap<&str, Weight> = HashMap::new();
+    pub fn weights<'a>() -> Result<FxHashMap<&'a str, Weight>, Box<dyn Error>> {
+        let mut weights: FxHashMap<&str, Weight> = FxHashMap::default();
 
         // TODO: Base this dynamically on geospacial properties and roading shape
 
