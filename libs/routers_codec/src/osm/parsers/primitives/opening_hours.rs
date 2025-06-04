@@ -1,3 +1,4 @@
+use either::{Left, Right};
 use itertools::Itertools;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -185,19 +186,19 @@ impl OpeningHoursParser {
             return Err("Empty rule".to_string());
         }
 
-        let (weekday_parts, time_parts): (Vec<_>, Vec<_>) = parts
+        let (time_parts, weekday_parts): (Vec<_>, Vec<_>) = parts
             .iter()
             .scan(false, |parsing_times, part| {
                 *parsing_times |= OpeningHoursParser::looks_like_time(part);
                 Some((part, *parsing_times))
             })
-            .partition(|(_part, is_time)| !*is_time);
+            .partition_map(|(part, is_time)| if is_time { Left(*part) } else { Right(*part) });
 
         let weekdays = weekday_parts
             .into_iter()
-            .find_map(|(part, _)| OpeningHoursParser::parse_weekday_range(part).ok());
-
-        let time_parts: Vec<_> = time_parts.into_iter().map(|(part, _)| *part).collect();
+            .map(OpeningHoursParser::parse_weekday_range)
+            .find(|val| val.is_ok())
+            .map(|val| val.unwrap());
 
         // If no weekdays specified, apply to all days
         let times = if time_parts.is_empty() {
@@ -218,7 +219,7 @@ impl OpeningHoursParser {
     }
 
     fn looks_like_time(s: &str) -> bool {
-        s.contains(':') || s.contains('-') && s.len() >= 3
+        s.contains(':') && s.len() >= 3
     }
 
     fn parse_weekday_range(input: &str) -> Result<WeekdayRange, String> {
