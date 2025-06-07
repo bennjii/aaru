@@ -111,7 +111,8 @@ pub enum RoadClass {
 }
 
 impl RoadClass {
-    pub fn weighting(&self) -> u32 {
+    #[inline]
+    pub const fn weighting(&self) -> u32 {
         match self {
             RoadClass::Motorway => 1,
             RoadClass::MotorwayLink => 2,
