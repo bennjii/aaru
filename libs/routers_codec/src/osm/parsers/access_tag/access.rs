@@ -1,4 +1,5 @@
 use crate::osm::primitives::TransportMode;
+use crate::osm::{Parser, TagString, Tags};
 use std::str::FromStr;
 use strum::{AsRefStr, Display, EnumIter, EnumString};
 
@@ -67,7 +68,7 @@ impl AccessTag {
     /// # Examples
     /// ```
     /// use std::str::FromStr;
-    /// use routers_codec::osm::primitives::AccessTag;
+    /// use routers_codec::osm::access_tag::AccessTag;
     ///
     /// // Parse "bicycle=no"
     /// let tag = AccessTag::from_key_value("bicycle", "no")?;
@@ -84,9 +85,28 @@ impl AccessTag {
         })
     }
 
+    pub fn from_tag((key, value): (&TagString, &TagString)) -> Option<Self> {
+        Self::from_key_value(key, value).ok()
+    }
+
     /// Convert back to OSM key-value pair
     pub fn to_key_value(&self) -> (String, String) {
         (self.transport_mode.to_string(), self.access.to_string())
+    }
+}
+
+impl Parser for Vec<AccessTag> {
+    fn parse(tags: &Tags) -> Option<Self> {
+        let as_vec = tags
+            .iter()
+            .filter_map(AccessTag::from_tag)
+            .collect::<Vec<_>>();
+
+        if as_vec.is_empty() {
+            None
+        } else {
+            Some(as_vec)
+        }
     }
 }
 

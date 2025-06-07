@@ -1,4 +1,4 @@
-use crate::graph::item::{Graph, GraphStructure, Weight};
+use crate::graph::item::{Graph, GraphStructure};
 
 use codec::osm::OsmEntryId;
 use codec::osm::element::ProcessedElement;
@@ -19,37 +19,6 @@ use std::time::Instant;
 pub type OsmGraph = Graph<OsmEntryId, OsmEdgeMetadata>;
 
 impl OsmGraph {
-    /// The weighting mapping of node keys to weight.
-    pub fn weights<'a>() -> Result<FxHashMap<&'a str, Weight>, Box<dyn Error>> {
-        let mut weights: FxHashMap<&str, Weight> = FxHashMap::default();
-
-        // TODO: Base this dynamically on geospacial properties and roading shape
-
-        // Primary roadways
-        weights.insert("motorway", 1);
-        weights.insert("motorway_link", 2);
-        weights.insert("trunk", 3);
-        weights.insert("trunk_link", 4);
-        weights.insert("primary", 5);
-        weights.insert("primary_link", 6);
-        weights.insert("secondary", 7);
-        weights.insert("secondary_link", 8);
-        weights.insert("tertiary", 9);
-        weights.insert("tertiary_link", 10);
-
-        // Residential
-        weights.insert("residential", 11);
-        weights.insert("unclassified", 12);
-
-        // Misc / Service. (Shouldn't be impossible to traverse, just difficult.)
-        weights.insert("living_street", 50);
-        weights.insert("service", 51);
-        weights.insert("busway", 52);
-        weights.insert("road", 53);
-
-        Ok(weights)
-    }
-
     /// Creates a graph from a `.osm.pbf` file, using the `ProcessedElementIterator`
     pub fn new(filename: std::ffi::OsString) -> Result<Self, Box<dyn Error>> {
         let mut start_time = Instant::now();
@@ -58,7 +27,6 @@ impl OsmGraph {
         let path = PathBuf::from(filename);
 
         let reader = ProcessedElementIterator::new(path).map_err(|err| format!("{err:?}"))?;
-        let weights = Graph::weights()?;
 
         debug!("Iterator warming took: {:?}", start_time.elapsed());
         start_time = Instant::now();
@@ -73,25 +41,17 @@ impl OsmGraph {
              element: ProcessedElement| {
                 match element {
                     ProcessedElement::Way(way) => {
+                        let metadata = OsmEdgeMetadata::pick(way.tags());
                         // If way is not traversable (/ is not road)
-                        if way.tags().road_tag().is_none() {
+                        if metadata.road_class.is_none() {
                             return trees;
                         }
 
                         // Get the weight from the weight table
-                        let weight = match way.tags().road_tag() {
-                            Some(weight) => weights
-                                .get(weight)
-                                .copied()
-                                .unwrap_or(crate::graph::MAX_WEIGHT),
-                            None => crate::graph::MAX_WEIGHT,
-                        };
+                        let weight = metadata.road_class.unwrap().weighting();
 
                         let bidirectional = !way.tags().unidirectional();
-                        let _ = meta
-                            .lock()
-                            .unwrap()
-                            .insert(way.id(), OsmEdgeMetadata::pick(way.clone().tags()));
+                        let _ = meta.lock().unwrap().insert(way.id(), metadata);
 
                         // Update with all adjacent nodes
                         way.refs().windows(2).for_each(|edge| {

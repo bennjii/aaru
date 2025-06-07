@@ -341,7 +341,7 @@ pub mod common {
             TagString::from(assoc)
         }
 
-        fn get(&self, assoc: &str) -> Option<&TagString> {
+        pub(crate) fn get(&self, assoc: &str) -> Option<&TagString> {
             self.0.get(&Tags::r#use(assoc))
         }
 
