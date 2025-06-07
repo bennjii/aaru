@@ -5,7 +5,6 @@ pub mod edge;
 pub mod node;
 
 pub use edge::Edge;
-pub use edge::GenericMetadata;
 pub use node::Node;
 
 pub trait Entry:
@@ -15,5 +14,9 @@ pub trait Entry:
 }
 
 pub trait Metadata: Clone + Debug + Send + Sync {
-    fn pick(&self) -> GenericMetadata;
+    type Raw<'a>
+    where
+        Self: 'a;
+
+    fn pick(raw: Self::Raw<'_>) -> Self;
 }

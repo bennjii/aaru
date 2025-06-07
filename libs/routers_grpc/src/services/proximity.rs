@@ -1,6 +1,6 @@
 use crate::definition::model::*;
 use crate::definition::scan::*;
-use crate::services::RouteService;
+use crate::services::{RouteService, RuntimeContext};
 
 use routers::Scan;
 
@@ -16,10 +16,11 @@ use codec::{Entry, Metadata};
 use tracing::Level;
 
 #[tonic::async_trait]
-impl<E, M> ScanService for RouteService<E, M>
+impl<E, M, Ctx> ScanService for RouteService<E, M, Ctx>
 where
     M: Metadata + 'static,
     E: Entry + 'static,
+    Ctx: RuntimeContext + 'static,
 {
     #[cfg_attr(feature="telemetry", tracing::instrument(skip_all, err(level = Level::INFO)))]
     async fn point(

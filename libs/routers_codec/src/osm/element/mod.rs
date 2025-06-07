@@ -19,5 +19,5 @@ pub use iterator::ElementIterator;
 pub use processed_iterator::ProcessedElementIterator;
 #[doc(inline)]
 pub use variants::OsmEntryId;
-
+#[doc(inline)]
 pub use variants::common::*;
