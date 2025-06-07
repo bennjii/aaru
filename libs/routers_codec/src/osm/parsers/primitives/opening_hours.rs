@@ -197,8 +197,7 @@ impl OpeningHoursParser {
         let weekdays = weekday_parts
             .into_iter()
             .map(OpeningHoursParser::parse_weekday_range)
-            .find(|val| val.is_ok())
-            .map(|val| val.unwrap());
+            .find_map(|val| val.ok());
 
         // If no weekdays specified, apply to all days
         let times = if time_parts.is_empty() {

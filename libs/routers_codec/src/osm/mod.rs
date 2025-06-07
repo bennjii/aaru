@@ -28,18 +28,27 @@ pub use element::iterator::ElementIterator;
 pub use element::processed_iterator::ProcessedElementIterator;
 
 // Doc-Linking
+#[doc(inline)]
+pub use parallel::Parallel;
+
+#[doc(hidden)]
+pub use element::variants::common::*;
+#[doc(hidden)]
+pub use model::*;
+#[doc(inline)]
+pub use parsers::*;
+
 #[doc(hidden)]
 pub use blob::item::BlobItem;
 #[doc(hidden)]
 pub use block::item::BlockItem;
 #[doc(hidden)]
 pub use element::item::Element;
-#[doc(hidden)]
-pub use model::*;
+
 #[doc(inline)]
-pub use parallel::Parallel;
+pub use meta::OsmEdgeMetadata;
 #[doc(inline)]
-pub use parsers::*;
+pub use runtime::TraversalConditions;
 
 // Protocol Buffer Includes
 pub mod model {
@@ -74,5 +83,18 @@ pub mod meta {
                 ..Self::default()
             }
         }
+    }
+}
+
+pub mod runtime {
+    use crate::osm::primitives::{Directionality, TransportMode};
+    use std::num::NonZeroU8;
+
+    // TODO: Internalise
+    #[derive(Debug, Clone)]
+    pub struct TraversalConditions {
+        pub transport_mode: TransportMode,
+        pub directionality: Directionality,
+        pub lane: Option<NonZeroU8>,
     }
 }
