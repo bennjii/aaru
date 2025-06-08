@@ -71,7 +71,7 @@ pub enum RoadClass {
     ///
     /// To create a 'square' or 'plaza' create a closed way and tag as pedestrian and also with
     /// area=yes.
-    // Pedestrian,
+    Pedestrian,
 
     /// Roads for mostly agricultural or forestry uses.
     /// To describe the quality of a track, see tracktype=*.
@@ -138,7 +138,7 @@ impl RoadClass {
             RoadClass::Raceway => 100,
             RoadClass::Escape => 100,
             RoadClass::Track => 100,
-            // RoadClass::Pedestrian => 100,
+            RoadClass::Pedestrian => 100,
         }
     }
 }
