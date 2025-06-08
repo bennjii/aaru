@@ -85,12 +85,12 @@ impl AccessTag {
         })
     }
 
-    pub fn from_tag((key, value): (&TagString, &TagString)) -> Option<Self> {
+    fn from_tag((key, value): (&TagString, &TagString)) -> Option<Self> {
         Self::from_key_value(key, value).ok()
     }
 
     /// Convert back to OSM key-value pair
-    pub fn to_key_value(&self) -> (String, String) {
+    fn to_key_value(&self) -> (String, String) {
         (self.transport_mode.to_string(), self.access.to_string())
     }
 }

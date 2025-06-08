@@ -71,7 +71,7 @@ pub enum RoadClass {
     ///
     /// To create a 'square' or 'plaza' create a closed way and tag as pedestrian and also with
     /// area=yes.
-    Pedestrian,
+    // Pedestrian,
 
     /// Roads for mostly agricultural or forestry uses.
     /// To describe the quality of a track, see tracktype=*.
@@ -81,23 +81,23 @@ pub enum RoadClass {
     ///
     /// Consequently, if you want to tag a general use road, use one of the general highway
     /// values instead of track.
-    Track,
+    // Track,
 
     /// A course or track for (motor) racing
-    Raceway,
+    // Raceway,
 
     /// A busway where the vehicle guided by the way (though not a railway)
     /// and is not suitable for other traffic.
     ///
     /// Note: this is not a normal bus lane, use access=no, psv=yes instead!
-    BusGuideway,
+    // BusGuideway,
 
     /// A dedicated roadway for bus rapid transit systems
-    Busway,
+    // Busway,
 
     /// For runaway truck ramps, runaway truck lanes, emergency escape ramps,
     /// or truck arrester beds. It enables vehicles with braking failure to safely stop.
-    Escape,
+    // Escape,
 
     /// A road/way/street/motorway/etc. of unknown type.
     ///
@@ -127,19 +127,18 @@ impl RoadClass {
 
             // Residential / Assoc.
             RoadClass::Residential => 10,
-            RoadClass::Busway => 10,
-            RoadClass::BusGuideway => 10,
+            // RoadClass::Busway => 10,
+            // RoadClass::BusGuideway => 10,
             RoadClass::Unclassified => 10,
 
             // Misc / Service. (Shouldn't be impossible to traverse, just difficult.)
             RoadClass::LivingStreet => 50,
             RoadClass::Service => 50,
             RoadClass::Road => 50,
-
-            RoadClass::Raceway => 100,
-            RoadClass::Escape => 100,
-            RoadClass::Pedestrian => 100,
-            RoadClass::Track => 100,
+            // RoadClass::Raceway => 100,
+            // RoadClass::Escape => 100,
+            // RoadClass::Pedestrian => 100,
+            // RoadClass::Track => 100,
         }
     }
 }

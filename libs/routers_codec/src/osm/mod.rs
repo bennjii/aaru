@@ -70,7 +70,7 @@ pub mod meta {
     pub struct OsmEdgeMetadata {
         pub lane_count: Option<NonZeroU8>,
         pub speed_limit: Option<SpeedLimitCollection>,
-        pub access_tags: Vec<AccessTag>,
+        pub access: Vec<AccessTag>,
         pub road_class: Option<RoadClass>,
     }
 
@@ -81,8 +81,8 @@ pub mod meta {
             Self {
                 road_class: raw.r#as::<RoadClass>(TagString::HIGHWAY),
                 lane_count: raw.r#as::<NonZeroU8>(TagString::LANES),
-                access_tags: raw.access(),
                 speed_limit: raw.speed_limit(),
+                access: raw.access(),
             }
         }
     }
