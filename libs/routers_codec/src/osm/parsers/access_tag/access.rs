@@ -89,7 +89,7 @@ impl AccessTag {
         Self::from_key_value(key, value).ok()
     }
 
-    /// Convert back to OSM key-value pair
+    #[cfg(test)]
     fn to_key_value(&self) -> (String, String) {
         (self.transport_mode.to_string(), self.access.to_string())
     }
