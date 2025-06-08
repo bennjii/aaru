@@ -24,7 +24,7 @@ test-log = { version = "0.2.17", features = ["log"] }
 # Server/Paralellism
 dotenv = "0.15.0"
 tower-http = { version = "0.6.4", features = ["cors"] }
-tokio = { version = "1.45.0", features = [
+tokio = { version = "1.45.1", features = [
     "rt",
     "rt-multi-thread",
     "macros",
@@ -96,7 +96,7 @@ bench = false
 # Algorithm
 rstar = { workspace = true }
 codec = { path = "libs/routers_codec", package = "routers_codec", version = "0.1.0" }
-petgraph = { version = "0.8.1", features = ["serde-1", "graphmap", "rayon"] }
+petgraph = { version = "0.8.2", features = ["serde-1", "graphmap", "rayon"] }
 
 # Root-Specific Crates
 approx = "0.5.1"
