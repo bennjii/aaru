@@ -121,7 +121,9 @@ mod successor {
                 .filter(|(_, _, (_, edge))| {
                     // Only traverse paths which can be accessed by
                     // the specific runtime routing conditions available
-                    ctx.map.meta(edge).accessible(&ctx.runtime)
+                    ctx.map
+                        .meta(edge)
+                        .accessible(&ctx.runtime, edge.direction())
                 })
                 .map(|(_, next, (w, _))| {
                     let distance = Haversine.distance(source, ctx.map.get_position(&next).unwrap());

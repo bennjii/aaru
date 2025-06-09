@@ -4,6 +4,7 @@ use std::hash::Hash;
 pub mod edge;
 pub mod node;
 
+use crate::primitive::edge::Direction;
 pub use edge::Edge;
 pub use node::Node;
 
@@ -23,5 +24,5 @@ pub trait Metadata: Clone + Debug + Send + Sync {
     fn pick(raw: Self::Raw<'_>) -> Self;
     fn runtime() -> Self::RuntimeRouting;
 
-    fn accessible(&self, access: &Self::RuntimeRouting) -> bool;
+    fn accessible(&self, access: &Self::RuntimeRouting, direction: Direction) -> bool;
 }

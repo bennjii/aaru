@@ -64,6 +64,7 @@ pub mod meta {
     use crate::osm::primitives::*;
     use crate::osm::speed_limit::SpeedLimitCollection;
     use crate::osm::{Access, RuntimeTraversalConfig, SpeedLimit};
+    use crate::primitive::edge::Direction;
     use itertools::Itertools;
     use std::num::NonZeroU8;
 
@@ -93,21 +94,30 @@ pub mod meta {
         }
 
         #[inline]
-        fn accessible(&self, conditions: &Self::RuntimeRouting) -> bool {
+        fn accessible(&self, conditions: &Self::RuntimeRouting, direction: Direction) -> bool {
             // Computes the negative-filter access restriction, assuming accessible by default.
             // If any access conditions match the input, it will be rejected.
             self.access
                 .iter()
-                .filter(|access| {
-                    // Only consider access methods which are applicable
-                    conditions
+                .filter(|AccessTag { restriction, .. }| {
+                    let direction_equivalent = match restriction.directionality {
+                        Directionality::Forward => direction == Direction::Outgoing,
+                        Directionality::Backward => direction == Direction::Incoming,
+                        Directionality::BothWays => true,
+                        _ => false,
+                    };
+
+                    let transport_mode_equivalent = conditions
                         .transport_mode
-                        .is_restricted_by(access.transport_mode)
+                        .is_restricted_by(restriction.transport_mode);
+
+                    // Only consider access methods which are applicable
+                    direction_equivalent && transport_mode_equivalent
                 })
-                .sorted_by_key(|access| {
+                .sorted_by_key(|AccessTag { restriction, .. }| {
                     // Sort by specificity such that we consider the most specific
                     // filter first, and the least specific last.
-                    access.transport_mode.specificity_level()
+                    restriction.transport_mode.specificity_level()
                 })
                 .next()
                 .map(|AccessTag { access, .. }| {
