@@ -95,9 +95,8 @@ pub trait Calculable<K: CacheKey, M: Metadata, V> {
 
 mod successor {
     use crate::transition::*;
-    use codec::primitive::edge::Direction;
     use geo::Haversine;
-    use petgraph::Direction as PetGraphDirection;
+    use petgraph::Direction;
 
     use super::*;
 
@@ -118,14 +117,13 @@ mod successor {
 
             ctx.map
                 .graph
-                .edges_directed(key, PetGraphDirection::Outgoing)
+                .edges_directed(key, Direction::Outgoing)
                 .filter(|(_, _, (_, edge))| {
                     // Only traverse paths which can be accessed by
                     // the specific runtime routing conditions available
                     ctx.map
                         .meta(edge)
-                        // TODO: Use actual direction
-                        .accessible(&ctx.runtime, Direction::Outgoing)
+                        .accessible(&ctx.runtime, edge.direction())
                 })
                 .map(|(_, next, (w, _))| {
                     let distance = Haversine.distance(source, ctx.map.get_position(&next).unwrap());
