@@ -59,7 +59,8 @@ where
         }
     }
 
-    pub fn direction(&self) -> Direction {
+    #[inline]
+    pub const fn direction(&self) -> Direction {
         self.direction
     }
 }

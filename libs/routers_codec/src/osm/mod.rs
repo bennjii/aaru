@@ -100,20 +100,19 @@ pub mod meta {
             self.access
                 .iter()
                 .filter(|AccessTag { restriction, .. }| {
-                    let transport_mode_equivalent = conditions
+                    // Only consider access methods which are applicable
+                    conditions
                         .transport_mode
-                        .is_restricted_by(restriction.transport_mode);
-
-                    let direction_equivalent = match restriction.directionality {
+                        .is_restricted_by(restriction.transport_mode)
+                })
+                .filter(
+                    |AccessTag { restriction, .. }| match restriction.directionality {
                         Directionality::Forward => direction == Direction::Outgoing,
                         Directionality::Backward => direction == Direction::Incoming,
                         Directionality::BothWays => true,
                         _ => false,
-                    };
-
-                    // Only consider access methods which are applicable
-                    transport_mode_equivalent && direction_equivalent
-                })
+                    },
+                )
                 .sorted_by_key(|AccessTag { restriction, .. }| {
                     // Sort by specificity such that we consider the most specific
                     // filter first, and the least specific last.
@@ -176,6 +175,7 @@ pub mod runtime {
     }
 
     impl Default for RuntimeTraversalConfig {
+        #[inline]
         fn default() -> Self {
             RuntimeTraversalConfig {
                 transport_mode: TransportMode::Vehicle,
