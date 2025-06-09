@@ -62,7 +62,6 @@ impl Node<OsmEntryId> {
 }
 
 // Concrete translator for an OSM node
-// TODO: Move this to an appropriate loction.
 impl From<&osm::Node> for Node<OsmEntryId> {
     fn from(value: &osm::Node) -> Self {
         Node {

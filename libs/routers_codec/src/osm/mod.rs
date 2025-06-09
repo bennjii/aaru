@@ -5,6 +5,8 @@ pub mod blob;
 pub mod block;
 pub mod element;
 
+pub mod parsers;
+
 // Hidden modules
 #[doc(hidden)]
 pub mod error;
@@ -26,19 +28,75 @@ pub use element::iterator::ElementIterator;
 pub use element::processed_iterator::ProcessedElementIterator;
 
 // Doc-Linking
+#[doc(inline)]
+pub use parallel::Parallel;
+
+#[doc(hidden)]
+pub use element::variants::common::*;
+#[doc(hidden)]
+pub use model::*;
+#[doc(inline)]
+pub use parsers::*;
+
 #[doc(hidden)]
 pub use blob::item::BlobItem;
 #[doc(hidden)]
 pub use block::item::BlockItem;
 #[doc(hidden)]
 pub use element::item::Element;
-#[doc(hidden)]
-pub use model::*;
+
 #[doc(inline)]
-pub use parallel::Parallel;
+pub use meta::OsmEdgeMetadata;
+#[doc(inline)]
+pub use runtime::TraversalConditions;
 
 // Protocol Buffer Includes
 pub mod model {
     //! OpenStreetMaps Protobuf Definitions
     include!(concat!(env!("OUT_DIR"), "/osmpbf.rs"));
+}
+
+pub mod meta {
+    use std::num::NonZeroU8;
+
+    use crate::Metadata;
+    use crate::osm::access_tag::AccessTag;
+    use crate::osm::element::{TagString, Tags};
+    use crate::osm::primitives::*;
+    use crate::osm::speed_limit::SpeedLimitCollection;
+    use crate::osm::{Access, SpeedLimit};
+
+    #[derive(Debug, Clone, Default)]
+    pub struct OsmEdgeMetadata {
+        pub lane_count: Option<NonZeroU8>,
+        pub speed_limit: Option<SpeedLimitCollection>,
+        pub access: Vec<AccessTag>,
+        pub road_class: Option<RoadClass>,
+    }
+
+    impl Metadata for OsmEdgeMetadata {
+        type Raw<'a> = &'a Tags;
+
+        fn pick(raw: Self::Raw<'_>) -> Self {
+            Self {
+                road_class: raw.r#as::<RoadClass>(TagString::HIGHWAY),
+                lane_count: raw.r#as::<NonZeroU8>(TagString::LANES),
+                speed_limit: raw.speed_limit(),
+                access: raw.access(),
+            }
+        }
+    }
+}
+
+pub mod runtime {
+    use crate::osm::primitives::{Directionality, TransportMode};
+    use std::num::NonZeroU8;
+
+    // TODO: Internalise
+    #[derive(Debug, Clone)]
+    pub struct TraversalConditions {
+        pub transport_mode: TransportMode,
+        pub directionality: Directionality,
+        pub lane: Option<NonZeroU8>,
+    }
 }

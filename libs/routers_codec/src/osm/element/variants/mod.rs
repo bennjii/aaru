@@ -8,12 +8,12 @@ pub use relation::*;
 pub use way::*;
 
 pub mod common {
-    use crate::Metadata;
-    use crate::osm::PrimitiveBlock;
     #[cfg(debug_assertions)]
     use crate::osm::relation::MemberType;
-    use crate::primitive::{Entry, GenericMetadata};
-    use std::num::NonZeroU8;
+
+    use crate::osm::PrimitiveBlock;
+    use crate::primitive::Entry;
+
     use std::str::FromStr;
     use std::{
         collections::HashMap,
@@ -286,10 +286,11 @@ pub mod common {
     }
 
     impl TagString {
-        const HIGHWAY: &'static str = "highway";
-        const ONE_WAY: &'static str = "oneway";
-        const JUNCTION: &'static str = "junction";
-        const LANES: &'static str = "lanes";
+        pub(crate) const HIGHWAY: &'static str = "highway";
+        pub(crate) const ONE_WAY: &'static str = "oneway";
+        pub(crate) const JUNCTION: &'static str = "junction";
+        pub(crate) const LANES: &'static str = "lanes";
+        pub(crate) const MAX_SPEED: &'static str = "maxspeed";
 
         pub fn recover(k: usize, block: &PrimitiveBlock) -> TagString {
             TagString::from(String::from_utf8_lossy(&block.stringtable.s[k]).into_owned())
@@ -303,17 +304,6 @@ pub mod common {
     #[derive(Clone, Debug)]
     pub struct Tags(HashMap<TagString, TagString>);
 
-    impl Metadata for Tags {
-        fn pick(&self) -> GenericMetadata {
-            GenericMetadata {
-                lane_count: self
-                    .get(TagString::LANES)
-                    .and_then(TagString::parse::<NonZeroU8>),
-                ..GenericMetadata::default()
-            }
-        }
-    }
-
     pub trait Taggable {
         fn indices(&self) -> impl Iterator<Item = (&u32, &u32)>;
         fn tags(&self, block: &PrimitiveBlock) -> Tags {
@@ -322,6 +312,10 @@ pub mod common {
     }
 
     impl Tags {
+        pub fn new(map: HashMap<TagString, TagString>) -> Self {
+            Tags(map)
+        }
+
         /// Takes an iterator of indicies within the string table of the
         /// associated block, and recovers the strings at the specified
         /// indexes, to generate an associative hashmap of the tag keys and values.
@@ -347,8 +341,12 @@ pub mod common {
             TagString::from(assoc)
         }
 
-        fn get(&self, assoc: &str) -> Option<&TagString> {
+        pub(crate) fn get(&self, assoc: &str) -> Option<&TagString> {
             self.0.get(&Tags::r#use(assoc))
+        }
+
+        pub(crate) fn r#as<F: FromStr>(&self, assoc: &str) -> Option<F> {
+            self.get(assoc).and_then(TagString::parse::<F>)
         }
 
         #[inline]
