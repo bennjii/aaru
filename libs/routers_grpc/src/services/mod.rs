@@ -1,10 +1,10 @@
 use codec::osm::meta::OsmEdgeMetadata;
-use codec::osm::{OsmEntryId, TraversalConditions};
+use codec::osm::{OsmEntryId, RuntimeTraversalConfig};
 use codec::{Entry, Metadata};
 use routers::Graph;
 use std::marker::PhantomData;
 
-use codec::osm::primitives::{Directionality, TransportMode};
+use codec::osm::primitives::TransportMode;
 use std::path::PathBuf;
 
 pub mod matcher;
@@ -12,7 +12,18 @@ pub mod optimise;
 pub mod proximity;
 
 pub trait RuntimeContext: Send + Sync {
+    // TODO: Remove
     fn new() -> Self;
+}
+
+// Implementations
+impl RuntimeContext for RuntimeTraversalConfig {
+    fn new() -> Self {
+        RuntimeTraversalConfig {
+            transport_mode: TransportMode::Vehicle,
+            allow_private_roads: true,
+        }
+    }
 }
 
 pub struct RouteService<E, M, Ctx>
@@ -26,7 +37,7 @@ where
     phantom: PhantomData<Ctx>,
 }
 
-impl RouteService<OsmEntryId, OsmEdgeMetadata, TraversalConditions> {
+impl RouteService<OsmEntryId, OsmEdgeMetadata, RuntimeTraversalConfig> {
     pub fn from_file(file: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         let graph =
             Graph::new(file.as_os_str().to_ascii_lowercase()).map_err(|e| format!("{:?}", e))?;
@@ -35,15 +46,5 @@ impl RouteService<OsmEntryId, OsmEdgeMetadata, TraversalConditions> {
             graph,
             phantom: PhantomData,
         })
-    }
-}
-
-impl RuntimeContext for TraversalConditions {
-    fn new() -> Self {
-        TraversalConditions {
-            directionality: Directionality::BothWays,
-            transport_mode: TransportMode::Vehicle,
-            lane: None,
-        }
     }
 }
