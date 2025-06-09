@@ -105,14 +105,14 @@ pub mod meta {
                         .transport_mode
                         .is_restricted_by(restriction.transport_mode)
                 })
-                // .filter(
-                //     |AccessTag { restriction, .. }| match restriction.directionality {
-                //         Directionality::Forward => direction == Direction::Outgoing,
-                //         Directionality::Backward => direction == Direction::Incoming,
-                //         Directionality::BothWays => true,
-                //         _ => false,
-                //     },
-                // )
+                .filter(
+                    |AccessTag { restriction, .. }| match restriction.directionality {
+                        Directionality::Forward => direction == Direction::Outgoing,
+                        Directionality::Backward => direction == Direction::Incoming,
+                        Directionality::BothWays => true,
+                        _ => false,
+                    },
+                )
                 .sorted_by_key(|AccessTag { restriction, .. }| {
                     // Sort by specificity such that we consider the most specific
                     // filter first, and the least specific last.
