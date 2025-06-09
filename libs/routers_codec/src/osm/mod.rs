@@ -100,6 +100,10 @@ pub mod meta {
             self.access
                 .iter()
                 .filter(|AccessTag { restriction, .. }| {
+                    let transport_mode_equivalent = conditions
+                        .transport_mode
+                        .is_restricted_by(restriction.transport_mode);
+
                     let direction_equivalent = match restriction.directionality {
                         Directionality::Forward => direction == Direction::Outgoing,
                         Directionality::Backward => direction == Direction::Incoming,
@@ -107,12 +111,8 @@ pub mod meta {
                         _ => false,
                     };
 
-                    let transport_mode_equivalent = conditions
-                        .transport_mode
-                        .is_restricted_by(restriction.transport_mode);
-
                     // Only consider access methods which are applicable
-                    direction_equivalent && transport_mode_equivalent
+                    transport_mode_equivalent && direction_equivalent
                 })
                 .sorted_by_key(|AccessTag { restriction, .. }| {
                     // Sort by specificity such that we consider the most specific
