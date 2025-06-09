@@ -2,9 +2,8 @@ use codec::osm::meta::OsmEdgeMetadata;
 use codec::osm::{OsmEntryId, RuntimeTraversalConfig};
 use codec::{Entry, Metadata};
 use routers::Graph;
-use std::marker::PhantomData;
 
-use codec::osm::primitives::TransportMode;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 
 pub mod matcher;
@@ -19,10 +18,7 @@ pub trait RuntimeContext: Send + Sync {
 // Implementations
 impl RuntimeContext for RuntimeTraversalConfig {
     fn new() -> Self {
-        RuntimeTraversalConfig {
-            transport_mode: TransportMode::Vehicle,
-            allow_private_roads: true,
-        }
+        RuntimeTraversalConfig::default()
     }
 }
 

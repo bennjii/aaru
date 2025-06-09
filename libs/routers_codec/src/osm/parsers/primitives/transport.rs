@@ -340,7 +340,7 @@ impl TransportMode {
 
     /// Check if this mode is a parent of another mode
     #[cfg(test)]
-    fn is_parent_of(&self, other: TransportMode) -> bool {
+    pub fn is_parent_of(&self, other: TransportMode) -> bool {
         other.parent_modes().contains(self)
     }
 

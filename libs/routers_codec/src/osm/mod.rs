@@ -89,10 +89,7 @@ pub mod meta {
         }
 
         fn runtime() -> Self::RuntimeRouting {
-            RuntimeTraversalConfig {
-                transport_mode: TransportMode::Bus,
-                allow_private_roads: true,
-            }
+            RuntimeTraversalConfig::default()
         }
 
         #[inline]
@@ -130,11 +127,52 @@ pub mod meta {
 
 pub mod runtime {
     use crate::osm::primitives::TransportMode;
+    use crate::osm::primitives::condition::VehicleProperty;
+    use crate::osm::primitives::opening_hours::TimeOfWeek;
 
-    // TODO: Internalise
     #[derive(Debug, Clone)]
     pub struct RuntimeTraversalConfig {
+        /// The transport mode by which a vehicle is travelling.
+        /// This is used in order to validate access to ways,
+        /// as well as for collecting metadata in order to produce
+        /// an output which is relevant for the traversal.
+        ///
+        /// Default is `Vehicle`
         pub transport_mode: TransportMode,
+
+        /// Properties of the travelling vehicle, allows filtering
+        /// for accurate routing between regions based on conditions
+        /// such as vehicle weight, length, number of wheels, etc.
+        ///
+        /// Default is `None`.
+        pub vehicle_properties: Option<Vec<(VehicleProperty, f64)>>,
+
+        /// An optionally specifiable time of week at which the
+        /// traversal occurs. This allows filtering for conditions
+        /// which specify specific hours for which access is permitted,
+        /// or allowing for accurate metadata.
+        ///
+        /// Default is `None`.
+        pub time_of_week: Option<TimeOfWeek>,
+
+        /// Describes if the solver should consider private
+        /// roadways. These often require the owners permission,
+        /// and should be considered for transports which frequently
+        /// visit private roadways or require routing within mapped
+        /// private residences.
+        ///
+        /// Default is `false`.
         pub allow_private_roads: bool,
+    }
+
+    impl Default for RuntimeTraversalConfig {
+        fn default() -> Self {
+            RuntimeTraversalConfig {
+                transport_mode: TransportMode::Vehicle,
+                vehicle_properties: None,
+                time_of_week: None,
+                allow_private_roads: false,
+            }
+        }
     }
 }
