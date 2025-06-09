@@ -118,30 +118,24 @@ mod successor {
             ctx.map
                 .graph
                 .edges_directed(key, Direction::Outgoing)
+                .filter(|(_, _, (_, edge))| {
+                    // Only traverse paths which can be accessed by
+                    // the specific runtime routing conditions available
+                    ctx.map.meta(edge).accessible(&ctx.runtime)
+                })
                 .map(|(_, next, (w, _))| {
+                    let distance = Haversine.distance(source, ctx.map.get_position(&next).unwrap());
+
+                    (next, distance, *w)
+                })
+                .map(|(next, distance, weight)| {
                     (
                         next,
-                        if key != next {
-                            let target = ctx.map.get_position(&next).unwrap();
-
-                            // In centimeters (1m = 100cm)
-                            WeightAndDistance(
-                                CumulativeFraction {
-                                    numerator: *w,
-                                    denominator: 1,
-                                },
-                                (Haversine.distance(source, target) * 100f64) as u32,
-                            )
-                        } else {
-                            // Total accrued distance
-                            WeightAndDistance(
-                                CumulativeFraction {
-                                    numerator: *w,
-                                    denominator: 1,
-                                },
-                                0,
-                            )
-                        },
+                        // In centimeters (1m = 100cm)
+                        WeightAndDistance::new(
+                            CumulativeFraction::norm(weight),
+                            (distance * 100f64) as u32,
+                        ),
                     )
                 })
                 .collect::<Vec<_>>()

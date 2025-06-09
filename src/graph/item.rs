@@ -64,6 +64,11 @@ where
         self.hash.len()
     }
 
+    pub fn meta(&self, edge: &DirectionAwareEdgeId<E>) -> &M {
+        let index = edge.index();
+        self.meta.get(&index).unwrap()
+    }
+
     #[inline]
     pub fn get_position(&self, node_index: &E) -> Option<Point<f64>> {
         self.hash.get(node_index).map(|point| point.position)

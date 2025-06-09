@@ -64,7 +64,7 @@ pub mod meta {
     use crate::osm::element::{TagString, Tags};
     use crate::osm::primitives::*;
     use crate::osm::speed_limit::SpeedLimitCollection;
-    use crate::osm::{Access, SpeedLimit};
+    use crate::osm::{Access, SpeedLimit, TraversalConditions};
 
     #[derive(Debug, Clone, Default)]
     pub struct OsmEdgeMetadata {
@@ -76,6 +76,7 @@ pub mod meta {
 
     impl Metadata for OsmEdgeMetadata {
         type Raw<'a> = &'a Tags;
+        type RuntimeRouting = TraversalConditions;
 
         fn pick(raw: Self::Raw<'_>) -> Self {
             Self {
@@ -84,6 +85,19 @@ pub mod meta {
                 speed_limit: raw.speed_limit(),
                 access: raw.access(),
             }
+        }
+
+        fn runtime() -> Self::RuntimeRouting {
+            TraversalConditions {
+                lane: None,
+                transport_mode: TransportMode::Bus,
+                directionality: Directionality::BothWays,
+            }
+        }
+
+        #[inline]
+        fn accessible(&self, access: &Self::RuntimeRouting) -> bool {
+            true
         }
     }
 }

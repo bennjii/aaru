@@ -18,6 +18,7 @@ where
 {
     pub candidates: &'a Candidates<E>,
     pub map: &'a Graph<E, M>,
+    pub runtime: M::RuntimeRouting,
 }
 
 impl<E, M> RoutingContext<'_, E, M>

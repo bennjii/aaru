@@ -25,8 +25,10 @@ where
         let cache = Arc::clone(&self.cache);
         let solver = SelectiveForwardSolver::default().use_cache(cache);
 
+        let runtime = M::runtime();
+
         transition
-            .solve(solver)
+            .solve(solver, runtime)
             .map(|collapsed| RoutedPath::new(collapsed, self))
     }
 

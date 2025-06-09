@@ -17,6 +17,11 @@ impl WeightAndDistance {
     pub fn repr(&self) -> u32 {
         ((self.0.value() as f64).sqrt() * self.1 as f64) as u32
     }
+
+    #[inline]
+    pub const fn new(frac: CumulativeFraction, weight: u32) -> Self {
+        Self(frac, weight)
+    }
 }
 
 impl Eq for WeightAndDistance {}

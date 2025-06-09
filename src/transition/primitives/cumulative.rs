@@ -22,6 +22,14 @@ impl CumulativeFraction {
 
         self.numerator / self.denominator
     }
+
+    #[inline]
+    pub(crate) const fn norm(numerator: Weight) -> Self {
+        CumulativeFraction {
+            numerator,
+            denominator: 1,
+        }
+    }
 }
 
 impl Zero for CumulativeFraction {

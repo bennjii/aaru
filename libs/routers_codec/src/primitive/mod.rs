@@ -18,5 +18,10 @@ pub trait Metadata: Clone + Debug + Send + Sync {
     where
         Self: 'a;
 
+    type RuntimeRouting: Debug;
+
     fn pick(raw: Self::Raw<'_>) -> Self;
+    fn runtime() -> Self::RuntimeRouting;
+
+    fn accessible(&self, access: &Self::RuntimeRouting) -> bool;
 }

@@ -265,6 +265,7 @@ where
     fn solve<Emmis, Trans>(
         &self,
         mut transition: Transition<Emmis, Trans, E, M>,
+        runtime: M::RuntimeRouting,
     ) -> Result<CollapsedPath<E>, MatchError>
     where
         Emmis: EmissionStrategy + Send + Sync,
@@ -283,7 +284,7 @@ where
         debug!("Weaved all candidate layers.");
 
         info!("Solving: Start={start:?}. End={end:?}. ");
-        let context = transition.context();
+        let context = transition.context(runtime);
 
         // Note: For every candidate, generate their reachable elements, then run the solver overtop.
         //       This means we can do it in parallel, which is more efficient - however will have to
