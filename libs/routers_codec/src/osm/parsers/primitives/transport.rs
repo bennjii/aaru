@@ -3,6 +3,7 @@ use strum::{AsRefStr, Display, EnumString};
 /// Flattened transport mode enumeration for easy string parsing
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Display, EnumString, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
+#[repr(u8)]
 pub enum TransportMode {
     // === LAND TRANSPORT ===
 
