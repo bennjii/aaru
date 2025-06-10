@@ -89,12 +89,13 @@ pub mod meta {
             }
         }
 
+        #[inline]
         fn runtime() -> Self::RuntimeRouting {
             RuntimeTraversalConfig::default()
         }
 
         #[inline]
-        fn accessible(&self, conditions: &Self::RuntimeRouting) -> bool {
+        fn accessible(&self, conditions: &Self::RuntimeRouting, direction: Direction) -> bool {
             // Computes the negative-filter access restriction, assuming accessible by default.
             // If any access conditions match the input, it will be rejected.
             self.access
@@ -105,14 +106,14 @@ pub mod meta {
                         .transport_mode
                         .is_restricted_by(restriction.transport_mode)
                 })
-                // .filter(
-                //     |AccessTag { restriction, .. }| match restriction.directionality {
-                //         Directionality::Forward => direction == Direction::Outgoing,
-                //         Directionality::Backward => direction == Direction::Incoming,
-                //         Directionality::BothWays => true,
-                //         _ => false,
-                //     },
-                // )
+                .filter(
+                    |AccessTag { restriction, .. }| match restriction.directionality {
+                        Directionality::Forward => direction == Direction::Outgoing,
+                        Directionality::Backward => direction == Direction::Incoming,
+                        Directionality::BothWays => true,
+                        _ => false,
+                    },
+                )
                 .sorted_by_key(|AccessTag { restriction, .. }| {
                     // Sort by specificity such that we consider the most specific
                     // filter first, and the least specific last.
@@ -125,7 +126,7 @@ pub mod meta {
                     // up the specificity hierarchy, we will return `false`.
                     match access {
                         AccessValue::Yes => true,
-                        // AccessValue::Private => conditions.allow_private_roads,
+                        AccessValue::Private => conditions.allow_private_roads,
                         _ => false,
                     }
                 })
@@ -138,7 +139,6 @@ pub mod runtime {
     use crate::osm::primitives::TransportMode;
     use crate::osm::primitives::condition::VehicleProperty;
     use crate::osm::primitives::opening_hours::TimeOfWeek;
-    use std::marker::PhantomData;
 
     #[derive(Debug, Clone)]
     pub struct RuntimeTraversalConfig {
@@ -155,7 +155,7 @@ pub mod runtime {
         /// such as vehicle weight, length, number of wheels, etc.
         ///
         /// Default is `None`.
-        // pub vehicle_properties: Option<Vec<(VehicleProperty, f64)>>,
+        pub vehicle_properties: Option<Vec<(VehicleProperty, f64)>>,
 
         /// An optionally specifiable time of week at which the
         /// traversal occurs. This allows filtering for conditions
@@ -163,7 +163,7 @@ pub mod runtime {
         /// or allowing for accurate metadata.
         ///
         /// Default is `None`.
-        // pub time_of_week: Option<TimeOfWeek>,
+        pub time_of_week: Option<TimeOfWeek>,
 
         /// Describes if the solver should consider private
         /// roadways. These often require the owners permission,
@@ -172,8 +172,7 @@ pub mod runtime {
         /// private residences.
         ///
         /// Default is `false`.
-        // pub allow_private_roads: bool,
-        phantom: PhantomData<()>,
+        pub allow_private_roads: bool,
     }
 
     impl Default for RuntimeTraversalConfig {
@@ -181,10 +180,9 @@ pub mod runtime {
         fn default() -> Self {
             RuntimeTraversalConfig {
                 transport_mode: TransportMode::Vehicle,
-                phantom: PhantomData,
-                // vehicle_properties: None,
-                // time_of_week: None,
-                // allow_private_roads: false,
+                vehicle_properties: None,
+                time_of_week: None,
+                allow_private_roads: false,
             }
         }
     }
