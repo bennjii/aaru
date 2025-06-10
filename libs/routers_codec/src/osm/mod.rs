@@ -178,11 +178,11 @@ pub mod runtime {
     impl Default for RuntimeTraversalConfig {
         #[inline]
         fn default() -> Self {
-            RuntimeTraversalConfig {
-                transport_mode: TransportMode::Vehicle,
+            Self {
+                transport_mode: TransportMode::Bus,
+                allow_private_roads: true,
                 vehicle_properties: None,
                 time_of_week: None,
-                allow_private_roads: false,
             }
         }
     }
