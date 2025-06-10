@@ -47,18 +47,23 @@ impl Restriction {
     }
 
     fn parse_builder(label: &str) -> RestrictionOptionals {
-        label.split(":").fold(
-            RestrictionOptionals {
-                transport_mode: None,
-                directionality: None,
-            },
-            |acc, section| RestrictionOptionals {
-                transport_mode: acc.transport_mode.or(TransportMode::from_str(section).ok()),
-                directionality: acc
-                    .directionality
-                    .or(Directionality::from_str(section).ok()),
-            },
-        )
+        // FIXME: Temporary
+        RestrictionOptionals {
+            transport_mode: TransportMode::from_str(label).ok(),
+            directionality: None,
+        }
+        // label.split(":").fold(
+        //     RestrictionOptionals {
+        //         transport_mode: None,
+        //         directionality: None,
+        //     },
+        //     |acc, section| RestrictionOptionals {
+        //         transport_mode: acc.transport_mode.or(TransportMode::from_str(section).ok()),
+        //         directionality: acc
+        //             .directionality
+        //             .or(Directionality::from_str(section).ok()),
+        //     },
+        // )
     }
 }
 
