@@ -48,7 +48,7 @@ pub use element::item::Element;
 #[doc(inline)]
 pub use meta::OsmEdgeMetadata;
 #[doc(inline)]
-pub use runtime::RuntimeTraversalConfig;
+pub use runtime::OsmTripConfiguration;
 
 // Protocol Buffer Includes
 pub mod model {
@@ -57,14 +57,16 @@ pub mod model {
 }
 
 pub mod meta {
-    use crate::Metadata;
     use crate::osm::access_tag::AccessTag;
     use crate::osm::access_tag::access::AccessValue;
     use crate::osm::element::{TagString, Tags};
+    use crate::osm::primitives::condition::VehicleProperty;
     use crate::osm::primitives::*;
     use crate::osm::speed_limit::SpeedLimitCollection;
-    use crate::osm::{Access, RuntimeTraversalConfig, SpeedLimit};
+    use crate::osm::{Access, OsmTripConfiguration, SpeedLimit};
     use crate::primitive::edge::Direction;
+    use crate::{Metadata, primitive};
+
     use itertools::Itertools;
     use std::num::NonZeroU8;
 
@@ -78,7 +80,8 @@ pub mod meta {
 
     impl Metadata for OsmEdgeMetadata {
         type Raw<'a> = &'a Tags;
-        type RuntimeRouting = RuntimeTraversalConfig;
+        type Runtime = OsmTripConfiguration;
+        type TripContext = primitive::context::TripContext;
 
         fn pick(raw: Self::Raw<'_>) -> Self {
             Self {
@@ -90,12 +93,54 @@ pub mod meta {
         }
 
         #[inline]
-        fn runtime() -> Self::RuntimeRouting {
-            RuntimeTraversalConfig::default()
+        fn runtime(ctx: Option<Self::TripContext>) -> Self::Runtime {
+            use crate::primitive::transport::TransportMode::*;
+            let mut default = OsmTripConfiguration::default();
+
+            if let Some(ctx) = ctx {
+                // Concrete translations of the given context into the domain-knowledge context
+                match ctx.transport_mode {
+                    Car(Some(car)) => {
+                        default.transport_mode = TransportMode::MotorVehicle;
+                        default.vehicle_properties = Some(vec![
+                            (VehicleProperty::Height, car.height),
+                            (VehicleProperty::Weight, car.width),
+                        ]);
+                    }
+                    Car(None) => {
+                        default.transport_mode = TransportMode::MotorVehicle;
+                    }
+                    Bus(Some(bus)) => {
+                        default.transport_mode = TransportMode::Bus;
+                        default.vehicle_properties = Some(vec![
+                            (VehicleProperty::Height, bus.height),
+                            (VehicleProperty::Weight, bus.width),
+                        ]);
+                    }
+                    Bus(None) => {
+                        default.transport_mode = TransportMode::Bus;
+                    }
+                    Truck(Some(truck)) => {
+                        default.transport_mode = TransportMode::Hgv;
+                        default.vehicle_properties = Some(vec![
+                            (VehicleProperty::Height, truck.vehicle_costing.height),
+                            (VehicleProperty::Weight, truck.vehicle_costing.width),
+                            (VehicleProperty::Axleload, truck.axle_load),
+                            (VehicleProperty::Length, truck.length),
+                        ]);
+                    }
+                    Truck(None) => {
+                        default.transport_mode = TransportMode::Hgv;
+                    }
+                    _ => {}
+                }
+            }
+
+            default
         }
 
         #[inline]
-        fn accessible(&self, conditions: &Self::RuntimeRouting, direction: Direction) -> bool {
+        fn accessible(&self, conditions: &Self::Runtime, direction: Direction) -> bool {
             // Computes the negative-filter access restriction, assuming accessible by default.
             // If any access conditions match the input, it will be rejected.
             self.access
@@ -141,7 +186,7 @@ pub mod runtime {
     use crate::osm::primitives::opening_hours::TimeOfWeek;
 
     #[derive(Debug, Clone)]
-    pub struct RuntimeTraversalConfig {
+    pub struct OsmTripConfiguration {
         /// The transport mode by which a vehicle is travelling.
         /// This is used in order to validate access to ways,
         /// as well as for collecting metadata in order to produce
@@ -155,7 +200,7 @@ pub mod runtime {
         /// such as vehicle weight, length, number of wheels, etc.
         ///
         /// Default is `None`.
-        pub vehicle_properties: Option<Vec<(VehicleProperty, f64)>>,
+        pub vehicle_properties: Option<Vec<(VehicleProperty, f32)>>,
 
         /// An optionally specifiable time of week at which the
         /// traversal occurs. This allows filtering for conditions
@@ -175,12 +220,12 @@ pub mod runtime {
         pub allow_private_roads: bool,
     }
 
-    impl Default for RuntimeTraversalConfig {
+    impl Default for OsmTripConfiguration {
         #[inline]
         fn default() -> Self {
             Self {
-                transport_mode: TransportMode::Bus,
-                allow_private_roads: true,
+                transport_mode: TransportMode::All,
+                allow_private_roads: false,
                 vehicle_properties: None,
                 time_of_week: None,
             }

@@ -103,7 +103,10 @@ where
     }
 
     /// Converts the transition graph into a [`RoutingContext`].
-    pub fn context(&self, runtime: M::RuntimeRouting) -> RoutingContext<E, M> {
+    pub fn context<'b>(&'a self, runtime: &'b M::Runtime) -> RoutingContext<'b, E, M>
+    where
+        'a: 'b,
+    {
         RoutingContext {
             candidates: &self.candidates,
             map: self.map,
@@ -115,7 +118,7 @@ where
     pub fn solve(
         self,
         solver: impl Solver<E, M>,
-        runtime: M::RuntimeRouting,
+        runtime: &M::Runtime,
     ) -> Result<CollapsedPath<E>, MatchError> {
         // Indirection to call.
         solver.solve(self, runtime)

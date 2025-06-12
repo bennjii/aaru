@@ -6,6 +6,8 @@ use routers_fixtures::{
 use routers::transition::*;
 use routers::{Graph, Match};
 
+use codec::Metadata;
+use codec::osm::OsmEdgeMetadata;
 use criterion::{black_box, criterion_main};
 use geo::LineString;
 use std::path::Path;
@@ -69,13 +71,14 @@ fn target_benchmark(c: &mut criterion::Criterion) {
         let graph = Graph::new(path).expect("Graph must be created");
 
         let costing = CostingStrategies::default();
+        let runtime = OsmEdgeMetadata::runtime(None);
 
         ga.matches.iter().for_each(|sc| {
             let coordinates: LineString<f64> = LineString::try_from_wkt_str(sc.input_linestring)
                 .expect("Linestring must parse successfully.");
 
             let _ = graph
-                .r#match(black_box(coordinates.clone()))
+                .r#match(&runtime, black_box(coordinates.clone()))
                 .expect("Match must complete successfully");
 
             group.bench_function(format!("layer-gen: {}", sc.name), |b| {
@@ -91,7 +94,7 @@ fn target_benchmark(c: &mut criterion::Criterion) {
             group.bench_function(format!("match: {}", sc.name), |b| {
                 b.iter(|| {
                     let result = graph
-                        .r#match(coordinates.clone())
+                        .r#match(&runtime, coordinates.clone())
                         .expect("Match must complete successfully");
 
                     let edges = result

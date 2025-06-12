@@ -2,7 +2,7 @@ use crate::osm::element::{TagString, Tags};
 use crate::osm::speed_limit::limit::{SpeedLimitEntry, SpeedLimitVariant};
 use crate::osm::speed_limit::subtypes::SpeedLimitConditions;
 use crate::osm::speed_limit::{PossiblyConditionalSpeedLimit, SpeedLimitExt};
-use crate::osm::{Parser, RuntimeTraversalConfig};
+use crate::osm::{OsmTripConfiguration, Parser};
 use std::ops::Deref;
 
 #[derive(Debug, Clone)]
@@ -19,7 +19,7 @@ impl Deref for SpeedLimitCollection {
 impl SpeedLimitExt for SpeedLimitCollection {
     fn relevant_limits(
         &self,
-        runtime: &RuntimeTraversalConfig,
+        runtime: &OsmTripConfiguration,
         conditions: SpeedLimitConditions,
     ) -> Vec<PossiblyConditionalSpeedLimit> {
         // Must match the conditions if they exist, otherwise blanketed.

@@ -145,11 +145,11 @@ mod tests {
     fn test_pure_mode_parsing() {
         let tag = AccessTag::from_key_value("access", "no").unwrap();
         assert_eq!(tag.access, AccessValue::No);
-        assert_eq!(tag.restriction.transport_mode, TransportMode::Access);
+        assert_eq!(tag.restriction.transport_mode, TransportMode::All);
 
         let tag = AccessTag::from_key_value("access", "yes").unwrap();
         assert_eq!(tag.access, AccessValue::Yes);
-        assert_eq!(tag.restriction.transport_mode, TransportMode::Access);
+        assert_eq!(tag.restriction.transport_mode, TransportMode::All);
     }
 
     #[test]

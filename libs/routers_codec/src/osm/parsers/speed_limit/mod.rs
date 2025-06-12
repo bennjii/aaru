@@ -6,7 +6,7 @@ mod test;
 
 use crate::osm::element::Tags;
 use crate::osm::speed_limit::limit::PossiblyConditionalSpeedLimit;
-use crate::osm::{Parser, RuntimeTraversalConfig};
+use crate::osm::{OsmTripConfiguration, Parser};
 
 pub use collection::SpeedLimitCollection;
 pub use subtypes::SpeedLimitConditions;
@@ -40,7 +40,7 @@ impl SpeedLimit for Tags {
 pub trait SpeedLimitExt {
     fn relevant_limits(
         &self,
-        runtime: &RuntimeTraversalConfig,
+        runtime: &OsmTripConfiguration,
         conditions: SpeedLimitConditions,
     ) -> Vec<PossiblyConditionalSpeedLimit>;
 }

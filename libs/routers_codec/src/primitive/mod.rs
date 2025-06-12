@@ -3,10 +3,19 @@ use std::hash::Hash;
 
 pub mod edge;
 pub mod node;
+pub mod transport;
 
-use crate::primitive::edge::Direction;
+pub use edge::Direction;
 pub use edge::Edge;
 pub use node::Node;
+
+pub mod context {
+    use crate::primitive::transport::TransportMode;
+
+    pub struct TripContext {
+        pub transport_mode: TransportMode,
+    }
+}
 
 pub trait Entry:
     Default + Copy + Clone + PartialEq + Eq + Ord + Hash + Debug + Send + Sync
@@ -19,10 +28,11 @@ pub trait Metadata: Clone + Debug + Send + Sync {
     where
         Self: 'a;
 
-    type RuntimeRouting: Debug;
+    type Runtime: Debug;
+    type TripContext;
 
     fn pick(raw: Self::Raw<'_>) -> Self;
-    fn runtime() -> Self::RuntimeRouting;
+    fn runtime(ctx: Option<Self::TripContext>) -> Self::Runtime;
 
-    fn accessible(&self, access: &Self::RuntimeRouting, direction: Direction) -> bool;
+    fn accessible(&self, access: &Self::Runtime, direction: Direction) -> bool;
 }

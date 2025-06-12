@@ -5,12 +5,12 @@ use strum::{AsRefStr, Display, EnumString};
 #[strum(serialize_all = "snake_case")]
 #[repr(u8)]
 pub enum TransportMode {
-    // === LAND TRANSPORT ===
-
     // General access
     #[strum(serialize = "access")]
     #[default]
-    Access,
+    All,
+
+    // === LAND TRANSPORT ===
 
     // Non-vehicle transport
     #[strum(serialize = "foot")]
@@ -86,6 +86,7 @@ pub enum TransportMode {
     #[strum(serialize = "goods")]
     Goods,
     #[strum(serialize = "hgv")]
+    /// HGV stands for Heavy Goods Vehicle
     Hgv,
     #[strum(serialize = "hgv_articulated")]
     HgvArticulated,
@@ -205,78 +206,78 @@ impl TransportMode {
             // === LAND TRANSPORT ===
 
             // General access
-            Access => &[Access],
+            All => &[All],
 
             // Non-vehicle transport (directly under land access)
-            Foot => &[Access, Foot],
-            Dog => &[Access, Dog],
-            Ski => &[Access, Ski],
-            SkiNordic => &[Access, Ski, SkiNordic],
-            SkiAlpine => &[Access, Ski, SkiAlpine],
-            SkiTelemark => &[Access, Ski, SkiTelemark],
-            InlineSkates => &[Access, InlineSkates],
-            Horse => &[Access, Horse],
-            Portage => &[Access, Portage],
+            Foot => &[All, Foot],
+            Dog => &[All, Dog],
+            Ski => &[All, Ski],
+            SkiNordic => &[All, Ski, SkiNordic],
+            SkiAlpine => &[All, Ski, SkiAlpine],
+            SkiTelemark => &[All, Ski, SkiTelemark],
+            InlineSkates => &[All, InlineSkates],
+            Horse => &[All, Horse],
+            Portage => &[All, Portage],
 
             // Non-motorized vehicles
-            Vehicle => &[Access, Vehicle],
+            Vehicle => &[All, Vehicle],
 
             // Non-motorized single-tracked vehicles
-            Bicycle => &[Access, Vehicle, Bicycle],
-            ElectricBicycle => &[Access, Vehicle, Bicycle, ElectricBicycle],
-            Mtb => &[Access, Vehicle, Bicycle, Mtb],
-            CargoBike => &[Access, Vehicle, Bicycle, CargoBike],
-            KickScooter => &[Access, Vehicle, KickScooter],
+            Bicycle => &[All, Vehicle, Bicycle],
+            ElectricBicycle => &[All, Vehicle, Bicycle, ElectricBicycle],
+            Mtb => &[All, Vehicle, Bicycle, Mtb],
+            CargoBike => &[All, Vehicle, Bicycle, CargoBike],
+            KickScooter => &[All, Vehicle, KickScooter],
 
             // Non-motorized double-tracked vehicles
-            Carriage => &[Access, Vehicle, Carriage],
-            CycleRickshaw => &[Access, Vehicle, CycleRickshaw],
-            HandCart => &[Access, Vehicle, HandCart],
-            Trailer => &[Access, Vehicle, Trailer],
-            Caravan => &[Access, Vehicle, Caravan],
+            Carriage => &[All, Vehicle, Carriage],
+            CycleRickshaw => &[All, Vehicle, CycleRickshaw],
+            HandCart => &[All, Vehicle, HandCart],
+            Trailer => &[All, Vehicle, Trailer],
+            Caravan => &[All, Vehicle, Caravan],
 
             // Motor vehicles
-            MotorVehicle => &[Access, Vehicle, MotorVehicle],
+            MotorVehicle => &[All, Vehicle, MotorVehicle],
 
             // Motorized single-tracked vehicles
-            Motorcycle => &[Access, Vehicle, MotorVehicle, Motorcycle],
-            Moped => &[Access, Vehicle, MotorVehicle, Moped],
-            SpeedPedelec => &[Access, Vehicle, MotorVehicle, SpeedPedelec],
-            Mofa => &[Access, Vehicle, MotorVehicle, Mofa],
-            SmallElectricVehicle => &[Access, Vehicle, MotorVehicle, SmallElectricVehicle],
+            Motorcycle => &[All, Vehicle, MotorVehicle, Motorcycle],
+            Moped => &[All, Vehicle, MotorVehicle, Moped],
+            SpeedPedelec => &[All, Vehicle, MotorVehicle, SpeedPedelec],
+            Mofa => &[All, Vehicle, MotorVehicle, Mofa],
+            SmallElectricVehicle => &[All, Vehicle, MotorVehicle, SmallElectricVehicle],
 
             // Motorized double-tracked vehicles
-            Motorcar => &[Access, Vehicle, MotorVehicle, Motorcar],
-            Motorhome => &[Access, Vehicle, MotorVehicle, Motorhome],
-            TouristBus => &[Access, Vehicle, MotorVehicle, TouristBus],
-            Coach => &[Access, Vehicle, MotorVehicle, Coach],
-            Goods => &[Access, Vehicle, MotorVehicle, Goods],
-            Hgv => &[Access, Vehicle, MotorVehicle, Goods, Hgv],
-            HgvArticulated => &[Access, Vehicle, MotorVehicle, Goods, Hgv, HgvArticulated],
-            Bdouble => &[Access, Vehicle, MotorVehicle, Goods, Hgv, Bdouble],
-            Agricultural => &[Access, Vehicle, MotorVehicle, Agricultural],
-            AutoRickshaw => &[Access, Vehicle, MotorVehicle, AutoRickshaw],
-            Nev => &[Access, Vehicle, MotorVehicle, Nev],
-            GolfCart => &[Access, Vehicle, MotorVehicle, GolfCart],
-            Microcar => &[Access, Vehicle, MotorVehicle, Microcar],
-            Atv => &[Access, Vehicle, MotorVehicle, Atv],
-            Ohv => &[Access, Vehicle, MotorVehicle, Ohv],
-            Snowmobile => &[Access, Vehicle, MotorVehicle, Snowmobile],
+            Motorcar => &[All, Vehicle, MotorVehicle, Motorcar],
+            Motorhome => &[All, Vehicle, MotorVehicle, Motorhome],
+            TouristBus => &[All, Vehicle, MotorVehicle, TouristBus],
+            Coach => &[All, Vehicle, MotorVehicle, Coach],
+            Goods => &[All, Vehicle, MotorVehicle, Goods],
+            Hgv => &[All, Vehicle, MotorVehicle, Goods, Hgv],
+            HgvArticulated => &[All, Vehicle, MotorVehicle, Goods, Hgv, HgvArticulated],
+            Bdouble => &[All, Vehicle, MotorVehicle, Goods, Hgv, Bdouble],
+            Agricultural => &[All, Vehicle, MotorVehicle, Agricultural],
+            AutoRickshaw => &[All, Vehicle, MotorVehicle, AutoRickshaw],
+            Nev => &[All, Vehicle, MotorVehicle, Nev],
+            GolfCart => &[All, Vehicle, MotorVehicle, GolfCart],
+            Microcar => &[All, Vehicle, MotorVehicle, Microcar],
+            Atv => &[All, Vehicle, MotorVehicle, Atv],
+            Ohv => &[All, Vehicle, MotorVehicle, Ohv],
+            Snowmobile => &[All, Vehicle, MotorVehicle, Snowmobile],
 
             // Vehicles by use/purpose (these often inherit from motor_vehicle or specific types)
-            Psv => &[Access, Vehicle, MotorVehicle, Psv],
-            Bus => &[Access, Vehicle, MotorVehicle, Psv, Bus],
-            Taxi => &[Access, Vehicle, MotorVehicle, Taxi],
-            Minibus => &[Access, Vehicle, MotorVehicle, Psv, Bus, Minibus],
-            ShareTaxi => &[Access, Vehicle, MotorVehicle, Taxi, ShareTaxi],
-            Hov => &[Access, Vehicle, MotorVehicle, Hov],
-            Carpool => &[Access, Vehicle, MotorVehicle, Hov, Carpool],
-            CarSharing => &[Access, Vehicle, MotorVehicle, CarSharing],
-            Emergency => &[Access, Vehicle, MotorVehicle, Emergency],
-            Hazmat => &[Access, Vehicle, MotorVehicle, Hazmat],
-            HazmatWater => &[Access, Vehicle, MotorVehicle, Hazmat, HazmatWater],
-            SchoolBus => &[Access, Vehicle, MotorVehicle, Psv, Bus, SchoolBus],
-            Disabled => &[Access, Vehicle, MotorVehicle, Disabled],
+            Psv => &[All, Vehicle, MotorVehicle, Psv],
+            Bus => &[All, Vehicle, MotorVehicle, Psv, Bus],
+            Taxi => &[All, Vehicle, MotorVehicle, Taxi],
+            Minibus => &[All, Vehicle, MotorVehicle, Psv, Bus, Minibus],
+            ShareTaxi => &[All, Vehicle, MotorVehicle, Taxi, ShareTaxi],
+            Hov => &[All, Vehicle, MotorVehicle, Hov],
+            Carpool => &[All, Vehicle, MotorVehicle, Hov, Carpool],
+            CarSharing => &[All, Vehicle, MotorVehicle, CarSharing],
+            Emergency => &[All, Vehicle, MotorVehicle, Emergency],
+            Hazmat => &[All, Vehicle, MotorVehicle, Hazmat],
+            HazmatWater => &[All, Vehicle, MotorVehicle, Hazmat, HazmatWater],
+            SchoolBus => &[All, Vehicle, MotorVehicle, Psv, Bus, SchoolBus],
+            Disabled => &[All, Vehicle, MotorVehicle, Disabled],
 
             // === WATER TRANSPORT ===
             WaterAccess => &[WaterAccess],
@@ -349,7 +350,7 @@ impl TransportMode {
     pub fn is_land(&self) -> bool {
         matches!(
             self,
-            Self::Access
+            Self::All
                 | Self::Foot
                 | Self::Dog
                 | Self::Ski
