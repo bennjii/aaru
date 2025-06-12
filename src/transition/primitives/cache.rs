@@ -124,19 +124,17 @@ mod successor {
                     ctx.map.meta(edge).accessible(ctx.runtime, edge.direction())
                 })
                 .map(|(_, next, (w, _))| {
-                    let distance = Haversine.distance(source, ctx.map.get_position(&next).unwrap());
+                    let position = ctx.map.get_position(&next).unwrap();
+                    let distance = Haversine.distance(source, position);
 
-                    (next, distance, *w)
+                    // In centimeters (1m = 100cm)
+                    (next, (distance * 100f64) as u32, *w)
                 })
                 .map(|(next, distance, weight)| {
-                    (
-                        next,
-                        // In centimeters (1m = 100cm)
-                        WeightAndDistance::new(
-                            CumulativeFraction::norm(weight),
-                            (distance * 100f64) as u32,
-                        ),
-                    )
+                    // Stores the weight and distance (in cm) to the candidate
+                    let fraction = WeightAndDistance::new(Fraction::mul(weight), distance);
+
+                    (next, fraction)
                 })
                 .collect::<Vec<_>>()
         }
