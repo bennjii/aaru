@@ -141,6 +141,8 @@ pub mod meta {
 
         #[inline]
         fn accessible(&self, conditions: &Self::Runtime, direction: Direction) -> bool {
+            return true;
+
             // Computes the negative-filter access restriction, assuming accessible by default.
             // If any access conditions match the input, it will be rejected.
             self.access
