@@ -159,12 +159,11 @@ pub mod meta {
                         _ => false,
                     },
                 )
-                // .sorted_by_key(|AccessTag { restriction, .. }| {
-                //     // Sort by specificity such that we consider the most specific
-                //     // filter first, and the least specific last.
-                //     restriction.transport_mode.specificity_level()
-                // })
-                .next()
+                .sorted_by_key(|AccessTag { restriction, .. }| {
+                    // Sort by specificity such that we consider the most specific
+                    // filter first, and the least specific last.
+                    restriction.transport_mode.specificity_level()
+                })
                 .map(|AccessTag { access, .. }| {
                     // We default to `true`, since a roadway is considered accessible
                     // unless otherwise specified. If any access tag disallows access
@@ -175,6 +174,7 @@ pub mod meta {
                         _ => false,
                     }
                 })
+                .next()
                 .unwrap_or(true)
         }
     }
