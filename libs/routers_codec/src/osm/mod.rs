@@ -159,11 +159,11 @@ pub mod meta {
                         _ => false,
                     },
                 )
-                .sorted_by_key(|AccessTag { restriction, .. }| {
-                    // Sort by specificity such that we consider the most specific
-                    // filter first, and the least specific last.
-                    restriction.transport_mode.specificity_level()
-                })
+                // .sorted_by_key(|AccessTag { restriction, .. }| {
+                //     // Sort by specificity such that we consider the most specific
+                //     // filter first, and the least specific last.
+                //     restriction.transport_mode.specificity_level()
+                // })
                 .next()
                 .map(|AccessTag { access, .. }| {
                     // We default to `true`, since a roadway is considered accessible
