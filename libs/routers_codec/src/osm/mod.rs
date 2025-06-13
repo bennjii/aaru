@@ -144,6 +144,7 @@ pub mod meta {
             // Computes the negative-filter access restriction, assuming accessible by default.
             // If any access conditions match the input, it will be rejected.
             self.access
+                // TODO: Benchmark removing each case to see which one(s) have impact.
                 .iter()
                 .filter(|AccessTag { restriction, .. }| {
                     // Only consider access methods which are applicable
@@ -159,11 +160,11 @@ pub mod meta {
                         _ => false,
                     },
                 )
-                // .sorted_by_key(|AccessTag { restriction, .. }| {
-                //     // Sort by specificity such that we consider the most specific
-                //     // filter first, and the least specific last.
-                //     restriction.transport_mode.specificity_level()
-                // })
+                .sorted_by_key(|AccessTag { restriction, .. }| {
+                    // Sort by specificity such that we consider the most specific
+                    // filter first, and the least specific last.
+                    restriction.transport_mode.specificity_level()
+                })
                 .map(|AccessTag { access, .. }| {
                     // We default to `true`, since a roadway is considered accessible
                     // unless otherwise specified. If any access tag disallows access
