@@ -94,11 +94,11 @@ pub trait Calculable<K: CacheKey, M: Metadata, V> {
 }
 
 mod successor {
+    use super::*;
     use crate::transition::*;
     use geo::Haversine;
     use petgraph::Direction;
-
-    use super::*;
+    use rayon::prelude::ParallelBridge;
 
     /// The weights, given as output from the [`SuccessorsCache::calculate`] function.
     type SuccessorWeights<E> = Vec<(E, WeightAndDistance)>;
@@ -112,12 +112,15 @@ mod successor {
     impl<E: CacheKey, M: Metadata> Calculable<E, M, SuccessorWeights<E>> for SuccessorsCache<E, M> {
         #[inline]
         fn calculate(&mut self, ctx: &RoutingContext<E, M>, key: E) -> SuccessorWeights<E> {
+            use rayon::iter::ParallelIterator;
+
             // Calc. once
             let source = ctx.map.get_position(&key).unwrap();
 
             ctx.map
                 .graph
                 .edges_directed(key, Direction::Outgoing)
+                .par_bridge()
                 .filter(|(_, _, (_, edge))| {
                     // Only traverse paths which can be accessed by
                     // the specific runtime routing conditions available
