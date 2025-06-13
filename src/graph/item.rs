@@ -64,9 +64,10 @@ where
         self.hash.len()
     }
 
+    /// Safety: Assumes the edge exist
     pub fn meta(&self, edge: &DirectionAwareEdgeId<E>) -> &M {
         let index = edge.index();
-        self.meta.get(&index).unwrap()
+        unsafe { self.meta.get(&index).unwrap_unchecked() }
     }
 
     #[inline]

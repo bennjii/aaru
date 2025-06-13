@@ -118,11 +118,11 @@ mod successor {
             ctx.map
                 .graph
                 .edges_directed(key, Direction::Outgoing)
-                // .filter(|(_, _, (_, edge))| {
-                //     // Only traverse paths which can be accessed by
-                //     // the specific runtime routing conditions available
-                //     ctx.map.meta(edge).accessible(ctx.runtime, edge.direction())
-                // })
+                .filter(|(_, _, (_, edge))| {
+                    // Only traverse paths which can be accessed by
+                    // the specific runtime routing conditions available
+                    ctx.map.meta(edge).accessible(ctx.runtime, edge.direction())
+                })
                 .map(|(_, next, (w, _))| {
                     let position = ctx.map.get_position(&next).unwrap();
                     let distance = Haversine.distance(source, position);
