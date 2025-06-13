@@ -99,6 +99,7 @@ mod successor {
     use geo::Haversine;
     use petgraph::Direction;
     use rayon::prelude::ParallelBridge;
+    use std::hint::black_box;
 
     /// The weights, given as output from the [`SuccessorsCache::calculate`] function.
     type SuccessorWeights<E> = Vec<(E, WeightAndDistance)>;
@@ -115,7 +116,7 @@ mod successor {
             use rayon::iter::ParallelIterator;
 
             // Calc. once
-            let source = ctx.map.get_position(&key).unwrap();
+            let source = unsafe { ctx.map.get_position(&key).unwrap_unchecked() };
 
             ctx.map
                 .graph
@@ -124,7 +125,14 @@ mod successor {
                 .filter(|(_, _, (_, edge))| {
                     // Only traverse paths which can be accessed by
                     // the specific runtime routing conditions available
-                    ctx.map.meta(edge).accessible(ctx.runtime, edge.direction())
+                    let meta = ctx.map.meta(edge);
+                    let direction = edge.direction();
+
+                    black_box(meta);
+                    black_box(direction);
+                    // .accessible(ctx.runtime, edge.direction())
+
+                    true
                 })
                 .map(|(_, next, (w, _))| {
                     const METER_TO_CM: f64 = 100.0;
