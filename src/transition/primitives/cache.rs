@@ -124,11 +124,13 @@ mod successor {
                     ctx.map.meta(edge).accessible(ctx.runtime, edge.direction())
                 })
                 .map(|(_, next, (w, _))| {
-                    let position = ctx.map.get_position(&next).unwrap();
-                    let distance = Haversine.distance(source, position);
+                    const METER_TO_CM: f64 = 100.0;
+
+                    let position = unsafe { ctx.map.get_position(&next).unwrap_unchecked() };
 
                     // In centimeters (1m = 100cm)
-                    (next, (distance * 100f64) as u32, *w)
+                    let distance = Haversine.distance(source, position);
+                    (next, (distance * METER_TO_CM) as u32, *w)
                 })
                 .map(|(next, distance, weight)| {
                     // Stores the weight and distance (in cm) to the candidate
