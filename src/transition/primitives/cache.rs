@@ -121,7 +121,6 @@ mod successor {
             ctx.map
                 .graph
                 .edges_directed(key, Direction::Outgoing)
-                .par_bridge()
                 .filter(|(_, _, (_, edge))| {
                     // Only traverse paths which can be accessed by
                     // the specific runtime routing conditions available
