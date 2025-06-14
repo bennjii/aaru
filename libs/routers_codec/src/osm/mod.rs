@@ -67,7 +67,6 @@ pub mod meta {
     use crate::primitive::edge::Direction;
     use crate::{Metadata, primitive};
 
-    use itertools::Itertools;
     use std::num::NonZeroU8;
 
     #[derive(Debug, Clone, Default)]

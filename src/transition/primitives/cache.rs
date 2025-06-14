@@ -99,10 +99,9 @@ mod successor {
 
     use geo::Haversine;
     use petgraph::Direction;
-    use std::hint::black_box;
 
     /// The weights, given as output from the [`SuccessorsCache::calculate`] function.
-    type SuccessorWeights<E> = Vec<(E, WeightAndDistance)>;
+    type SuccessorWeights<E> = Vec<(E, DirectionAwareEdgeId<E>, WeightAndDistance)>;
 
     /// The cache map definition for the successors.
     ///
@@ -119,28 +118,20 @@ mod successor {
             ctx.map
                 .graph
                 .edges_directed(key, Direction::Outgoing)
-                .filter(|(_, _, (_, edge))| {
-                    // Only traverse paths which can be accessed by
-                    // the specific runtime routing conditions available
-                    let meta = ctx.map.meta(edge);
-                    let direction = edge.direction();
-
-                    meta.accessible(ctx.runtime, direction)
-                })
-                .map(|(_, next, (w, _))| {
+                .map(|(_, next, (w, edge))| {
                     const METER_TO_CM: f64 = 100.0;
 
                     let position = unsafe { ctx.map.get_position(&next).unwrap_unchecked() };
 
                     // In centimeters (1m = 100cm)
                     let distance = Haversine.distance(source, position);
-                    (next, (distance * METER_TO_CM) as u32, *w)
+                    (next, (distance * METER_TO_CM) as u32, *w, *edge)
                 })
-                .map(|(next, distance, weight)| {
+                .map(|(next, distance, weight, edge)| {
                     // Stores the weight and distance (in cm) to the candidate
                     let fraction = WeightAndDistance::new(Fraction::mul(weight), distance);
 
-                    (next, fraction)
+                    (next, edge, fraction)
                 })
                 .collect::<Vec<_>>()
         }
@@ -202,6 +193,15 @@ mod predicate {
             Dijkstra
                 .reach(&key, move |node| {
                     ArcIter::new(self.metadata.successors.query(ctx, *node))
+                        .filter(|(_, edge, _)| {
+                            // Only traverse paths which can be accessed by
+                            // the specific runtime routing conditions available
+                            let meta = ctx.map.meta(edge);
+                            let direction = edge.direction();
+
+                            meta.accessible(ctx.runtime, direction)
+                        })
+                        .map(|(a, _, b)| (a, b))
                 })
                 .take_while(|p| {
                     // Bounded by the threshold distance (centimeters)

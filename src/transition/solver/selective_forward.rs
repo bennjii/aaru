@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use codec::{Entry, Metadata};
 use geo::{Distance, Haversine};
 use itertools::Itertools;
+use measure_time::debug_time;
 use pathfinding::num_traits::Zero;
 use pathfinding::prelude::*;
 use petgraph::Direction;
@@ -193,9 +194,8 @@ where
         let predicate_map = {
             self.predicate
                 .lock()
-                .unwrap()
+                .ok()?
                 .query(ctx, source_candidate.edge.target)
-                .clone()
         };
 
         let reachable = {
@@ -293,12 +293,16 @@ where
         //
         //       This behaviour can be implemented using the `AllForwardSolver` going forward.
 
-        let Some((path, cost)) = astar(
-            &start,
-            |source| self.reach(&transition, &context, (start, end), source),
-            |_| CandidateEdge::zero(),
-            |node| *node == end,
-        ) else {
+        let Some((path, cost)) = ({
+            debug_time!("Solved transition graph");
+
+            astar(
+                &start,
+                |source| self.reach(&transition, &context, (start, end), source),
+                |_| CandidateEdge::zero(),
+                |node| *node == end,
+            )
+        }) else {
             return Err(MatchError::CollapseFailure(CollapseError::NoPathFound));
         };
 
