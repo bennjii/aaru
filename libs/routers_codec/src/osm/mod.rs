@@ -141,45 +141,99 @@ pub mod meta {
 
         #[inline]
         fn accessible(&self, conditions: &Self::Runtime, direction: Direction) -> bool {
-            return true;
+            // return true;
 
             // Computes the negative-filter access restriction, assuming accessible by default.
             // If any access conditions match the input, it will be rejected.
-            self.access
-                // TODO: Benchmark removing each case to see which one(s) have impact.
-                .iter()
-                .filter(|AccessTag { restriction, .. }| {
-                    // Only consider access methods which are applicable
-                    conditions
-                        .transport_mode
-                        .is_restricted_by(restriction.transport_mode)
-                })
-                .filter(
-                    |AccessTag { restriction, .. }| match restriction.directionality {
-                        Directionality::Forward => direction == Direction::Outgoing,
-                        Directionality::Backward => direction == Direction::Incoming,
-                        Directionality::BothWays => true,
-                        _ => false,
-                    },
-                )
-                .sorted_by_key(|AccessTag { restriction, .. }| {
-                    // Sort by specificity such that we consider the most specific
-                    // filter first, and the least specific last.
-                    restriction.transport_mode.specificity_level()
-                })
-                .map(|AccessTag { access, .. }| {
-                    // We default to `true`, since a roadway is considered accessible
-                    // unless otherwise specified. If any access tag disallows access
-                    // up the specificity hierarchy, we will return `false`.
-                    match access {
-                        AccessValue::Yes => true,
-                        AccessValue::Private => conditions.allow_private_roads,
-                        _ => false,
+
+            let mut most_specific_access: Option<(AccessValue, usize)> = None;
+
+            for access_tag in &self.access {
+                // Only consider access methods which are applicable
+                if !conditions
+                    .transport_mode
+                    .is_restricted_by(access_tag.restriction.transport_mode)
+                {
+                    continue;
+                }
+
+                // Check directionality
+                let direction_matches = match access_tag.restriction.directionality {
+                    Directionality::Forward => direction == Direction::Outgoing,
+                    Directionality::Backward => direction == Direction::Incoming,
+                    Directionality::BothWays => true,
+                    _ => false,
+                };
+
+                if !direction_matches {
+                    continue;
+                }
+
+                // Get specificity level for this restriction
+                let specificity = access_tag.restriction.transport_mode.specificity_level();
+
+                // Keep track of the most specific (lowest specificity value) access tag
+                match most_specific_access {
+                    None => {
+                        most_specific_access = Some((access_tag.access, specificity));
                     }
-                })
-                .next()
-                .unwrap_or(true)
+                    Some((_, current_specificity)) => {
+                        if specificity < current_specificity {
+                            most_specific_access = Some((access_tag.access, specificity));
+                        }
+                    }
+                }
+            }
+
+            // Process the most specific access tag we found
+            match most_specific_access {
+                Some((access, _)) => match access {
+                    AccessValue::Yes => true,
+                    AccessValue::Private => conditions.allow_private_roads,
+                    _ => false,
+                },
+                None => true, // Default to accessible if no restrictions apply
+            }
         }
+
+        // #[inline]
+        // fn accessible(&self, conditions: &Self::Runtime, direction: Direction) -> bool {
+        //     // Computes the negative-filter access restriction, assuming accessible by default.
+        //     // If any access conditions match the input, it will be rejected.
+        //     self.access
+        //         .iter()
+        //         .filter(|AccessTag { restriction, .. }| {
+        //             // Only consider access methods which are applicable
+        //             conditions
+        //                 .transport_mode
+        //                 .is_restricted_by(restriction.transport_mode)
+        //         })
+        //         .filter(
+        //             |AccessTag { restriction, .. }| match restriction.directionality {
+        //                 Directionality::Forward => direction == Direction::Outgoing,
+        //                 Directionality::Backward => direction == Direction::Incoming,
+        //                 Directionality::BothWays => true,
+        //                 _ => false,
+        //             },
+        //         )
+        //         .sorted_by_key(|AccessTag { restriction, .. }| {
+        //             // Sort by specificity such that we consider the most specific
+        //             // filter first, and the least specific last.
+        //             restriction.transport_mode.specificity_level()
+        //         })
+        //         .map(|AccessTag { access, .. }| {
+        //             // We default to `true`, since a roadway is considered accessible
+        //             // unless otherwise specified. If any access tag disallows access
+        //             // up the specificity hierarchy, we will return `false`.
+        //             match access {
+        //                 AccessValue::Yes => true,
+        //                 AccessValue::Private => conditions.allow_private_roads,
+        //                 _ => false,
+        //             }
+        //         })
+        //         .next()
+        //         .unwrap_or(true)
+        // }
     }
 }
 
