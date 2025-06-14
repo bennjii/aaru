@@ -96,9 +96,9 @@ pub trait Calculable<K: CacheKey, M: Metadata, V> {
 mod successor {
     use super::*;
     use crate::transition::*;
+
     use geo::Haversine;
     use petgraph::Direction;
-    use rayon::prelude::ParallelBridge;
     use std::hint::black_box;
 
     /// The weights, given as output from the [`SuccessorsCache::calculate`] function.
@@ -113,8 +113,6 @@ mod successor {
     impl<E: CacheKey, M: Metadata> Calculable<E, M, SuccessorWeights<E>> for SuccessorsCache<E, M> {
         #[inline]
         fn calculate(&mut self, ctx: &RoutingContext<E, M>, key: E) -> SuccessorWeights<E> {
-            use rayon::iter::ParallelIterator;
-
             // Calc. once
             let source = unsafe { ctx.map.get_position(&key).unwrap_unchecked() };
 
@@ -130,7 +128,7 @@ mod successor {
                     black_box(meta.accessible(ctx.runtime, direction));
 
                     // test:dummy
-                    return true;
+                    return black_box(true);
                 })
                 .map(|(_, next, (w, _))| {
                     const METER_TO_CM: f64 = 100.0;
