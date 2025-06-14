@@ -96,6 +96,7 @@ where
     fn solve<Emmis, Trans>(
         &self,
         transition: Transition<Emmis, Trans, E, M>,
+        runtime: &M::Runtime,
     ) -> Result<CollapsedPath<E>, MatchError>
     where
         Emmis: EmissionStrategy + Send + Sync,

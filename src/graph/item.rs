@@ -64,6 +64,12 @@ where
         self.hash.len()
     }
 
+    /// Safety: Assumes the edge exist
+    pub fn meta(&self, edge: &DirectionAwareEdgeId<E>) -> &M {
+        let index = edge.index();
+        unsafe { self.meta.get(&index).unwrap_unchecked() }
+    }
+
     #[inline]
     pub fn get_position(&self, node_index: &E) -> Option<Point<f64>> {
         self.hash.get(node_index).map(|point| point.position)
