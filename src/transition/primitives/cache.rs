@@ -128,7 +128,10 @@ mod successor {
                     let meta = ctx.map.meta(edge);
                     let direction = edge.direction();
 
-                    meta.accessible(ctx.runtime, direction)
+                    black_box(meta.accessible(ctx.runtime, direction));
+
+                    // test:dummy
+                    return true;
                 })
                 .map(|(_, next, (w, _))| {
                     const METER_TO_CM: f64 = 100.0;
