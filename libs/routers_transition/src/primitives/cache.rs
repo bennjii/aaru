@@ -1,9 +1,10 @@
 use alloc::sync::Arc;
 use core::fmt::Debug;
 use geo::Distance;
-use routers_network::{DataPlane, Metadata, Network};
+use moka::sync::Cache;
+use routers_network::{DataPlane, DirectionAwareEdgeId, Entry, Metadata, Network};
 use rustc_hash::{FxBuildHasher, FxHashMap};
-use scc::HashMap;
+use std::{hash::Hash, ops::Deref};
 
 /// A generic read-through cache for a hashmap-backed data structure
 pub struct CacheMap<V, N, Meta>
@@ -12,7 +13,7 @@ where
     Meta: Debug,
     N: Network,
 {
-    pub(crate) map: HashMap<N::Entry, Arc<V>, FxBuildHasher>,
+    pub(crate) map: Cache<N::Entry, Arc<V>, FxBuildHasher>,
     pub(crate) metadata: Meta,
 }
 
@@ -39,6 +40,20 @@ where
     N: Network,
     V: Debug,
     Meta: Debug;
+
+impl<V, N, Meta> Deref for LockedMap<V, N, Meta>
+where
+    LockedMap<V, N, Meta>: Calculable<N, V>,
+    V: Debug,
+    N: Network,
+    Meta: Debug,
+{
+    type Target = CacheMap<V, N, Meta>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<V, N, Meta> Default for LockedMap<V, N, Meta>
 where
@@ -86,26 +101,69 @@ where
     /// consumes an owned value of the key, [`N::Entry`], which is required
     /// for the call to the [`Calculable::calculate`] function.
     pub fn query(&self, ctx: &RoutingContext<N>, key: N::Entry) -> Arc<V> {
-        if let Some(value) = self.0.map.get(&key) {
-            return Arc::clone(value.get());
-        }
-
-        let calculated = Arc::new(self.calculate(ctx, key));
-        let _ = self.0.map.insert(key, calculated.clone());
-
-        Arc::clone(&calculated)
+        self.map
+            .get_with(key, || Arc::new(self.calculate(ctx, key)))
     }
+}
+
+pub trait CacheWeight: Send + Sync + 'static {
+    /// Estimated heap bytes this value occupies.
+    fn weight_bytes(&self) -> u32;
+
+    fn cache_of<K>() -> Cache<K, Arc<Self>, FxBuildHasher>
+    where
+        K: Hash + Eq + Send + Sync + Clone + 'static,
+    {
+        Cache::builder()
+            .max_capacity(Self::BUDGET_MB.saturating_mul(1024 * 1024))
+            .weigher(|_key, value: &Arc<Self>| value.weight_bytes())
+            .build_with_hasher(FxBuildHasher)
+    }
+
+    /// Size budget in MiB
+    const BUDGET_MB: u64;
+}
+
+impl<E: Entry> CacheWeight for Vec<(E, DirectionAwareEdgeId<E>, WeightAndDistance)> {
+    #[inline]
+    fn weight_bytes(&self) -> u32 {
+        // Vec header (ptr/len/cap) atop `capacity` inline elements.
+        const HEADER: usize = 24;
+        let per_elem = core::mem::size_of::<(E, DirectionAwareEdgeId<E>, WeightAndDistance)>();
+        self.capacity()
+            .saturating_mul(per_elem)
+            .saturating_add(HEADER)
+            .min(u32::MAX as usize) as u32
+    }
+
+    const BUDGET_MB: u64 = 128;
+}
+
+impl<E: Entry> CacheWeight for FxHashMap<E, E> {
+    #[inline]
+    fn weight_bytes(&self) -> u32 {
+        // hashbrown holds `capacity` (K, V) slots plus ~1 control byte each,
+        // atop a small fixed table header.
+        const HEADER: usize = 48;
+        let per_slot = core::mem::size_of::<(E, E)>() + 1;
+        self.capacity()
+            .saturating_mul(per_slot)
+            .saturating_add(HEADER)
+            .min(u32::MAX as usize) as u32
+    }
+
+    const BUDGET_MB: u64 = 512;
 }
 
 impl<V, N, Meta> Default for CacheMap<V, N, Meta>
 where
-    V: Debug + Send + Sync + 'static,
+    V: CacheWeight + Debug + Send + Sync + 'static,
     N: Network,
     Meta: Default + Debug,
 {
     fn default() -> Self {
         Self {
-            map: HashMap::default(),
+            map: V::cache_of(),
             metadata: Meta::default(),
         }
     }
@@ -238,7 +296,7 @@ mod predicate {
     impl<N: Network> PredicateCache<N> {
         pub fn with_threshold(threshold_cm: f64) -> Self {
             LockedMap(Arc::new(CacheMap {
-                map: HashMap::default(),
+                map: FxHashMap::<N::Entry, N::Entry>::cache_of(),
                 metadata: PredicateMetadata {
                     successors: SuccessorsCache::default(),
                     threshold_distance: threshold_cm,
@@ -318,4 +376,4 @@ where
 pub use predicate::PredicateCache;
 pub use successor::SuccessorsCache;
 
-use crate::primitives::RoutingContext;
+use crate::primitives::{RoutingContext, WeightAndDistance};
