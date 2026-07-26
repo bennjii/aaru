@@ -246,6 +246,130 @@ fn reconcile_resumes_and_trims_to_overlap() {
     assert_same_match(&streamed, &batch);
 }
 
+/// The realtime dissemination loop, as the orchestrator + matcher run it:
+/// each tick reconciles the previously-committed trip against the committed
+/// history, pushes only the fresh points, solves, snapshots, and commits the
+/// (serde round-tripped) trip for the next tick.
+///
+/// When the history window covers the whole trip, every tick's snapshot must
+/// span the *entire* trajectory so far — a consumer that replaces its trace
+/// with each result (the realtime viewer) sees the full tail.
+#[test]
+fn ticked_resume_snapshots_full_history() {
+    let net = bent_road();
+    let costing = Costing::default();
+    let generator = || StandardGenerator::new(&net, &costing.emission);
+
+    let points = trajectory().into_points();
+    let mut committed: Option<Trip<MockEntryId>> = None;
+
+    for tick in 1..=points.len() {
+        let history = &points[..tick];
+        let m = Matcher::new(&net, &costing, generator(), AllCompute::default(), &());
+
+        let (mut trip, fresh) = match Continuation::reconcile(committed.take(), history) {
+            Continuation::Resume { trip, fresh } => (trip, fresh),
+            Continuation::Restart { fresh } => (m.begin(), fresh),
+        };
+
+        assert!(
+            trip.layers() + fresh.len() >= history.len(),
+            "tick {tick}: reconcile lost context: {} retained + {} fresh < {} history",
+            trip.layers(),
+            fresh.len(),
+            history.len()
+        );
+
+        for point in fresh {
+            m.push(&mut trip, point).expect("push must anchor");
+        }
+
+        let streamed = m.snapshot(&mut trip).expect("tick must solve");
+        let batch = m
+            .r#match(LineString::from(history.to_vec()))
+            .expect("batch match must succeed");
+        assert_same_match(&streamed, &batch);
+
+        // Tick boundary: the trip travels matcher → orchestrator over the bus.
+        let wire = serde_json::to_string(&trip).expect("trip must serialize");
+        committed = Some(serde_json::from_str(&wire).expect("trip must deserialize"));
+    }
+}
+
+/// The same loop, but the committed history is a sliding window (the
+/// orchestrator's `--context-window`). Reconcile trims the resumed trip to
+/// the window overlap, so the emitted snapshot can never span more points
+/// than the window holds — a supersede-style consumer's trace is bounded by
+/// the orchestrator window, *not* by the trip's true length.
+#[test]
+fn windowed_history_bounds_the_emitted_trace() {
+    const WINDOW: usize = 3;
+
+    let net = bent_road();
+    let costing = Costing::default();
+    let generator = || StandardGenerator::new(&net, &costing.emission);
+
+    let points = trajectory().into_points();
+    let mut committed: Option<Trip<MockEntryId>> = None;
+
+    for tick in 1..=points.len() {
+        let history = &points[tick.saturating_sub(WINDOW)..tick];
+        let m = Matcher::new(&net, &costing, generator(), AllCompute::default(), &());
+
+        let (mut trip, fresh) = match Continuation::reconcile(committed.take(), history) {
+            Continuation::Resume { trip, fresh } => (trip, fresh),
+            Continuation::Restart { fresh } => (m.begin(), fresh),
+        };
+        for point in fresh {
+            m.push(&mut trip, point).expect("push must anchor");
+        }
+        m.solve(&mut trip).expect("tick must solve");
+        committed = Some(trip);
+    }
+
+    let finished = committed.expect("loop ran");
+    assert_eq!(
+        finished.layers(),
+        WINDOW,
+        "the trip is windowed to the history overlap, so per-tick results \
+         cannot carry the full trace"
+    );
+    assert_eq!(finished.points(), &points[points.len() - WINDOW..]);
+}
+
+/// The rendering signature of a gap-cut restart: a trip holding a single
+/// point still emits a non-empty interpolated path — its matched edge's
+/// source node plus the matched position. A supersede-style consumer
+/// replaces the vehicle's whole trace with this short stub.
+#[test]
+fn single_point_restart_emits_a_stub_segment() {
+    let net = bent_road();
+    let costing = Costing::default();
+    let generator = StandardGenerator::new(&net, &costing.emission);
+    let m = Matcher::new(&net, &costing, generator, AllCompute::default(), &());
+
+    let mut trip = m.begin();
+    m.push(&mut trip, point!(x: -118.155, y: 34.1503))
+        .expect("push must anchor");
+
+    let snapshot = m.snapshot(&mut trip).expect("single point must solve");
+    assert_eq!(snapshot.route.len(), 1, "one layer, one chosen candidate");
+    assert!(
+        snapshot.interpolated.is_empty(),
+        "no hop exists, so nothing to interpolate"
+    );
+
+    let routed = routers_transition::candidate::RoutedPath::new(snapshot, &net);
+    assert!(
+        !routed.interpolated.is_empty(),
+        "the routed view still emits a stub (edge source + matched point)"
+    );
+    assert!(
+        routed.interpolated.len() <= 2,
+        "the stub is at most two elements, not a trace"
+    );
+}
+
 /// A history the trip's origins never overlap (a teleport cut everything the
 /// trellis knew) — and the absence of any trip at all — both restart.
 #[test]

@@ -30,6 +30,12 @@ struct Args {
     #[arg(short, long, env)]
     subject: String,
 
+    /// The NATS queue group to subscribe under. Replicas sharing a group
+    /// split the subject between them, so each event is archived once —
+    /// a plain fan-out subscription would write one copy per replica.
+    #[arg(long, env, default_value = "historian")]
+    queue_group: String,
+
     /// The number of events to keep in the Redis history
     #[arg(long, env, default_value_t = 25)]
     history: usize,
@@ -58,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("could not connect to NATS")?;
     let subscriber = client
-        .subscribe(args.subject)
+        .queue_subscribe(args.subject, args.queue_group)
         .await
         .context("could not subscribe to NATS subject")?;
 

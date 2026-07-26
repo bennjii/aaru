@@ -72,7 +72,7 @@ struct Args {
 
     /// Points older than this will be discarded from history, regardless
     /// of if it's within the KV store, or not.
-    #[arg(long, env, value_parser = humantime::parse_duration, default_value = "120s")]
+    #[arg(long, env, value_parser = humantime::parse_duration, default_value = "300s")]
     gap: Duration,
 
     /// Consecutive points further away than this will be treated as a "teleport",
