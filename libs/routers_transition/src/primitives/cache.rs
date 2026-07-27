@@ -105,7 +105,7 @@ where
 {
     fn default() -> Self {
         Self {
-            map: HashMap::default(),
+            map: HashMap::with_capacity_and_hasher(10_000, FxBuildHasher::default()),
             metadata: Meta::default(),
         }
     }
