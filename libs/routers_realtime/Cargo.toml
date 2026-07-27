@@ -11,6 +11,7 @@ routers_codec = { workspace = true }
 routers_network = { workspace = true }
 routers_shard = { workspace = true }
 routers_transition = { workspace = true }
+schema = { workspace = true }
 
 # Logging & Telemetry
 env_logger = { workspace = true }
@@ -44,6 +45,8 @@ indicatif-log-bridge = "0.2.3"
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 postcard = { workspace = true }
+buffa = { workspace = true }
+buffa-types = { workspace = true }
 
 # Systems
 async-nats = "0.38.0"

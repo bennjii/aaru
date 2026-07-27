@@ -25,7 +25,7 @@ impl TracesPlugin {
 
 /// Stable, well-spread colour for a vehicle id: hash to a hue, keep
 /// saturation and value fixed so every trace is legible on light tiles.
-pub fn vehicle_colour(vehicle_id: &str) -> Color32 {
+pub fn vehicle_colour(vehicle_id: routers_realtime::event::VehicleId) -> Color32 {
     let mut hasher = DefaultHasher::new();
     vehicle_id.hash(&mut hasher);
     let hue = (hasher.finish() % 360) as f32 / 360.0;

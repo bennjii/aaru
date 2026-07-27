@@ -34,7 +34,7 @@ impl<T: Storable> RedisStore<T> {
 }
 
 impl<T: Storable> RedisStore<T> {
-    pub async fn get_many(&mut self, vehicle_id: &str, len: usize) -> Result<Vec<T>> {
+    pub async fn get_many(&mut self, vehicle_id: &T::Key, len: usize) -> Result<Vec<T>> {
         let key = format!("vehicle:{}:positions", vehicle_id);
 
         let reply: StreamRangeReply = redis::cmd("XREVRANGE")
@@ -103,8 +103,8 @@ impl<T: Storable> CachedRedisStore<T> {
         }
     }
 
-    pub async fn get_many(&mut self, vehicle_id: &str, len: usize) -> Result<Vec<T>> {
-        if let Some(cached) = self.cache.get(vehicle_id).cloned() {
+    pub async fn get_many(&mut self, vehicle_id: &T::Key, len: usize) -> Result<Vec<T>> {
+        if let Some(cached) = self.cache.get(&vehicle_id.to_string()).cloned() {
             return Ok(cached);
         }
 
@@ -118,7 +118,7 @@ impl<T: Storable> CachedRedisStore<T> {
     /// this the cache is a frozen snapshot of the first read — which, for a
     /// consumer racing the writer on a vehicle's first event, is empty
     /// forever.
-    pub fn push(&mut self, key: &str, item: T, len: usize) {
+    pub fn push(&mut self, key: &T::Key, item: T, len: usize) {
         let entries = self.cache.entry(key.to_string()).or_default();
         entries.insert(0, item);
         entries.truncate(len);

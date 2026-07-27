@@ -5,7 +5,7 @@ use std::time::Duration;
 use routers_codec::osm::{OsmEdgeMetadata, OsmEntryId};
 use routers_realtime::{
     bus::{NATSSink, NATSStream},
-    event::{MatchContext, MatchResult, Payload, RawEvent},
+    event::{MatchContext, MatchResult, Payload, RawEvent, VehicleId},
     store::RedisStore,
 };
 use routers_transition::Continuation;
@@ -94,7 +94,7 @@ struct App<'a> {
     gap: chrono::TimeDelta,
     jump_distance: f64,
     context_window: usize,
-    trips: &'a HashMap<String, Trip<E>>,
+    trips: &'a HashMap<VehicleId, Trip<E>>,
     kv: &'a mut RedisStore<RawEvent>,
 }
 
@@ -156,8 +156,8 @@ async fn main() -> anyhow::Result<()> {
             // resumed from on its next event; `origins` is when each vehicle's
             // newest event was published, for the end-to-end `event_to_match`
             // span. Both are derived — losing them just forces a restart.
-            let mut trips: HashMap<String, Trip<E>> = HashMap::new();
-            let mut origins: HashMap<String, web_time::SystemTime> = HashMap::new();
+            let mut trips: HashMap<VehicleId, Trip<E>> = HashMap::new();
+            let mut origins: HashMap<VehicleId, web_time::SystemTime> = HashMap::new();
 
             while let Some(Dispatch {
                 queued_at,
@@ -174,7 +174,7 @@ async fn main() -> anyhow::Result<()> {
                 match inbound {
                     Inbound::Event(payload) => {
                         if let Some(sent_at) = sent_at {
-                            origins.insert(payload.vehicle_id.clone(), sent_at);
+                            origins.insert(payload.vehicle_id, sent_at);
                         }
 
                         let span = info_span!(
@@ -236,8 +236,8 @@ async fn main() -> anyhow::Result<()> {
         let sent_at = routers_realtime::bus::last_sent_at();
 
         let vehicle_id = match &inbound {
-            Inbound::Event(payload) => &payload.vehicle_id,
-            Inbound::Result(result) => &result.vehicle_id,
+            Inbound::Event(payload) => payload.vehicle_id,
+            Inbound::Result(result) => result.vehicle_id,
         };
 
         let mut hasher = DefaultHasher::new();
@@ -308,7 +308,7 @@ impl App<'_> {
         }
 
         let mut history: Vec<RawEvent> = std::iter::once(RawEvent {
-            vehicle_id: vehicle_id.clone(),
+            vehicle_id,
             point,
             timestamp,
         })
