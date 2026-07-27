@@ -93,10 +93,12 @@ impl From<&Payload> for proto::Payload {
         proto::Payload {
             trip_id: payload.trip_id.0,
             vehicle_id: payload.vehicle_id.0,
-            timestamp: buffa::MessageField::some(buffa_types::google::protobuf::Timestamp::from_unix(
-                payload.timestamp.timestamp(),
-                payload.timestamp.timestamp_subsec_nanos() as i32,
-            )),
+            timestamp: buffa::MessageField::some(
+                buffa_types::google::protobuf::Timestamp::from_unix(
+                    payload.timestamp.timestamp(),
+                    payload.timestamp.timestamp_subsec_nanos() as i32,
+                ),
+            ),
             point: buffa::MessageField::some(schema::proto::routers::model::v1::Coordinate {
                 longitude: payload.point.x(),
                 latitude: payload.point.y(),
