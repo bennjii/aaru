@@ -6568,6 +6568,8 @@ version = "0.3.1"
 dependencies = [
  "anyhow",
  "async-nats",
+ "buffa",
+ "buffa-types",
  "chrono",
  "clap",
  "env_logger",
@@ -6586,6 +6588,7 @@ dependencies = [
  "redis",
  "routers_codec",
  "routers_network",
+ "routers_schema",
  "routers_shard",
  "routers_transition",
  "serde",

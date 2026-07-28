@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use web_time::Instant;
 
 use geo::Point;
-use routers_realtime::event::MatchResult;
+use routers_realtime::event::{MatchResult, VehicleId};
 
 use crate::{E, M};
 
@@ -52,7 +52,7 @@ pub struct StoreStats {
 pub struct TraceStore {
     capacity: usize,
     idle_ttl: Duration,
-    pub traces: HashMap<String, VehicleTrace>,
+    pub traces: HashMap<VehicleId, VehicleTrace>,
     event_bucket: VecDeque<Instant>,
     total_events: u64,
 }

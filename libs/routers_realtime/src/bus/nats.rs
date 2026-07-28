@@ -4,10 +4,10 @@ use std::task::{Context as Ctx, Poll, ready};
 use anyhow::Context;
 use futures::future::BoxFuture;
 use futures::{FutureExt, Sink, Stream, StreamExt};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
 
-pub struct NATSSink<T: Serialize> {
+use super::Wire;
+
+pub struct NATSSink<T: Wire> {
     client: async_nats::Client,
     subject_of: Box<dyn Fn(&T) -> String + Send + Sync>,
     in_flight: Option<BoxFuture<'static, anyhow::Result<()>>>,
@@ -15,12 +15,12 @@ pub struct NATSSink<T: Serialize> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-pub struct NATSStream<T: DeserializeOwned> {
+pub struct NATSStream<T: Wire> {
     subscriber: Option<async_nats::Subscriber>,
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl<T: Serialize> NATSSink<T> {
+impl<T: Wire> NATSSink<T> {
     pub fn new(
         client: async_nats::Client,
         subject_of: impl Fn(&T) -> String + Send + Sync + 'static,
@@ -51,7 +51,7 @@ impl<T: Serialize> NATSSink<T> {
     }
 }
 
-impl<T: Serialize + Unpin> Sink<T> for NATSSink<T> {
+impl<T: Wire + Unpin> Sink<T> for NATSSink<T> {
     type Error = anyhow::Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Ctx<'_>) -> Poll<Result<(), Self::Error>> {
@@ -60,7 +60,7 @@ impl<T: Serialize + Unpin> Sink<T> for NATSSink<T> {
 
     fn start_send(self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
         let this = self.get_mut();
-        let payload: Vec<u8> = postcard::to_allocvec(&item).context("failed to serialize")?;
+        let payload: Vec<u8> = item.encode().context("failed to serialize")?;
 
         let subject = this.subject_for(&item);
         let client = this.client.clone();
@@ -91,7 +91,7 @@ impl<T: Serialize + Unpin> Sink<T> for NATSSink<T> {
     }
 }
 
-impl<T: DeserializeOwned> NATSStream<T> {
+impl<T: Wire> NATSStream<T> {
     pub fn new(subscriber: async_nats::Subscriber) -> Self {
         Self {
             subscriber: Some(subscriber),
@@ -102,7 +102,7 @@ impl<T: DeserializeOwned> NATSStream<T> {
 
 impl<T> Stream for NATSStream<T>
 where
-    T: Serialize + DeserializeOwned + Unpin,
+    T: Wire + Unpin,
 {
     type Item = T;
 
@@ -115,7 +115,7 @@ where
 
         loop {
             match ready!(subscriber.poll_next_unpin(cx)) {
-                Some(message) => match postcard::from_bytes(&message.payload) {
+                Some(message) => match T::decode(&message.payload) {
                     Ok(item) => {
                         // Close the publisher's timing loop: the gap between
                         // its send stamp and now is the queue-wait span.
