@@ -126,7 +126,12 @@ where
                 .inner
                 .search(&point.bounding_rect())
                 .map_err(|e| ConnectError::internal(format!("{:?}", e)))?;
-            timezones.extend(found.into_iter().map(timezone_message));
+            let tz = found
+                .into_iter()
+                .next()
+                .map(timezone_message)
+                .ok_or_else(|| ConnectError::not_found("No timezone found for coordinate"))?;
+            timezones.push(tz);
         }
 
         Ok(BatchGetFromPointsResponse {
@@ -178,7 +183,12 @@ where
                 .inner
                 .search(&rect)
                 .map_err(|e| ConnectError::internal(format!("{:?}", e)))?;
-            timezones.extend(found.into_iter().map(timezone_message));
+            let tz = found
+                .into_iter()
+                .next()
+                .map(timezone_message)
+                .ok_or_else(|| ConnectError::not_found("No timezone found for bounding box"))?;
+            timezones.push(tz);
         }
 
         Ok(BatchGetFromBoundingBoxResponse {
@@ -229,7 +239,12 @@ where
                 .inner
                 .search_polygon(&polygon)
                 .map_err(|e| ConnectError::internal(format!("{:?}", e)))?;
-            timezones.extend(found.into_iter().map(timezone_message));
+            let tz = found
+                .into_iter()
+                .next()
+                .map(timezone_message)
+                .ok_or_else(|| ConnectError::not_found("No timezone found for polygon"))?;
+            timezones.push(tz);
         }
 
         Ok(BatchGetFromPolygonResponse {
