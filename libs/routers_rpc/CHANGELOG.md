@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.8] - 2026-07-30
+
+### 🚀 Features
+
+- *(trait)* Use associated types for Metadata and Entry traits on Network
+
+### 🐛 Bug Fixes
+
+- *(tz)* Return 1:1
+
+
+
 ## [0.1.7] - 2026-07-22
 
 ### 🐛 Bug Fixes

@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-07-30
+
+### 🚀 Features
+
+- *(trait)* Use associated types for Metadata and Entry traits on Network
+- *(realtime)* Historian to serialise reads via. queue
+- *(realtime)* Use optimise protobuf-backed event packets with integer vehicle-id and trip-id
+
+### 🐛 Bug Fixes
+
+- *(realtime)* Formatting
+
+
+
 ## [0.3.1] - 2026-07-22
 
 ### ⚙️ Miscellaneous Tasks
