@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-07-30
+
+### 🚀 Features
+
+- *(trait)* Use associated types for Metadata and Entry traits on Network
+- *(transition)* Use bounded cache size of 10,000 elements
+
+### 🐛 Bug Fixes
+
+- *(transition)* Formatting, etc.
+
+
+
 ## [0.2.1] - 2026-07-22
 
 ### ⚙️ Miscellaneous Tasks
