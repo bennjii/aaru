@@ -4,12 +4,13 @@
 # One shard per matcher+orchestrator pair.
 # Here's a suitable default for Sydney.
 shards:
-  - r3gq
-  - r3gr
-  - r3gw
-  - r3gx
-  - r652
-  - r658
+  - r3
+  - r6
+  - r7
+  - r1
+  - r4
+  - qd
+  - qe
 
 # External infra references. Environment-specific values must be supplied via
 # an overlay file (`-f values-<env>.yaml`) or `--set`; the chart intentionally
@@ -30,7 +31,7 @@ infra:
     url: ""
 
 # Shard precision passed to the matcher. Ensure shards are generated for this precision level.
-shardPrecision: 4
+shardPrecision: 2
 
 # Source for the {shard}.shard.rt files mounted read-only into every
 # matcher pod. Two modes:
@@ -62,14 +63,14 @@ matcher:
   resources:
     requests:
       cpu: 1000m
-      memory: 256Mi
+      memory: 1024Mi
     # No CPU limit: matching is CPU-bound (per-boundary weighing fans across
     # rayon), and a CFS cap freezes every worker and the rayon pool together
     # in 100ms throttle windows — the same stall spiral the valkey nano
     # preset caused. The request still guarantees scheduling; memory still
     # bounds the pod.
     limits:
-      memory: 3072Mi
+      memory: 8064Mi
 
 orchestrator:
   image:

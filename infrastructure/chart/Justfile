@@ -46,6 +46,8 @@ use-pvc: install
 use-shards shards="{r3gq,r3gr,r3gw}": install
     helm upgrade routers-realtime . \
         -n {{ namespace }} \
+        -f {{ values }} \
+        --set shardCache.hostPath={{ shard-cache }} \
         --set 'shards={{ shards }}'
 
 use-shard-cache cache-dir="": install
