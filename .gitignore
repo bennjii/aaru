@@ -22,3 +22,5 @@ conformance/external
 
 *.csv
 *.csv.zip
+
+.direnv/

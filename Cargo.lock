@@ -6590,6 +6590,7 @@ dependencies = [
  "routers_schema",
  "routers_shard",
  "routers_transition",
+ "scc",
  "serde",
  "stream-partition",
  "thiserror 2.0.19",

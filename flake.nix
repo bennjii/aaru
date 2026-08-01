@@ -53,7 +53,6 @@
             cargo-insta
             cargo-nextest
             git-cliff
-            release-plz
 
             just
             pre-commit
