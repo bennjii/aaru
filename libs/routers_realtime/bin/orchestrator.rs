@@ -1,6 +1,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::Duration;
 
+use routers_realtime::event::VehicleId;
 use scc::HashCache;
 use scc::hash_cache::Entry;
 
@@ -113,7 +114,7 @@ struct App<'a> {
     gap: chrono::TimeDelta,
     jump_distance: f64,
     context_window: usize,
-    trips: &'a HashCache<String, Trip<E>>,
+    trips: &'a HashCache<VehicleId, Trip<E>>,
     kv: &'a mut RedisStore<RawEvent>,
 }
 

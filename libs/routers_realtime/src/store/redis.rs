@@ -8,6 +8,7 @@ use scc::hash_cache::Entry;
 use thiserror::Error;
 use url::Url;
 
+use crate::event::VehicleId;
 use crate::store::Storable;
 
 #[derive(Debug, Error)]
@@ -117,7 +118,7 @@ impl<T: Storable> RedisStore<T> {
         })
     }
 
-    pub async fn get_many(&mut self, vehicle_id: &str, len: usize) -> Result<Vec<T>> {
+    pub async fn get_many(&mut self, vehicle_id: &VehicleId, len: usize) -> Result<Vec<T>> {
         let key = format!("vehicle:{}:positions", vehicle_id);
         let node = self.placement.index_for(&key);
 
@@ -199,7 +200,7 @@ impl<T: Storable> RedisStore<T> {
 /// that moment and nothing here detects it.
 pub struct CachedRedisStore<T: Storable> {
     store: RedisStore<T>,
-    cache: HashCache<String, Vec<T>>,
+    cache: HashCache<VehicleId, Vec<T>>,
 }
 
 impl<T: Storable> CachedRedisStore<T> {
@@ -214,16 +215,16 @@ impl<T: Storable> CachedRedisStore<T> {
         }
     }
 
-    pub async fn get_many(&mut self, vehicle_id: &str, len: usize) -> Result<Vec<T>> {
-        if let Some(cached) = self.cache.get(vehicle_id) {
+    pub async fn get_many(&mut self, vehicle_id: VehicleId, len: usize) -> Result<Vec<T>> {
+        if let Some(cached) = self.cache.get(&vehicle_id) {
             return Ok(cached.get().clone());
         }
 
-        let entries = self.store.get_many(vehicle_id, len).await?;
+        let entries = self.store.get_many(&vehicle_id, len).await?;
 
         // `put` refuses an existing key, so the occupied arm is what makes this
         // a write and not a first-write.
-        match self.cache.entry(vehicle_id.to_string()) {
+        match self.cache.entry(vehicle_id) {
             Entry::Occupied(mut window) => {
                 window.put(entries.clone());
             }
@@ -240,8 +241,8 @@ impl<T: Storable> CachedRedisStore<T> {
     /// this the cache is a frozen snapshot of the first read — which, for a
     /// consumer racing the writer on a vehicle's first event, is empty
     /// forever.
-    pub fn push(&mut self, key: &str, item: T, len: usize) {
-        match self.cache.entry(key.to_string()) {
+    pub fn push(&mut self, key: VehicleId, item: T, len: usize) {
+        match self.cache.entry(key) {
             Entry::Occupied(mut occupied) => {
                 let entries = occupied.get_mut();
                 entries.insert(0, item);

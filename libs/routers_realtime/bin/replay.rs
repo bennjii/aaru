@@ -3,6 +3,7 @@
 use anyhow::Context;
 use async_nats::{ConnectOptions, ServerAddr};
 use clap::Parser;
+use fnv_rs::{Fnv32, FnvHasher};
 use futures::SinkExt;
 use geo::Point;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -10,7 +11,10 @@ use indicatif_log_bridge::LogWrapper;
 use itertools::izip;
 use log::{debug, info};
 use polars::prelude::*;
-use routers_realtime::{bus::NATSSink, event::Payload};
+use routers_realtime::{
+    bus::NATSSink,
+    event::{Payload, TripId, VehicleId},
+};
 use routers_shard::{GeohashStrategy, ShardingStrategy};
 use std::{fmt::Write, path::PathBuf, time::Duration};
 use tokio::time::Instant;
@@ -211,17 +215,19 @@ fn rows_of(df: &DataFrame) -> PolarsResult<impl Iterator<Item = (u64, Payload)> 
         lat.into_iter(),
         lon.into_iter()
     )
-    .map(|(trip, vehicle, provider, etime, lat, lon)| {
+    .filter_map(|(trip, vehicle, _, etime, lat, lon)| {
+        let trip_id: [u8; 4] = Fnv32::hash(trip?).as_bytes().try_into().ok()?;
+        let vehicle_id: [u8; 4] = Fnv32::hash(vehicle?).as_bytes().try_into().ok()?;
+
         let payload = Payload {
-            trip_id: trip.unwrap_or_default().to_owned(),
-            vehicle_id: vehicle.unwrap_or_default().to_owned(),
-            provider: provider.unwrap_or_default().to_owned(),
+            trip_id: TripId(u32::from_le_bytes(trip_id)),
+            vehicle_id: VehicleId(u32::from_le_bytes(vehicle_id)),
             // The column is parsed as microseconds since the Unix epoch.
             timestamp: chrono::DateTime::from_timestamp_micros(etime.unwrap_or_default())
                 .unwrap_or_default(),
             point: Point::new(lon.unwrap(), lat.unwrap()),
         };
 
-        (etime.unwrap() as u64, payload)
+        Some((etime.unwrap() as u64, payload))
     }))
 }
