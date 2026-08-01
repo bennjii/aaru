@@ -1,3 +1,4 @@
+{{- include "routers.validate" . -}}
 {{- range $shard := .Values.shards }}
 ---
 apiVersion: apps/v1
@@ -16,14 +17,24 @@ spec:
       shard: "{{ $shard }}"
   template:
     metadata:
+      {{- with (include "routers.podAnnotations" (dict "root" $ "service" $.Values.matcher "gcsfuse" true) | trim) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
       labels:
         {{- include "routers.labels" $ | nindent 8 }}
         app: matcher
         shard: "{{ $shard }}"
+        {{- with $.Values.matcher.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+      {{- with (include "routers.podSpecCommon" (dict "root" $ "service" $.Values.matcher) | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       containers:
         - name: matcher
-          image: "{{ $.Values.matcher.image.repository }}:{{ $.Values.matcher.image.tag }}"
+          image: {{ include "routers.image" (dict "registry" $.Values.image.registry "image" $.Values.matcher.image) | quote }}
           imagePullPolicy: {{ $.Values.matcher.image.pullPolicy }}
           env:
             - name: NATS
@@ -35,9 +46,9 @@ spec:
             - name: SHARD
               value: {{ $shard | quote }}
             - name: INBOUND_SUBJECT
-              value: "events.match.{{ $shard }}"
+              value: {{ include "routers.subject" (dict "root" $ "shard" $shard "verb" "match") | quote }}
             - name: OUTBOUND_SUBJECT
-              value: "events.matched.{{ $shard }}"
+              value: {{ include "routers.subject" (dict "root" $ "shard" $shard "verb" "matched") | quote }}
             - name: RUST_LOG
               value: {{ $.Values.matcher.rustLog | quote }}
             {{- range $name, $value := $.Values.matcher.env }}
@@ -50,6 +61,9 @@ spec:
             # to plain structured logs.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ $.Values.infra.otlp.url | quote }}
+            {{- end }}
+            {{- with (include "routers.samplerEnv" $ | trim) }}
+            {{- . | nindent 12 }}
             {{- end }}
           volumeMounts:
             - name: shards
@@ -66,7 +80,21 @@ spec:
           {{- else if eq $.Values.shardCache.mode "pvc" }}
           persistentVolumeClaim:
             claimName: {{ $.Values.shardCache.pvc.claimName }}
+          {{- else if eq $.Values.shardCache.mode "gcsfuse" }}
+          # CSI ephemeral inline volume, so the shard files are read straight
+          # out of the bucket and no PersistentVolume has to be pre-created
+          # per cluster or per region. Read-only, because the matcher only
+          # ever loads these files.
+          csi:
+            driver: gcsfuse.csi.storage.gke.io
+            readOnly: true
+            volumeAttributes:
+              bucketName: {{ required "shardCache.gcs.bucket is required when shardCache.mode=gcsfuse" $.Values.shardCache.gcs.bucket | quote }}
+              mountOptions: {{ $.Values.shardCache.gcs.mountOptions | quote }}
+              {{- with $.Values.shardCache.gcs.onlyDir }}
+              onlyDir: {{ . | quote }}
+              {{- end }}
           {{- else }}
-          {{- fail (printf "shardCache.mode must be 'hostPath' or 'pvc', got %q" $.Values.shardCache.mode) }}
+          {{- fail (printf "shardCache.mode must be 'hostPath', 'pvc' or 'gcsfuse', got %q" $.Values.shardCache.mode) }}
           {{- end }}
 {{- end }}

@@ -21,14 +21,23 @@ struct Args {
     #[arg(short, env, long)]
     nats: Url,
 
-    /// URL of the Redis cluster
-    #[arg(short, env, long)]
-    redis: Url,
+    /// Valkey primaries, comma-separated. Vehicles are spread across them by
+    /// rendezvous hash, so the order carries no meaning and every binary that
+    /// touches the history must be given the same set.
+    #[arg(short, env, long, value_delimiter = ',')]
+    redis: Vec<Url>,
 
     /// The subject to use for the NATS events stream.
-    /// For example, "events.raw.>" to consume all raw events.
+    /// For example, "events.position.9q.*" to consume a whole cell.
     #[arg(short, long, env)]
     subject: String,
+
+    /// NATS queue group to join. Members of a group share the subject's
+    /// deliveries instead of each receiving every message, which is what lets a
+    /// cell run more than one historian. Unset, this is a plain subscription
+    /// and a second replica would archive every event a second time.
+    #[arg(long, env)]
+    queue_group: Option<String>,
 
     /// The number of events to keep in the Redis history
     #[arg(long, env, default_value_t = 25)]
@@ -57,14 +66,15 @@ async fn main() -> anyhow::Result<()> {
         .connect(nats_url)
         .await
         .context("could not connect to NATS")?;
-    let subscriber = client
-        .subscribe(args.subject)
-        .await
-        .context("could not subscribe to NATS subject")?;
+    let subscriber = match args.queue_group {
+        Some(group) => client.queue_subscribe(args.subject, group).await,
+        None => client.subscribe(args.subject).await,
+    }
+    .context("could not subscribe to NATS subject")?;
 
     let mut nats = NATSStream::<Payload>::new(subscriber);
 
-    let mut kv = RedisStore::<RawEvent>::new(args.redis)
+    let mut kv = RedisStore::<RawEvent>::new(&args.redis)
         .await
         .context("could not connect to redis store")?;
     let mut batch: Vec<RawEvent> = Vec::with_capacity(args.batch_size);

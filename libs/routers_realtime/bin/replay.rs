@@ -42,8 +42,15 @@ struct Args {
     precision: u8,
 
     /// The subject prefix to use for the NATS events stream
-    #[arg(long, env, default_value = "events.raw")]
+    #[arg(long, env, default_value = "events.position")]
     subject: String,
+
+    /// Geohash characters that form the cell token. The published subject is
+    /// `<subject>.<cell>.<rest>`, split here rather than sent as one token
+    /// because a NATS wildcard matches exactly one token — the split is what
+    /// lets a historian cover a whole cell with `<subject>.<cell>.*`.
+    #[arg(long, env, default_value_t = 2)]
+    cell_precision: u8,
 }
 
 // 2026-04-01 03:40:02 UTC, or 2026-04-01 03:40:02.123456 UTC
@@ -87,14 +94,25 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     info!("replay starting: {:?}", args);
 
+    anyhow::ensure!(
+        args.cell_precision < args.precision,
+        "cell_precision ({}) must be below precision ({}), or the shard token would be empty",
+        args.cell_precision,
+        args.precision
+    );
+
     let client = ConnectOptions::new()
         .name("ReplayService")
         .connect(ServerAddr::from_url(args.nats)?)
         .await?;
 
     let strategy = GeohashStrategy::with_precision(args.precision);
+    let cell_precision = usize::from(args.cell_precision);
+
     let nats = NATSSink::<Payload>::new(client, move |&Payload { point, .. }| {
-        format!("{}.{}", args.subject, strategy.locate(point))
+        let geohash = strategy.locate(point).to_string();
+        let (cell, rest) = geohash.split_at(cell_precision);
+        format!("{}.{}.{}", args.subject, cell, rest)
     });
 
     let df = LazyCsvReader::new(args.file)

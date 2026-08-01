@@ -47,17 +47,20 @@ struct Args {
     #[arg(short, env, long)]
     nats: Url,
 
-    /// URL of the Redis cluster
-    #[arg(short, env, long)]
-    redis: Url,
+    /// Valkey primaries, comma-separated. Vehicles are spread across them by
+    /// rendezvous hash, so the order carries no meaning and every binary that
+    /// touches the history must be given the same set.
+    #[arg(short, env, long, value_delimiter = ',')]
+    redis: Vec<Url>,
 
     /// The NATS subject to use to source raw events from.
-    /// For example, `events.raw.{shard}` where shard is the geohash shard identifier.
+    /// For example, `events.position.{cell}.{rest}`, the shard's geohash split
+    /// across two tokens.
     #[arg(short, long = "in", env)]
     inbound_subject: String,
 
     /// The NATS subject to emit match context messages out into.
-    /// For example, `events.match.{shard}` where shard is the geohash shard identifier.
+    /// For example, `events.match.{cell}.{rest}`.
     #[arg(short, long = "out", env)]
     outbound_subject: String,
 
@@ -133,6 +136,13 @@ async fn main() -> anyhow::Result<()> {
 
     let gap = chrono::Duration::from_std(args.gap).context("gap out of range")?;
 
+    // Connected once, then cloned per worker: the clone shares the multiplexed
+    // sockets, so the pod holds one connection per primary rather than one per
+    // primary per worker.
+    let store = RedisStore::<RawEvent>::new(&args.redis)
+        .await
+        .context("could not connect to redis store")?;
+
     let mut handles = Vec::with_capacity(args.workers);
     let mut txs = Vec::with_capacity(args.workers);
 
@@ -140,9 +150,7 @@ async fn main() -> anyhow::Result<()> {
         let (tx, mut rx) = mpsc::channel::<Dispatch>(1024);
         txs.push(tx);
 
-        let mut kv = RedisStore::<RawEvent>::new(args.redis.clone())
-            .await
-            .context("could not connect to redis store")?;
+        let mut kv = store.clone();
 
         let subject = args.outbound_subject.clone();
         let mut sink = NATSSink::<MatchContext<E>>::new(client.clone(), move |_| subject.clone());
