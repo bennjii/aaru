@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use futures::future::try_join_all;
 use redis::aio::MultiplexedConnection;
 use redis::streams::StreamRangeReply;
+use scc::HashCache;
+use scc::hash_cache::Entry;
 use thiserror::Error;
 use url::Url;
 
@@ -55,7 +57,10 @@ struct Placement {
 impl Placement {
     fn new(urls: &[Url]) -> Self {
         Self {
-            seeds: urls.iter().map(|url| fnv1a(url.as_str().as_bytes())).collect(),
+            seeds: urls
+                .iter()
+                .map(|url| fnv1a(url.as_str().as_bytes()))
+                .collect(),
         }
     }
 
@@ -181,26 +186,52 @@ impl<T: Storable> RedisStore<T> {
     }
 }
 
+/// A [`RedisStore`] with a local window per vehicle.
+///
+/// Bounded, and it has to be: entries are keyed by vehicle, vehicles leave a
+/// shard permanently, and the process is long-lived, so an unbounded map grows
+/// for the life of the pod. Eviction is safe because the cache is derived —
+/// a miss costs a read, not correctness.
+///
+/// Note that a hit is only sound while this process is the sole writer for that
+/// vehicle. Positions are routed by geohash, so a vehicle near a shard boundary
+/// can be written by another shard's pipeline; a cached window is stale from
+/// that moment and nothing here detects it.
 pub struct CachedRedisStore<T: Storable> {
     store: RedisStore<T>,
-    cache: HashMap<String, Vec<T>>,
+    cache: HashCache<String, Vec<T>>,
 }
 
 impl<T: Storable> CachedRedisStore<T> {
-    pub fn new(store: RedisStore<T>) -> Self {
+    /// `capacity` is the vehicles held before the least recently used is
+    /// evicted, rounded up to a power of two. Size it above the concurrent
+    /// vehicles the caller sees, or the cache evicts entries still in use and
+    /// every read falls through.
+    pub fn new(store: RedisStore<T>, capacity: usize) -> Self {
         Self {
             store,
-            cache: HashMap::new(),
+            cache: HashCache::with_capacity(0, capacity),
         }
     }
 
     pub async fn get_many(&mut self, vehicle_id: &str, len: usize) -> Result<Vec<T>> {
-        if let Some(cached) = self.cache.get(vehicle_id).cloned() {
-            return Ok(cached);
+        if let Some(cached) = self.cache.get(vehicle_id) {
+            return Ok(cached.get().clone());
         }
 
         let entries = self.store.get_many(vehicle_id, len).await?;
-        self.cache.insert(vehicle_id.to_string(), entries.clone());
+
+        // `put` refuses an existing key, so the occupied arm is what makes this
+        // a write and not a first-write.
+        match self.cache.entry(vehicle_id.to_string()) {
+            Entry::Occupied(mut window) => {
+                window.put(entries.clone());
+            }
+            Entry::Vacant(window) => {
+                window.put_entry(entries.clone());
+            }
+        }
+
         Ok(entries)
     }
 
@@ -210,9 +241,16 @@ impl<T: Storable> CachedRedisStore<T> {
     /// consumer racing the writer on a vehicle's first event, is empty
     /// forever.
     pub fn push(&mut self, key: &str, item: T, len: usize) {
-        let entries = self.cache.entry(key.to_string()).or_default();
-        entries.insert(0, item);
-        entries.truncate(len);
+        match self.cache.entry(key.to_string()) {
+            Entry::Occupied(mut occupied) => {
+                let entries = occupied.get_mut();
+                entries.insert(0, item);
+                entries.truncate(len);
+            }
+            Entry::Vacant(vacant) => {
+                vacant.put_entry(vec![item]);
+            }
+        }
     }
 
     pub async fn write_many(&mut self, batch: &[T], limit: usize) -> Result<()> {
@@ -287,7 +325,11 @@ mod tests {
         // The ideal is 1/21 ≈ 4.8%. Allow slack for hash noise at this sample
         // size, but stay far below the ~95% modulo would produce.
         let ratio = moved as f64 / sample.len() as f64;
-        assert!(ratio < 0.10, "{:.1}% of keys moved, expected ~4.8%", ratio * 100.0);
+        assert!(
+            ratio < 0.10,
+            "{:.1}% of keys moved, expected ~4.8%",
+            ratio * 100.0
+        );
     }
 
     #[test]

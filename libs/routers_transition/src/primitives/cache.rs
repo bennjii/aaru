@@ -3,22 +3,47 @@ use core::fmt::Debug;
 use geo::Distance;
 use routers_network::{DataPlane, Metadata, Network};
 use rustc_hash::{FxBuildHasher, FxHashMap};
-use scc::HashMap;
+use scc::HashCache;
+use scc::hash_cache::Entry;
 
-/// A generic read-through cache for a hashmap-backed data structure
+/// Entries retained before the cache starts evicting.
+///
+/// A bound rather than a hint. The matcher is long-lived and every distinct
+/// routing query inserts an entry, so an unbounded cache grows until the pod is
+/// OOM-killed — which takes its shard offline until it reschedules and reloads
+/// the shard file.
+///
+/// Keep this a power of two. [`HashCache`] rounds its maximum capacity up to
+/// one, so 10,000 would silently become 16,384 and cost 64% more memory than
+/// the number suggests.
+pub const DEFAULT_CACHE_CAPACITY: usize = 8_192;
+
+// Enforced here rather than in a test, because the cost of getting it wrong is
+// silent: `HashCache` would round up and allocate more than the constant says.
+const _: () = assert!(
+    DEFAULT_CACHE_CAPACITY.is_power_of_two(),
+    "DEFAULT_CACHE_CAPACITY must be a power of two, or HashCache rounds it up"
+);
+
+/// A generic read-through cache for a hashmap-backed data structure.
+///
+/// Backed by [`HashCache`], which is 32-way associative and evicts the least
+/// recently used entry of a bucket once that bucket is full. Eviction is
+/// therefore O(1) and bucket-local: the cache can evict a little before it is
+/// globally full, which is the price of not scanning.
 pub struct CacheMap<V, N, Meta>
 where
     V: Debug,
     Meta: Debug,
     N: Network,
 {
-    pub(crate) map: HashMap<N::Entry, Arc<V>, FxBuildHasher>,
+    pub(crate) map: HashCache<N::Entry, Arc<V>, FxBuildHasher>,
     pub(crate) metadata: Meta,
 }
 
-// Hand-rolled so the `Debug` bound stays off the moka cache (whose own `Debug`,
-// and its stats accessors, would drag `V: Send + Sync + 'static` onto every use
-// of `CacheMap`). The entries themselves are elided.
+// Hand-rolled so the cache's own `Debug` — and its stats accessors — do not
+// drag `V: Send + Sync + 'static` onto every use of `CacheMap`. The entries
+// themselves are elided.
 impl<V, N, Meta> Debug for CacheMap<V, N, Meta>
 where
     V: Debug,
@@ -86,14 +111,48 @@ where
     /// consumes an owned value of the key, [`N::Entry`], which is required
     /// for the call to the [`Calculable::calculate`] function.
     pub fn query(&self, ctx: &RoutingContext<N>, key: N::Entry) -> Arc<V> {
+        // Returning here drops the bucket guard before `calculate` runs. Holding
+        // it across an upper-bounded Dijkstra would block every other key that
+        // hashes to the same bucket.
         if let Some(value) = self.0.map.get(&key) {
             return Arc::clone(value.get());
         }
 
         let calculated = Arc::new(self.calculate(ctx, key));
-        let _ = self.0.map.insert(key, calculated.clone());
 
-        Arc::clone(&calculated)
+        // Another thread may have computed the same key meanwhile. Either copy
+        // is correct — the calculation is pure — so keep whichever landed and
+        // return ours.
+        match self.0.map.entry(key) {
+            Entry::Occupied(mut occupied) => {
+                occupied.put(Arc::clone(&calculated));
+            }
+            Entry::Vacant(vacant) => {
+                vacant.put_entry(Arc::clone(&calculated));
+            }
+        }
+
+        calculated
+    }
+}
+
+impl<V, N, Meta> CacheMap<V, N, Meta>
+where
+    V: Debug,
+    N: Network,
+    Meta: Debug,
+{
+    /// The only way to build one, so no construction site can quietly
+    /// reintroduce an unbounded map — which is how the bound was lost before.
+    pub(crate) fn with_metadata(metadata: Meta) -> Self {
+        Self {
+            map: HashCache::with_capacity_and_hasher(
+                0,
+                DEFAULT_CACHE_CAPACITY,
+                FxBuildHasher::default(),
+            ),
+            metadata,
+        }
     }
 }
 
@@ -104,10 +163,7 @@ where
     Meta: Default + Debug,
 {
     fn default() -> Self {
-        Self {
-            map: HashMap::with_capacity_and_hasher(10_000, FxBuildHasher::default()),
-            metadata: Meta::default(),
-        }
+        Self::with_metadata(Meta::default())
     }
 }
 
@@ -237,13 +293,10 @@ mod predicate {
 
     impl<N: Network> PredicateCache<N> {
         pub fn with_threshold(threshold_cm: f64) -> Self {
-            LockedMap(Arc::new(CacheMap {
-                map: HashMap::default(),
-                metadata: PredicateMetadata {
-                    successors: SuccessorsCache::default(),
-                    threshold_distance: threshold_cm,
-                },
-            }))
+            LockedMap(Arc::new(CacheMap::with_metadata(PredicateMetadata {
+                successors: SuccessorsCache::default(),
+                threshold_distance: threshold_cm,
+            })))
         }
     }
 
@@ -319,3 +372,37 @@ pub use predicate::PredicateCache;
 pub use successor::SuccessorsCache;
 
 use crate::primitives::RoutingContext;
+
+#[cfg(test)]
+mod tests {
+    use super::{Arc, DEFAULT_CACHE_CAPACITY, PredicateCache};
+    use routers_network::mock::{MockEntryId, MockNetwork};
+
+    /// The property that regressed once already. An earlier revision passed
+    /// 10,000 to `HashMap::with_capacity_and_hasher`, which is a pre-allocation
+    /// hint and not a bound, so the cache grew until the matcher was
+    /// OOM-killed and took its shard offline.
+    ///
+    /// Driven through the real constructor rather than a stand-in, so it fails
+    /// if that constructor ever stops applying the bound.
+    #[test]
+    fn the_cache_stops_growing() {
+        let cache = PredicateCache::<MockNetwork>::default();
+
+        for key in 0..(DEFAULT_CACHE_CAPACITY as i64 * 10) {
+            let _ = cache.0.map.put(MockEntryId(key), Arc::default());
+        }
+
+        assert_eq!(
+            cache.0.map.len(),
+            DEFAULT_CACHE_CAPACITY,
+            "cache should sit at its bound after 10x that many inserts"
+        );
+
+        // The requested capacity has to be the one enforced. A
+        // non-power-of-two constant would be rounded up and cost more memory
+        // than it advertises; `DEFAULT_CACHE_CAPACITY` has a const assert for
+        // that, and this confirms the constructor honours it.
+        assert_eq!(cache.0.map.capacity(), DEFAULT_CACHE_CAPACITY);
+    }
+}

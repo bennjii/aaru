@@ -1,6 +1,8 @@
-use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::Duration;
+
+use scc::HashCache;
+use scc::hash_cache::Entry;
 
 use routers_codec::osm::{OsmEdgeMetadata, OsmEntryId};
 use routers_realtime::{
@@ -89,6 +91,20 @@ struct Args {
     /// Redis fetch (the throughput bound) overlaps across vehicles.
     #[arg(short, env, long, default_value = "8")]
     workers: usize,
+
+    /// Vehicles each worker keeps trip state for, before the least recently
+    /// used is evicted.
+    ///
+    /// Vehicles are hash-spread across workers, so the fleet-wide bound is this
+    /// times `workers`. Size it above the concurrent vehicles a shard carries:
+    /// evicting a vehicle that is still moving forces its next event to restart
+    /// the trip rather than resume it. Rounded up to a power of two.
+    ///
+    /// Unbounded is not an option here. Trip state is per vehicle and vehicles
+    /// leave a shard permanently, so an unbounded map grows for the life of the
+    /// pod.
+    #[arg(long, env, default_value_t = 1024)]
+    vehicle_cache: usize,
 }
 
 /// A worker's view of the shared configuration and its own trip state, borrowed
@@ -97,7 +113,7 @@ struct App<'a> {
     gap: chrono::TimeDelta,
     jump_distance: f64,
     context_window: usize,
-    trips: &'a HashMap<String, Trip<E>>,
+    trips: &'a HashCache<String, Trip<E>>,
     kv: &'a mut RedisStore<RawEvent>,
 }
 
@@ -157,15 +173,23 @@ async fn main() -> anyhow::Result<()> {
 
         let context_window = args.context_window;
         let jump_distance = args.jump_distance;
+        let vehicle_cache = args.vehicle_cache;
 
         handles.push(tokio::spawn(async move {
             // This worker's vehicles, and their state. `trips` is the trellis
             // from each vehicle's last solve, committed back by the matcher and
             // resumed from on its next event; `origins` is when each vehicle's
             // newest event was published, for the end-to-end `event_to_match`
-            // span. Both are derived — losing them just forces a restart.
-            let mut trips: HashMap<String, Trip<E>> = HashMap::new();
-            let mut origins: HashMap<String, web_time::SystemTime> = HashMap::new();
+            // span. Both are derived — losing an entry just forces a restart,
+            // which is what makes eviction safe.
+            //
+            // Bounded because vehicles leave a shard and never return, so a
+            // plain map grows for the life of the pod. `origins` leaks even on
+            // the happy path: its entry is removed when a result arrives, and a
+            // solve that yields nothing to publish never produces one.
+            let trips: HashCache<String, Trip<E>> = HashCache::with_capacity(0, vehicle_cache);
+            let origins: HashCache<String, web_time::SystemTime> =
+                HashCache::with_capacity(0, vehicle_cache);
 
             while let Some(Dispatch {
                 queued_at,
@@ -182,7 +206,17 @@ async fn main() -> anyhow::Result<()> {
                 match inbound {
                     Inbound::Event(payload) => {
                         if let Some(sent_at) = sent_at {
-                            origins.insert(payload.vehicle_id.clone(), sent_at);
+                            // `put` refuses an existing key, so the occupied
+                            // arm is what makes this a write and not a
+                            // first-write.
+                            match origins.entry(payload.vehicle_id.clone()) {
+                                Entry::Occupied(mut origin) => {
+                                    origin.put(sent_at);
+                                }
+                                Entry::Vacant(origin) => {
+                                    origin.put_entry(sent_at);
+                                }
+                            }
                         }
 
                         let span = info_span!(
@@ -221,7 +255,7 @@ async fn main() -> anyhow::Result<()> {
                         let _span =
                             info_span!("commit_result", layers = result.trip.layers()).entered();
 
-                        if let (Some(origin), Some(matched_at)) =
+                        if let (Some((_, origin)), Some(matched_at)) =
                             (origins.remove(&result.vehicle_id), sent_at)
                         {
                             routers_realtime::bus::span_between(
@@ -231,7 +265,14 @@ async fn main() -> anyhow::Result<()> {
                             );
                         }
 
-                        trips.insert(result.vehicle_id, result.trip);
+                        match trips.entry(result.vehicle_id) {
+                            Entry::Occupied(mut trip) => {
+                                trip.put(result.trip);
+                            }
+                            Entry::Vacant(trip) => {
+                                trip.put_entry(result.trip);
+                            }
+                        }
                     }
                 }
             }
@@ -331,8 +372,9 @@ impl App<'_> {
             .map(|event| event.point)
             .collect::<Vec<Point>>();
 
-        let continuation = info_span!("reconcile")
-            .in_scope(|| Continuation::reconcile(self.trips.get(&vehicle_id).cloned(), &points));
+        let previous = self.trips.get(&vehicle_id).map(|trip| trip.get().clone());
+        let continuation =
+            info_span!("reconcile").in_scope(|| Continuation::reconcile(previous, &points));
 
         let span = tracing::Span::current();
         span.record("cut", cut);

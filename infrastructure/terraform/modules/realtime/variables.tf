@@ -171,6 +171,10 @@ variable "orchestrator_env" {
   default = {
     CONTEXT_WINDOW = "25"
     FRESH_CAP      = "8"
+    # Per worker, so the fleet-wide bound is this times the profile's worker
+    # count. Bounds trip state, which would otherwise grow for the life of the
+    # pod because vehicles leave a shard and never return.
+    VEHICLE_CACHE = "1024"
   }
 }
 

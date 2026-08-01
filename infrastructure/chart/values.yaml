@@ -145,6 +145,13 @@ orchestrator:
     # this restart over the newest points only, which keeps both the resume and
     # restart paths O(cap) boundaries.
     FRESH_CAP: "8"
+    # Vehicles each worker keeps trip state for, before evicting the least
+    # recently used. The bound is what stops the map growing for the life of
+    # the pod, since vehicles leave a shard and never return. Fleet-wide this
+    # is multiplied by WORKERS, so size it above the shard's concurrent
+    # vehicles divided by WORKERS: evicting a moving vehicle costs it a trip
+    # restart. Rounded up to a power of two.
+    VEHICLE_CACHE: "1024"
   resources:
     requests:
       cpu: 500m
