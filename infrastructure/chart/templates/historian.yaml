@@ -1,47 +1,116 @@
-{{- include "routers.requireInfra" . -}}
+{{- include "routers.validate" . -}}
 {{- if .Values.historian.enabled }}
+{{- /*
+  One entry per Deployment. Each owns a disjoint slice of the subject space, so
+  the work divides with no duplicated writes; `queueGroup` additionally lets
+  several pods share one slice.
+
+  `per-cell` is what the two-phase subject buys: `<cell>.*` matches a whole cell
+  in one subscription, so the historian needs a pod per cell rather than per
+  shard. With the geohash in a single token it would not be expressible.
+*/ -}}
+{{- $prefix := .Values.subjectPrefix }}
+{{- $replicas := .Values.historian.replicas }}
+{{- $instances := list }}
+{{- if eq .Values.historian.mode "per-cell" }}
+{{- range $cell := include "routers.cells" . | fromJsonArray }}
+{{- $instances = append $instances (dict
+    "name" (printf "historian-%s" $cell)
+    "subject" (printf "%s.position.%s.*" $prefix $cell)
+    "group" (printf "historian-%s" $cell)
+    "replicas" $replicas
+    "selector" (dict "cell" $cell)) }}
+{{- end }}
+{{- else if eq .Values.historian.mode "per-shard" }}
+{{- range $shard := .Values.shards }}
+{{- $instances = append $instances (dict
+    "name" (printf "historian-%s" $shard)
+    "subject" (include "routers.subject" (dict "root" $ "shard" $shard "verb" "position"))
+    "group" (printf "historian-%s" $shard)
+    "replicas" $replicas
+    "selector" (dict "shard" $shard)) }}
+{{- end }}
+{{- else }}
+{{- $instances = append $instances (dict
+    "name" "historian"
+    "subject" (printf "%s.position.>" $prefix)
+    "group" "historian"
+    "replicas" $replicas
+    "selector" dict) }}
+{{- end }}
+{{- range $inst := $instances }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: historian
+  name: {{ $inst.name }}
   labels:
-    {{- include "routers.labels" . | nindent 4 }}
+    {{- include "routers.labels" $ | nindent 4 }}
     app: historian
+    {{- range $key, $value := $inst.selector }}
+    {{ $key }}: "{{ $value }}"
+    {{- end }}
 spec:
-  replicas: {{ .Values.historian.replicas }}
+  replicas: {{ $inst.replicas }}
   selector:
     matchLabels:
       app: historian
+      {{- range $key, $value := $inst.selector }}
+      {{ $key }}: "{{ $value }}"
+      {{- end }}
   template:
     metadata:
+      {{- with (include "routers.podAnnotations" (dict "root" $ "service" $.Values.historian "gcsfuse" false) | trim) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
       labels:
-        {{- include "routers.labels" . | nindent 8 }}
+        {{- include "routers.labels" $ | nindent 8 }}
         app: historian
+        {{- range $key, $value := $inst.selector }}
+        {{ $key }}: "{{ $value }}"
+        {{- end }}
+        {{- with $.Values.historian.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+      {{- with (include "routers.podSpecCommon" (dict "root" $ "service" $.Values.historian) | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       containers:
         - name: historian
-          image: "{{ .Values.historian.image.repository }}:{{ .Values.historian.image.tag }}"
-          imagePullPolicy: {{ .Values.historian.image.pullPolicy }}
+          image: {{ include "routers.image" (dict "registry" $.Values.image.registry "image" $.Values.historian.image) | quote }}
+          imagePullPolicy: {{ $.Values.historian.image.pullPolicy }}
           env:
             - name: NATS
-              value: {{ .Values.infra.nats.url | quote }}
+              value: {{ $.Values.infra.nats.url | quote }}
             - name: REDIS
-              value: {{ .Values.infra.valkey.url | quote }}
+              value: {{ $.Values.infra.valkey.url | quote }}
             - name: SUBJECT
-              value: "events.raw.>"
+              value: "{{ $inst.subject }}"
+            {{- if $.Values.historian.queueGroup }}
+            # Members of the group split this subject's deliveries instead of
+            # each receiving all of them, which is what makes replicas > 1 safe.
+            - name: QUEUE_GROUP
+              value: "{{ $inst.group }}"
+            {{- end }}
             - name: RUST_LOG
-              value: {{ .Values.historian.rustLog | quote }}
-            {{- range $name, $value := .Values.historian.env }}
+              value: {{ $.Values.historian.rustLog | quote }}
+            {{- range $name, $value := $.Values.historian.env }}
             - name: {{ $name }}
               value: {{ $value | quote }}
             {{- end }}
-            {{- if .Values.infra.otlp.url }}
+            {{- if $.Values.infra.otlp.url }}
             # Spans exported here become Prometheus series via the
             # collector's spanmetrics pipeline; unset, telemetry degrades
             # to plain structured logs.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: {{ .Values.infra.otlp.url | quote }}
+              value: {{ $.Values.infra.otlp.url | quote }}
+            {{- end }}
+            {{- with (include "routers.samplerEnv" $ | trim) }}
+            {{- . | nindent 12 }}
             {{- end }}
           resources:
-            {{- toYaml .Values.historian.resources | nindent 12 }}
+            {{- toYaml $.Values.historian.resources | nindent 12 }}
+{{- end }}
 {{- end }}
