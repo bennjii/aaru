@@ -1,16 +1,17 @@
 use petgraph::prelude::DiGraphMap;
 use routers_network::edge::Weight;
 use routers_network::network::GraphEdge;
-use routers_network::{DirectionAwareEdgeId, Discovery, Edge, Node, Route, Scan};
+use routers_network::{
+    DirectionAwareEdgeId, Discovery, Edge, Node, Route, RowIndex, Scan, envelope_of,
+};
 
 use log::debug;
-use rstar::{AABB, RTree};
 use rustc_hash::{FxHashMap, FxHasher};
 use serde::{Deserialize, Serialize};
 
 use core::fmt::Debug;
 use core::hash::BuildHasherDefault;
-use geo::Point;
+use geo::{Point, Rect};
 use web_time::Instant;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -43,9 +44,11 @@ pub struct OsmNetwork {
     pub meta: FxHashMap<OsmEntryId, OsmEdgeMetadata>,
 
     #[serde(skip)]
-    pub index: RTree<Node<OsmEntryId>>,
+    pub index: RowIndex<OsmEntryId>,
+    /// Edge rows are fully-interned (`Node`-carrying) so that `edges_in_box`
+    /// results require no hash lookups.
     #[serde(skip)]
-    pub index_edge: RTree<Edge<Node<OsmEntryId>>>,
+    pub index_edge: RowIndex<Edge<Node<OsmEntryId>>>,
 }
 
 impl OsmNetwork {
@@ -140,10 +143,10 @@ impl OsmNetwork {
     /// Used after loading a serialised `OsmNetwork` (indices are skipped on
     /// the wire) and is safe to call at any time.
     pub fn rebuild_indices(&mut self) {
-        // The two `RTree`s are independent — parallelise the bulk-load so
+        // The two indices are independent — parallelise the build so
         // cache-hit cost is dominated by whichever tree is larger rather
         // than their sum.
-        let nodes: Vec<Node<OsmEntryId>> = self.hash.values().copied().collect();
+        let nodes: Vec<OsmEntryId> = self.hash.keys().copied().collect();
         let edges: Vec<Edge<Node<OsmEntryId>>> = self
             .graph
             .all_edges()
@@ -159,8 +162,17 @@ impl OsmNetwork {
                 })
             })
             .collect();
-        let (node_index, edge_index) =
-            rayon::join(|| RTree::bulk_load(nodes), || RTree::bulk_load(edges));
+
+        let hash = &self.hash;
+        let (node_index, edge_index) = rayon::join(
+            || {
+                RowIndex::build(nodes, |id| {
+                    let p = hash[id].position;
+                    (p, p)
+                })
+            },
+            || RowIndex::build(edges, |e| envelope_of(e.source.position, e.target.position)),
+        );
         self.index = node_index;
         self.index_edge = edge_index;
     }
@@ -268,58 +280,31 @@ impl OsmNetwork {
         let meta = metadata.into_iter().collect::<FxHashMap<_, _>>();
 
         let mut hash = FxHashMap::default();
-        let filtered = {
-            nodes
-                .iter()
-                .copied()
-                .filter(|v| graph.contains_node(v.id))
-                .inspect(|e| {
-                    hash.insert(e.id, *e);
-                })
-                .collect()
-        };
-
-        let fat = {
-            edges
-                .iter()
-                .flat_map(|edge| {
-                    Some(Edge {
-                        source: *hash.get(&edge.source)?,
-                        target: *hash.get(&edge.target)?,
-                        id: DirectionAwareEdgeId::new(Node::new(
-                            Point::new(0., 0.),
-                            edge.id.index(),
-                        ))
-                        .with_direction(edge.id.direction()),
-                        weight: edge.weight,
-                    })
-                })
-                .collect()
-        };
+        for node in nodes.iter().filter(|node| graph.contains_node(node.id)) {
+            hash.insert(node.id, *node);
+        }
 
         debug!("HashMap creation took: {:?}", start_time.elapsed());
         start_time = Instant::now();
 
-        let tree = RTree::bulk_load(filtered);
-        let tree_edge = RTree::bulk_load(fat);
-        debug!("RTree bulk load took: {:?}", start_time.elapsed());
+        let mut network = OsmNetwork {
+            graph,
+            hash,
+            meta,
+            index: RowIndex::default(),
+            index_edge: RowIndex::default(),
+        };
+        network.rebuild_indices();
+        debug!("index build took: {:?}", start_time.elapsed());
 
         info!(
             "Finished. Ingested {:?} nodes from {:?} nodes total in {}ms",
-            tree.size(),
+            network.index.len(),
             nodes.len(),
             fixed_start_time.elapsed().as_millis()
         );
 
-        Ok(OsmNetwork {
-            graph,
-            hash,
-
-            meta,
-
-            index: tree,
-            index_edge: tree_edge,
-        })
+        Ok(network)
     }
 
     pub fn num_nodes(&self) -> usize {
@@ -333,8 +318,8 @@ impl Default for OsmNetwork {
             graph: GraphStructure::new(),
             hash: FxHashMap::default(),
             meta: FxHashMap::default(),
-            index: RTree::new(),
-            index_edge: RTree::new(),
+            index: RowIndex::default(),
+            index_edge: RowIndex::default(),
         }
     }
 }
@@ -342,20 +327,16 @@ impl Default for OsmNetwork {
 impl Discovery for OsmNetwork {
     fn edges_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = Edge<Node<OsmEntryId>>> + Send + 'a> {
-        Box::new(
-            self.index_edge
-                .locate_in_envelope_intersecting(&aabb)
-                .copied(),
-        )
+        Box::new(self.index_edge.search(bounds).copied())
     }
 
     fn nodes_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = &'a Node<OsmEntryId>> + Send + 'a> {
-        Box::new(self.index.locate_in_envelope(&aabb))
+        Box::new(self.index.search(bounds).filter_map(|id| self.hash.get(id)))
     }
 
     fn node(&self, id: &OsmEntryId) -> Option<&Node<OsmEntryId>> {
@@ -376,7 +357,7 @@ impl Discovery for OsmNetwork {
 
 impl Scan for OsmNetwork {
     fn nearest_node<'a>(&'a self, point: &Point) -> Option<&'a Node<OsmEntryId>> {
-        self.index.nearest_neighbor(point)
+        self.index.nearest(point).and_then(|id| self.hash.get(id))
     }
 }
 
