@@ -114,8 +114,8 @@ where
         // Returning here drops the bucket guard before `calculate` runs. Holding
         // it across an upper-bounded Dijkstra would block every other key that
         // hashes to the same bucket.
-        if let Some(value) = self.0.map.get(&key) {
-            return Arc::clone(value.get());
+        if let Some(value) = self.0.map.read(&key, |_, v| Arc::clone(v)) {
+            return value;
         }
 
         let calculated = Arc::new(self.calculate(ctx, key));
