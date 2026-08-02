@@ -30,11 +30,10 @@ use core::hash::BuildHasherDefault;
 
 use crate::{
     DataPlane, Direction, DirectionAwareEdgeId, Discovery, Edge, Entry, Metadata, Node, Route,
-    Scan, edge::Weight, network::GraphEdge,
+    RowIndex, Scan, edge::Weight, envelope_of, network::GraphEdge,
 };
-use geo::Point;
+use geo::{Point, Rect};
 use petgraph::prelude::DiGraphMap;
-use rstar::{AABB, RTree};
 use rustc_hash::{FxHashMap, FxHasher};
 use serde::{Deserialize, Serialize};
 
@@ -97,8 +96,8 @@ pub struct MockNetwork {
     graph: GraphStructure,
     nodes: FxHashMap<MockEntryId, Node<MockEntryId>>,
     metadata: FxHashMap<MockEntryId, MockMetadata>,
-    node_index: RTree<Node<MockEntryId>>,
-    edge_index: RTree<Edge<Node<MockEntryId>>>,
+    node_index: RowIndex<MockEntryId>,
+    edge_index: RowIndex<(MockEntryId, MockEntryId)>,
 }
 
 impl Debug for MockNetwork {
@@ -110,20 +109,35 @@ impl Debug for MockNetwork {
 impl Discovery for MockNetwork {
     fn edges_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = Edge<Node<MockEntryId>>> + Send + 'a> {
         Box::new(
             self.edge_index
-                .locate_in_envelope_intersecting(&aabb)
-                .cloned(),
+                .search(bounds)
+                .filter_map(move |&(source, target)| {
+                    let source = *self.nodes.get(&source)?;
+                    let target = *self.nodes.get(&target)?;
+                    let &(weight, id) = self.graph.edge_weight(source.id, target.id)?;
+                    Some(Edge {
+                        source,
+                        target,
+                        weight,
+                        id: DirectionAwareEdgeId::new(Node::new(dummy_point(), id.index()))
+                            .with_direction(id.direction()),
+                    })
+                }),
         )
     }
 
     fn nodes_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = &'a Node<MockEntryId>> + Send + 'a> {
-        Box::new(self.node_index.locate_in_envelope(&aabb))
+        Box::new(
+            self.node_index
+                .search(bounds)
+                .filter_map(|id| self.nodes.get(id)),
+        )
     }
 
     fn node(&self, id: &MockEntryId) -> Option<&Node<MockEntryId>> {
@@ -144,7 +158,9 @@ impl Discovery for MockNetwork {
 
 impl Scan for MockNetwork {
     fn nearest_node<'a>(&'a self, point: &Point) -> Option<&'a Node<MockEntryId>> {
-        self.node_index.nearest_neighbor(point)
+        self.node_index
+            .nearest(point)
+            .and_then(|id| self.nodes.get(id))
     }
 }
 
@@ -377,27 +393,21 @@ impl MockNetworkBuilder {
             metadata.entry(*edge_id).or_default();
         }
 
-        // Build fat edges for the spatial index — only include edges where
-        // both endpoints have registered node positions.
-        let fat_edges: Vec<Edge<Node<MockEntryId>>> = self
+        // Index edges whose endpoints both have registered node positions.
+        let edge_rows: Vec<(MockEntryId, MockEntryId)> = self
             .edges
             .iter()
-            .filter_map(|e| {
-                let src_node = *nodes.get(&e.source)?;
-                let tgt_node = *nodes.get(&e.target)?;
-                let direction_aware =
-                    DirectionAwareEdgeId::new(Node::new(dummy_point(), e.edge_id));
-                Some(Edge {
-                    source: src_node,
-                    target: tgt_node,
-                    weight: e.weight,
-                    id: direction_aware,
-                })
-            })
+            .filter(|e| nodes.contains_key(&e.source) && nodes.contains_key(&e.target))
+            .map(|e| (e.source, e.target))
             .collect();
 
-        let node_index = RTree::bulk_load(nodes.values().copied().collect());
-        let edge_index = RTree::bulk_load(fat_edges);
+        let node_index = RowIndex::build(nodes.keys().copied().collect(), |id| {
+            let p = nodes[id].position;
+            (p, p)
+        });
+        let edge_index = RowIndex::build(edge_rows, |&(source, target)| {
+            envelope_of(nodes[&source].position, nodes[&target].position)
+        });
 
         MockNetwork {
             graph,

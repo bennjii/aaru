@@ -2,8 +2,6 @@ use crate::primitive::{Direction, Node};
 use crate::traits::Entry;
 use core::cmp::Ordering;
 use core::fmt::Debug;
-use geo::Point;
-use rstar::AABB;
 use serde::{Deserialize, Serialize};
 
 pub type Weight = u32;
@@ -134,16 +132,5 @@ where
             id: DirectionAwareEdgeId::new(**self.id()),
             weight: self.weight,
         }
-    }
-}
-
-impl<E> rstar::RTreeObject for Edge<Node<E>>
-where
-    E: Entry,
-{
-    type Envelope = AABB<Point>;
-
-    fn envelope(&self) -> Self::Envelope {
-        AABB::from_corners(self.target.position, self.source.position)
     }
 }
