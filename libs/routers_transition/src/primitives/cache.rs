@@ -111,26 +111,12 @@ where
     /// consumes an owned value of the key, [`N::Entry`], which is required
     /// for the call to the [`Calculable::calculate`] function.
     pub fn query(&self, ctx: &RoutingContext<N>, key: N::Entry) -> Arc<V> {
-        // Returning here drops the bucket guard before `calculate` runs. Holding
-        // it across an upper-bounded Dijkstra would block every other key that
-        // hashes to the same bucket.
         if let Some(value) = self.0.map.read(&key, |_, v| Arc::clone(v)) {
             return value;
         }
 
         let calculated = Arc::new(self.calculate(ctx, key));
-
-        // Another thread may have computed the same key meanwhile. Either copy
-        // is correct — the calculation is pure — so keep whichever landed and
-        // return ours.
-        match self.0.map.entry(key) {
-            Entry::Occupied(mut occupied) => {
-                occupied.put(Arc::clone(&calculated));
-            }
-            Entry::Vacant(vacant) => {
-                vacant.put_entry(Arc::clone(&calculated));
-            }
-        }
+        let _ = self.0.map.put(key, Arc::clone(&calculated));
 
         calculated
     }
