@@ -118,12 +118,12 @@ fn composite_routes_across_shard_boundary() {
 
 #[test]
 fn composite_spatial_index_spans_both_shards() {
-    use rstar::AABB;
+    use geo::Rect;
     let (composite, _a, _b) = two_shard_setup();
 
     // Query a box that covers the whole grid; should see nodes from
     // both shards.
-    let aabb = AABB::from_corners(Point::new(-10.0, -10.0), Point::new(20.0, 20.0));
+    let aabb = Rect::new(Point::new(-10.0, -10.0), Point::new(20.0, 20.0));
     let nodes_seen = composite.nodes_in_box(aabb).count();
     assert!(
         nodes_seen >= composite.num_nodes(),

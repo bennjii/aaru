@@ -1,7 +1,6 @@
 use core::fmt::Debug;
 
-use geo::Point;
-use rstar::AABB;
+use geo::{Point, Rect};
 use rustc_hash::FxHashSet;
 
 use routers_network::{
@@ -10,7 +9,7 @@ use routers_network::{
 };
 
 use super::MultiShardNetwork;
-use crate::{network::EdgeRef, strategy::ShardId};
+use crate::strategy::ShardId;
 
 impl<E, M, S> Debug for MultiShardNetwork<E, M, S>
 where
@@ -85,15 +84,15 @@ where
 {
     fn edges_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = Edge<Node<E>>> + Send + 'a> {
         let mut seen: FxHashSet<(E, E)> = FxHashSet::default();
 
         Box::new(
             self.shards
                 .iter()
-                .flat_map(move |shard| shard.index_edge.locate_in_envelope_intersecting(&aabb))
-                .filter_map(move |&EdgeRef { source, target, .. }| {
+                .flat_map(move |shard| shard.index_edge.search(bounds))
+                .filter_map(move |&(source, target)| {
                     if !seen.insert((source, target)) {
                         return None;
                     }
@@ -118,14 +117,15 @@ where
 
     fn nodes_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = &'a Node<E>> + Send + 'a> {
         let mut seen: FxHashSet<E> = FxHashSet::default();
 
         Box::new(
             self.shards
                 .iter()
-                .flat_map(move |shard| shard.index.locate_in_envelope(&aabb))
+                .flat_map(move |shard| shard.index.search(bounds))
+                .filter_map(|id| self.node(id))
                 .filter(move |node| seen.insert(node.id)),
         )
     }
@@ -155,7 +155,7 @@ where
     fn nearest_node<'a>(&'a self, point: &Point) -> Option<&'a Node<E>> {
         self.shards
             .iter()
-            .filter_map(|s| s.index.nearest_neighbor(point))
+            .filter_map(|s| s.index.nearest(point).and_then(|id| s.hash.get(id)))
             .min_by(|a, b| {
                 let d2 = |n: &Node<E>| {
                     (n.position.x() - point.x()).powi(2) + (n.position.y() - point.y()).powi(2)
