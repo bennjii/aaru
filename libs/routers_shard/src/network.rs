@@ -6,10 +6,9 @@
 
 use core::fmt::Debug;
 use core::hash::BuildHasherDefault;
-use geo::Point;
+use geo::{Point, Rect};
 use log::{debug, info};
 use petgraph::prelude::DiGraphMap;
-use rstar::{AABB, RTree};
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_arch = "wasm32"))]
@@ -21,8 +20,8 @@ use std::path::Path;
 use web_time::Instant;
 
 use routers_network::{
-    DirectionAwareEdgeId, Discovery, Edge, Entry, Metadata, Node, Route, Scan, edge::Weight,
-    network::GraphEdge,
+    DirectionAwareEdgeId, Discovery, Edge, Entry, Metadata, Node, Route, RowIndex, Scan,
+    edge::Weight, envelope_of, network::GraphEdge,
 };
 
 use crate::selection::Selection;
@@ -30,38 +29,6 @@ use crate::strategy::{ShardId, ShardingStrategy};
 
 pub type GraphStructure<E> =
     DiGraphMap<E, (Weight, DirectionAwareEdgeId<E>), BuildHasherDefault<FxHasher>>;
-
-/// Slim spatial-index entry for edges.
-#[derive(Clone, Copy, Debug)]
-pub struct EdgeRef<E: Entry> {
-    pub source: E,
-    pub target: E,
-
-    bbox_min: Point,
-    bbox_max: Point,
-}
-
-impl<E: Entry> EdgeRef<E> {
-    pub fn new(source: E, target: E, src_pos: Point, tgt_pos: Point) -> Self {
-        let (sx, sy) = src_pos.x_y();
-        let (tx, ty) = tgt_pos.x_y();
-
-        Self {
-            source,
-            target,
-
-            bbox_min: Point::new(sx.min(tx), sy.min(ty)),
-            bbox_max: Point::new(sx.max(tx), sy.max(ty)),
-        }
-    }
-}
-
-impl<E: Entry> rstar::RTreeObject for EdgeRef<E> {
-    type Envelope = AABB<Point>;
-    fn envelope(&self) -> Self::Envelope {
-        AABB::from_corners(self.bbox_min, self.bbox_max)
-    }
-}
 
 /// A data source from which a [`ShardedNetwork`] can be built.
 ///
@@ -107,13 +74,13 @@ where
     pub hash: FxHashMap<E, Node<E>>,
     pub meta: FxHashMap<E, M>,
 
-    /// Spatial index over nodes.
+    /// Spatial index over node ids.
     #[serde(skip)]
-    pub index: RTree<Node<E>>,
+    pub index: RowIndex<E>,
 
-    /// Spatial index over edge (references).
+    /// Spatial index over edges as `(source, target)` id pairs.
     #[serde(skip)]
-    pub index_edge: RTree<EdgeRef<E>>,
+    pub index_edge: RowIndex<(E, E)>,
 
     /// The shard this node has authority over.
     pub owned: S,
@@ -191,8 +158,8 @@ where
             graph,
             hash,
             meta,
-            index: RTree::new(),
-            index_edge: RTree::new(),
+            index: RowIndex::default(),
+            index_edge: RowIndex::default(),
             owned: selection.owned,
             loaded: selection.loaded.clone(),
         };
@@ -203,20 +170,28 @@ where
 
     /// Rebuild the spatial indices from `hash` + `graph`.
     pub fn rebuild_indices(&mut self) {
-        let nodes: Vec<Node<E>> = self.hash.values().copied().collect();
-        let edges: Vec<EdgeRef<E>> = self
+        let nodes: Vec<E> = self.hash.keys().copied().collect();
+        let edges: Vec<(E, E)> = self
             .graph
             .all_edges()
-            .filter_map(|(s, t, _)| {
-                let source = *self.hash.get(&s)?;
-                let target = *self.hash.get(&t)?;
-
-                Some(EdgeRef::new(s, t, source.position, target.position))
-            })
+            .filter(|(s, t, _)| self.hash.contains_key(s) && self.hash.contains_key(t))
+            .map(|(s, t, _)| (s, t))
             .collect();
 
-        let (node_index, edge_index) =
-            rayon::join(|| RTree::bulk_load(nodes), || RTree::bulk_load(edges));
+        let hash = &self.hash;
+        let (node_index, edge_index) = rayon::join(
+            || {
+                RowIndex::build(nodes, |id| {
+                    let p = hash[id].position;
+                    (p, p)
+                })
+            },
+            || {
+                RowIndex::build(edges, |&(s, t)| {
+                    envelope_of(hash[&s].position, hash[&t].position)
+                })
+            },
+        );
 
         self.index = node_index;
         self.index_edge = edge_index;
@@ -347,35 +322,31 @@ where
 {
     fn edges_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = Edge<Node<E>>> + Send + 'a> {
-        Box::new(
-            self.index_edge
-                .locate_in_envelope_intersecting(&aabb)
-                .filter_map(move |EdgeRef { source, target, .. }| {
-                    let source = *self.hash.get(&source)?;
-                    let target = *self.hash.get(&target)?;
+        Box::new(self.index_edge.search(bounds).filter_map(move |&(s, t)| {
+            let source = *self.hash.get(&s)?;
+            let target = *self.hash.get(&t)?;
 
-                    let &(weight, id) = self.graph.edge_weight(source.id, target.id)?;
+            let &(weight, id) = self.graph.edge_weight(source.id, target.id)?;
 
-                    let node = Node::new(Point::new(0., 0.), id.index());
-                    let id = DirectionAwareEdgeId::new(node).with_direction(id.direction());
+            let node = Node::new(Point::new(0., 0.), id.index());
+            let id = DirectionAwareEdgeId::new(node).with_direction(id.direction());
 
-                    Some(Edge {
-                        source,
-                        target,
-                        id,
-                        weight,
-                    })
-                }),
-        )
+            Some(Edge {
+                source,
+                target,
+                id,
+                weight,
+            })
+        }))
     }
 
     fn nodes_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = &'a Node<E>> + Send + 'a> {
-        Box::new(self.index.locate_in_envelope(&aabb))
+        Box::new(self.index.search(bounds).filter_map(|id| self.hash.get(id)))
     }
 
     fn node(&self, id: &E) -> Option<&Node<E>> {
@@ -401,7 +372,7 @@ where
     S: ShardId,
 {
     fn nearest_node<'a>(&'a self, point: &Point) -> Option<&'a Node<E>> {
-        self.index.nearest_neighbor(point)
+        self.index.nearest(point).and_then(|id| self.hash.get(id))
     }
 }
 

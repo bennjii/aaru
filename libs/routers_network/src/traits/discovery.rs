@@ -1,21 +1,20 @@
 use alloc::sync::Arc;
 
-use geo::{Destination, Geodesic, Point};
-use rstar::AABB;
+use geo::{Destination, Geodesic, Point, Rect};
 
 use crate::{DataPlane, Edge, Node};
 
 pub trait Discovery: DataPlane {
-    /// Returns an iterator of edges which fall within the given AABB.
+    /// Returns an iterator of edges which fall within the given bounding box.
     fn edges_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = Edge<Node<Self::Entry>>> + Send + 'a>;
 
-    /// Returns an iterator of nodes which fall within the given AABB.
+    /// Returns an iterator of nodes which fall within the given bounding box.
     fn nodes_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = &'a Node<Self::Entry>> + Send + 'a>;
 
     /// A function which returns an unsorted iterator of [`Node`] references which are within
@@ -33,8 +32,8 @@ pub trait Discovery: DataPlane {
         point: &Point,
         distance: f64,
     ) -> Box<dyn Iterator<Item = &'a Node<Self::Entry>> + Send + 'a> {
-        let aabb = square_box(point, distance);
-        self.nodes_in_box(aabb)
+        let bounds = square_box(point, distance);
+        self.nodes_in_box(bounds)
     }
 
     /// A function which returns an unsorted iterator of [`FatEdge`] references which are within
@@ -52,8 +51,8 @@ pub trait Discovery: DataPlane {
         point: &Point,
         distance: f64,
     ) -> Box<dyn Iterator<Item = Edge<Node<Self::Entry>>> + Send + 'a> {
-        let aabb = square_box(point, distance);
-        self.edges_in_box(aabb)
+        let bounds = square_box(point, distance);
+        self.edges_in_box(bounds)
     }
 
     fn node(&self, id: &Self::Entry) -> Option<&Node<Self::Entry>>;
@@ -68,16 +67,16 @@ where
 {
     fn edges_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = Edge<Node<Self::Entry>>> + Send + 'a> {
-        (**self).edges_in_box(aabb)
+        (**self).edges_in_box(bounds)
     }
 
     fn nodes_in_box<'a>(
         &'a self,
-        aabb: AABB<Point>,
+        bounds: Rect<f64>,
     ) -> Box<dyn Iterator<Item = &'a Node<Self::Entry>> + Send + 'a> {
-        (**self).nodes_in_box(aabb)
+        (**self).nodes_in_box(bounds)
     }
 
     fn node(&self, id: &Self::Entry) -> Option<&Node<Self::Entry>> {
@@ -89,9 +88,9 @@ where
     }
 }
 
-fn square_box(point: &Point, square_radius: f64) -> AABB<Point> {
+fn square_box(point: &Point, square_radius: f64) -> Rect<f64> {
     let bottom_right = Geodesic.destination(*point, 135.0, square_radius);
     let top_left = Geodesic.destination(*point, 315.0, square_radius);
 
-    AABB::from_corners(top_left, bottom_right)
+    Rect::new(top_left, bottom_right)
 }

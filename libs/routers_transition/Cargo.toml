@@ -12,7 +12,6 @@ routers_trellis = { workspace = true }
 routers_shard = { workspace = true, optional = true }
 
 # Algorithm
-rstar = { workspace = true }
 
 serde = { workspace = true }
 
