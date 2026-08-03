@@ -9,8 +9,10 @@
 
 mod continuation;
 mod entity;
+mod origin;
 mod trip;
 
 pub use continuation::Continuation;
 pub use entity::Matcher;
+pub use origin::Origin;
 pub use trip::{Trip, TripState};

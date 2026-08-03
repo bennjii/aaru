@@ -10,14 +10,14 @@ use routers_realtime::{
     event::{MatchContext, MatchResult, Payload, RawEvent},
     store::RedisStore,
 };
-use routers_transition::Continuation;
 use routers_transition::matcher::Trip;
+use routers_transition::{Continuation, Origin};
 
 use anyhow::{Context, Result};
 use async_nats::{ConnectOptions, ServerAddr};
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
-use geo::{Distance, Haversine, Point};
+use geo::{Distance, Haversine};
 use log::{debug, error, info};
 use tokio::sync::mpsc;
 use tracing::{Instrument, field, info_span, warn};
@@ -354,14 +354,14 @@ impl App<'_> {
         history.sort_by_key(|event| event.timestamp);
         history.dedup_by_key(|event| event.timestamp);
 
-        let points = history
+        let origins = history
             .into_iter()
-            .map(|event| event.point)
-            .collect::<Vec<Point>>();
+            .map(|event| Origin::new(event.point, event.timestamp.timestamp_micros()))
+            .collect::<Vec<_>>();
 
         let previous = self.trips.get(&vehicle_id).map(|trip| trip.get().clone());
         let continuation =
-            info_span!("reconcile").in_scope(|| Continuation::reconcile(previous, &points));
+            info_span!("reconcile").in_scope(|| Continuation::reconcile(previous, &origins));
 
         let span = tracing::Span::current();
         span.record("cut", cut);

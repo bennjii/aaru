@@ -125,8 +125,8 @@ impl Matching {
         };
 
         info_span!("push", points = fresh.len()).in_scope(|| {
-            for point in fresh {
-                match matcher.push(&mut trip, point) {
+            for origin in fresh {
+                match matcher.push(&mut trip, origin) {
                     Ok(_) => {}
                     Err(MatchError::Unanchored(err)) => {
                         info_span!("point_drop", reason = "unanchored")
