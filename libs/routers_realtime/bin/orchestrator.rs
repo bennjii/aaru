@@ -101,10 +101,12 @@ struct Args {
     #[arg(long, env, value_parser = humantime::parse_duration, default_value = "15m")]
     matched_retention: Duration,
 
-    /// The NATS subject the shard's matchers serve requests on.
-    /// For example, `events.match.{shard}`.
-    #[arg(short, long = "out", env)]
-    outbound_subject: String,
+    /// The subject prefix matchers serve requests on. Each request routes to
+    /// `<prefix>.<geohash>` — the geographic shard of the event's position —
+    /// so this pod's vehicles reach whichever matchers own the ground beneath
+    /// them. The orchestrator itself stays geography-blind beyond this.
+    #[arg(long = "match-prefix", env, default_value = "events.match")]
+    match_prefix: String,
 
     /// How long to wait for a matcher's reply before re-driving the request.
     #[arg(long, env, value_parser = humantime::parse_duration, default_value = "5s")]
@@ -179,7 +181,7 @@ struct Worker {
     client: async_nats::Client,
     stream: jetstream::Context,
     archive: mpsc::Sender<(RawEvent, oneshot::Sender<()>)>,
-    request_subject: String,
+    match_prefix: String,
 
     gap: chrono::TimeDelta,
     jump_distance: f64,
@@ -281,7 +283,7 @@ async fn main() -> anyhow::Result<()> {
             client: client.clone(),
             stream: stream.clone(),
             archive: archive_tx.clone(),
-            request_subject: args.outbound_subject.clone(),
+            match_prefix: args.match_prefix.clone(),
             gap,
             jump_distance: args.jump_distance,
             context_window: args.context_window,
@@ -478,12 +480,20 @@ impl Worker {
 
         let context = self.create_context(history, payload);
 
+        // Route to the ground beneath the event: the matcher owning the
+        // head's shard solves it, degrading a foreign resume itself.
+        let subject = format!(
+            "{}.{}",
+            self.match_prefix,
+            routers_realtime::event::shard_of(payload.point)
+        );
+
         // The vehicle's lane holds through the round trip: its next event
         // cannot overtake this one, so a stale solve can never overwrite a
         // fresh trip. Other vehicles overlap on other workers.
         let Some(reply) = solve(
             &self.client,
-            &self.request_subject,
+            &subject,
             &context,
             self.solve_timeout,
             self.solve_retries,

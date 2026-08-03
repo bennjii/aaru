@@ -245,6 +245,18 @@ where
         }
     }
 
+    /// Whether every candidate the trip carries resolves against this
+    /// matcher's network. A trip resumed across a shard boundary references
+    /// edges of the shard it was solved on, which this shard's padding may
+    /// not cover — adopting it would route through nodes that do not exist
+    /// here. `false` means the trip must restart from its raw observations.
+    pub fn supports(&self, trip: &Trip<N::Entry>) -> bool {
+        trip.candidates().iter().all(|candidate| {
+            self.map.point(&candidate.edge.source).is_some()
+                && self.map.point(&candidate.edge.target).is_some()
+        })
+    }
+
     /// The convergence point of the trip's current solution: the latest layer
     /// no future push can change, asked of the same solver [`solve`] runs.
     /// `None` when the live paths never fuse; errors where a solve would

@@ -460,6 +460,54 @@ fn reconcile_restarts_when_observations_disagree() {
     );
 }
 
+/// A trip is supported by the network it was solved on, and not by one that
+/// lacks its nodes — the gate a matcher uses to degrade a foreign resume.
+#[test]
+fn supports_rejects_a_foreign_trip() {
+    let home = bent_road();
+    let costing = Costing::default();
+    let m = Matcher::new(
+        &home,
+        &costing,
+        StandardGenerator::new(&home, &costing.emission),
+        AllCompute::default(),
+        &(),
+    );
+
+    let mut trip = m.begin();
+    for &origin in &origins_of(&trajectory().into_points())[..3] {
+        m.push(&mut trip, origin).expect("push must anchor");
+    }
+
+    assert!(
+        m.supports(&trip),
+        "the solving network supports its own trip"
+    );
+
+    // A different shard entirely: same ids do not exist here.
+    let foreign = MockNetworkBuilder::new()
+        .node(100, point!(x: 151.20, y: -33.87))
+        .node(101, point!(x: 151.21, y: -33.87))
+        .edge(100, 101)
+        .build();
+    let m2 = Matcher::new(
+        &foreign,
+        &costing,
+        StandardGenerator::new(&foreign, &costing.emission),
+        AllCompute::default(),
+        &(),
+    );
+
+    assert!(
+        !m2.supports(&trip),
+        "a network missing the trip's nodes must refuse it"
+    );
+    assert!(
+        m2.supports(&m2.begin()),
+        "an empty trip carries no foreign references"
+    );
+}
+
 /// `LayerId` indexes everything on a trip: origins, candidate layers, trellis.
 #[test]
 fn trip_accessors_are_layer_indexed() {

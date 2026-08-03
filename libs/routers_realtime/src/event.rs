@@ -240,12 +240,23 @@ pub struct RawEvent {
     pub timestamp: DateTime<Utc>,
 }
 
+/// The fleet's geographic shard precision. One source of truth: matcher
+/// subjects, storage tags, and shard files must all agree on it.
+pub const SHARD_PRECISION: u8 = 4;
+
+/// The geographic shard an observation belongs to. Orchestrators route match
+/// requests to `events.match.<shard_of(point)>`; matchers each serve the one
+/// shard they loaded.
+pub fn shard_of(point: Point) -> Geohash {
+    GeohashStrategy::with_precision(SHARD_PRECISION).locate(point)
+}
+
 impl Storable for RawEvent {
     type ShardId = Geohash;
     type Key = VehicleId;
 
     fn shard_id(&self) -> Self::ShardId {
-        GeohashStrategy::with_precision(4).locate(self.point)
+        shard_of(self.point)
     }
 
     fn key(&self) -> Self::Key {

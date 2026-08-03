@@ -117,14 +117,26 @@ impl Matching {
         );
         let _entered = span.enter();
 
-        let (mut trip, fresh) = match continuation {
+        let (mut trip, fresh, downgraded) = match continuation {
+            // A resume solved on another shard references edges this shard's
+            // padding may not cover: adopting it would route through nodes
+            // that do not exist here. Degrade to a restart over the trip's
+            // own observations — the emission re-covers them under a higher
+            // revision, so the reconciled history heals the seam.
+            Continuation::Resume { trip, fresh } if !matcher.supports(&trip) => {
+                span.record("continuation", "downgrade");
+                warn!("{vehicle_id}: resume references a foreign shard; restarting");
+
+                let fresh = trip.origins().iter().copied().chain(fresh).collect();
+                (matcher.begin(), fresh, true)
+            }
             Continuation::Resume { trip, fresh } => {
                 span.record("continuation", "resume");
-                (trip, fresh)
+                (trip, fresh, false)
             }
             Continuation::Restart { fresh } => {
                 span.record("continuation", "restart");
-                (matcher.begin(), fresh)
+                (matcher.begin(), fresh, false)
             }
         };
 
@@ -173,10 +185,11 @@ impl Matching {
         };
 
         // Emit everything a future solve could still change — the whole trip
-        // since its last cut. Revision 0 until durable ingest supplies stream
-        // sequences.
-        let diff = info_span!("emit")
+        // since its last cut. The owner stamps the real revision (the ingest
+        // stream sequence) before publishing.
+        let mut diff = info_span!("emit")
             .in_scope(|| MatchedDiff::new(&solution, &origins, self.network.as_ref(), 0));
+        diff.downgraded = downgraded;
         drop(solution);
         span.record("emitted", diff.layers.len());
 
