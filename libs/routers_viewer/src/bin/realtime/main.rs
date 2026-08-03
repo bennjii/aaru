@@ -18,7 +18,7 @@ use clap::Parser;
 use log::info;
 use routers_codec::osm::OsmEntryId;
 use routers_realtime::bus::NATSStream;
-use routers_realtime::event::MatchResult;
+use routers_realtime::event::MatchedEvent;
 
 use crate::app::RealtimeApp;
 
@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
         .subscribe(args.inbound_subject)
         .await
         .context("could not subscribe to NATS subject")?;
-    let source = NATSStream::<MatchResult<E>>::new(subscriber);
+    let source = NATSStream::<MatchedEvent<E>>::new(subscriber);
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

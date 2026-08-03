@@ -48,14 +48,30 @@ pub struct MatchContext<E: Entry> {
     pub vehicle_id: VehicleId,
 }
 
+/// The matcher's answer to one [`MatchContext`], returned on the request's
+/// reply inbox. Correlation is the inbox itself; the orchestrator that asked
+/// already knows the vehicle.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MatchResult<E: Entry> {
+#[serde(bound(serialize = "E: Serialize", deserialize = "E: Deserialize<'de>"))]
+pub enum MatchReply<E: Entry> {
+    /// Solved: the emission, and the trip cut at its convergence point — the
+    /// resume state the orchestrator commits for the vehicle's next event.
+    Solved { diff: MatchedDiff<E>, trip: Trip<E> },
+
+    /// Nothing to emit: no anchored layers, or a nominal solve failure. The
+    /// orchestrator keeps its previous resume state; the event still enters
+    /// the raw history, so the next context carries it regardless.
+    NoMatch,
+}
+
+/// One vehicle's emission on the matched subject: what the reconciler (and
+/// any observer, e.g. the realtime viewer) consumes. The resume state stays
+/// on the control plane — nothing here carries a trip.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(bound(serialize = "E: Serialize", deserialize = "E: Deserialize<'de>"))]
+pub struct MatchedEvent<E: Entry> {
     pub vehicle_id: VehicleId,
     pub diff: MatchedDiff<E>,
-
-    /// The trip, cut at its convergence point — the resume state the
-    /// orchestrator commits for the vehicle's next event.
-    pub trip: Trip<E>,
 }
 
 /// One layer of matched history: the observation's identity (its timestamp),
@@ -153,7 +169,8 @@ pub struct Payload {
 
 // The match control plane is Rust-internal: postcard on the wire.
 postcard_wire!(MatchContext<E: Entry>);
-postcard_wire!(MatchResult<E: Entry>);
+postcard_wire!(MatchReply<E: Entry>);
+postcard_wire!(MatchedEvent<E: Entry>);
 
 /// The ingest surface crosses the bus as protobuf
 /// (`routers.realtime.v1.Payload`), so producers in any language can

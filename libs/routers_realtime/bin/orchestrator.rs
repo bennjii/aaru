@@ -6,8 +6,8 @@ use scc::hash_cache::Entry;
 
 use routers_codec::osm::OsmEntryId;
 use routers_realtime::{
-    bus::{NATSSink, NATSStream},
-    event::{MatchContext, MatchResult, Payload, RawEvent},
+    bus::{NATSSink, NATSStream, Wire},
+    event::{MatchContext, MatchReply, MatchedEvent, Payload, RawEvent},
     store::RedisStore,
 };
 use routers_transition::matcher::Trip;
@@ -25,20 +25,13 @@ use url::Url;
 
 type E = OsmEntryId;
 
-/// Everything the orchestrator reacts to: raw positions to assemble context
-/// for, and match results whose trip markers it commits to the store.
-enum Inbound {
-    Event(Payload),
-    Result(MatchResult<E>),
-}
-
-/// An [`Inbound`] handed to a worker, tagged with the wall-clock stamps the
+/// A [`Payload`] handed to a worker, tagged with the wall-clock stamps the
 /// dispatch loop captured: when it was queued (for channel-residency timing)
-/// and its wire send time (for end-to-end timing, and as the vehicle's origin).
+/// and its wire send time (for end-to-end timing).
 struct Dispatch {
     queued_at: web_time::SystemTime,
     sent_at: Option<web_time::SystemTime>,
-    inbound: Inbound,
+    payload: Payload,
 }
 
 #[derive(Parser, Debug)]
@@ -60,15 +53,26 @@ struct Args {
     #[arg(short, long = "in", env)]
     inbound_subject: String,
 
-    /// The NATS subject to emit match context messages out into.
-    /// For example, `events.match.{cell}.{rest}`.
+    /// The NATS subject the shard's matchers serve requests on.
+    /// For example, `events.match.{shard}`.
     #[arg(short, long = "out", env)]
     outbound_subject: String,
 
-    /// The NATS subject the matcher publishes results into. The orchestrator
-    /// commits each result's trip as the vehicle's resume state.
-    #[arg(long = "results", env)]
-    results_subject: String,
+    /// The NATS subject matched emissions publish into, for the reconciler
+    /// and any observer. For example, `events.matched.{shard}`.
+    #[arg(long = "matched", env)]
+    matched_subject: String,
+
+    /// How long to wait for a matcher's reply before re-driving the request.
+    #[arg(long, env, value_parser = humantime::parse_duration, default_value = "5s")]
+    solve_timeout: Duration,
+
+    /// Re-drives after the first attempt before the event is abandoned.
+    /// Replies are idempotent downstream (layers merge by timestamp and
+    /// resolve by revision), so a duplicate solve from a late reply is
+    /// convergence, not conflict.
+    #[arg(long, env, default_value_t = 3)]
+    solve_retries: usize,
 
     /// The number of context entries to retrieve from Redis for each vehicle.
     #[arg(short, long = "context-window", env, default_value = "10")]
@@ -85,10 +89,11 @@ struct Args {
     jump_distance: f64,
 
     /// How many workers to fan vehicles across. Each vehicle is pinned to one
-    /// by hash, so its events and results stay ordered on a worker that owns
-    /// their trip state outright — the maps need no locks, and the per-event
-    /// Redis fetch (the throughput bound) overlaps across vehicles.
-    #[arg(short, env, long, default_value = "8")]
+    /// by hash, so its events stay ordered on a worker that owns their trip
+    /// state outright — the maps need no locks. A worker now holds its lane
+    /// for a whole solve round trip, so this is the pod's in-flight solve
+    /// bound; workers are tokio tasks, priced accordingly.
+    #[arg(short, env, long, default_value = "64")]
     workers: usize,
 
     /// Vehicles each worker keeps trip state for, before the least recently
@@ -131,23 +136,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("could not connect to NATS")?;
 
-    let events = NATSStream::<Payload>::new(
+    let mut source = NATSStream::<Payload>::new(
         client
             .subscribe(args.inbound_subject)
             .await
             .context("could not subscribe to NATS event subject")?,
-    )
-    .map(Inbound::Event);
-
-    let results = NATSStream::<MatchResult<E>>::new(
-        client
-            .subscribe(args.results_subject)
-            .await
-            .context("could not subscribe to NATS results subject")?,
-    )
-    .map(Inbound::Result);
-
-    let mut source = futures::stream::select(events, results);
+    );
 
     let gap = chrono::Duration::from_std(args.gap).context("gap out of range")?;
 
@@ -166,23 +160,26 @@ async fn main() -> anyhow::Result<()> {
         txs.push(tx);
 
         let mut kv = store.clone();
+        let client = client.clone();
 
-        let subject = args.outbound_subject.clone();
-        let mut sink = NATSSink::<MatchContext<E>>::new(client.clone(), move |_| subject.clone());
+        let request_subject = args.outbound_subject.clone();
+        let matched_subject = args.matched_subject.clone();
+        let mut sink =
+            NATSSink::<MatchedEvent<E>>::new(client.clone(), move |_| matched_subject.clone());
 
         let context_window = args.context_window;
         let jump_distance = args.jump_distance;
         let vehicle_cache = args.vehicle_cache;
+        let solve_timeout = args.solve_timeout;
+        let solve_retries = args.solve_retries;
 
         handles.push(tokio::spawn(async move {
             let trips: HashCache<VehicleId, Trip<E>> = HashCache::with_capacity(0, vehicle_cache);
-            let origins: HashCache<VehicleId, web_time::SystemTime> =
-                HashCache::with_capacity(0, vehicle_cache);
 
             while let Some(Dispatch {
                 queued_at,
                 sent_at,
-                inbound,
+                payload,
             }) = rx.recv().await
             {
                 routers_realtime::bus::span_between(
@@ -191,99 +188,103 @@ async fn main() -> anyhow::Result<()> {
                     routers_realtime::bus::wallclock(),
                 );
 
-                match inbound {
-                    Inbound::Event(payload) => {
-                        if let Some(sent_at) = sent_at {
-                            match origins.entry(payload.vehicle_id.clone()) {
-                                Entry::Occupied(mut origin) => {
-                                    origin.put(sent_at);
-                                }
-                                Entry::Vacant(origin) => {
-                                    origin.put_entry(sent_at);
-                                }
-                            }
-                        }
+                let vehicle_id = payload.vehicle_id;
 
-                        let span = info_span!(
-                            "orchestrate",
-                            continuation = field::Empty,
-                            fresh = field::Empty,
-                            cut = field::Empty,
-                        );
+                let span = info_span!(
+                    "orchestrate",
+                    continuation = field::Empty,
+                    fresh = field::Empty,
+                    cut = field::Empty,
+                    attempts = field::Empty,
+                );
 
-                        let mut app = App {
-                            gap,
-                            context_window,
-                            jump_distance,
-                            trips: &trips,
-                            kv: &mut kv,
-                        };
+                let mut app = App {
+                    gap,
+                    context_window,
+                    jump_distance,
+                    trips: &trips,
+                    kv: &mut kv,
+                };
 
-                        match app
-                            .try_create_context(payload)
-                            .instrument(span.clone())
-                            .await
-                        {
-                            Ok(ctx) => {
-                                if let Err(err) = sink
-                                    .send(ctx)
-                                    .instrument(info_span!(parent: &span, "publish_context"))
-                                    .await
-                                {
-                                    error!("could not send match context: {err:#}");
-                                }
-                            }
-                            Err(err) => warn!("could not create match context: {err}"),
-                        }
+                let context = match app
+                    .try_create_context(payload)
+                    .instrument(span.clone())
+                    .await
+                {
+                    Ok(context) => context,
+                    Err(err) => {
+                        warn!("could not create match context: {err}");
+                        continue;
                     }
-                    Inbound::Result(result) => {
-                        let _span =
-                            info_span!("commit_result", layers = result.trip.layers()).entered();
+                };
 
-                        if let (Some((_, origin)), Some(matched_at)) =
-                            (origins.remove(&result.vehicle_id), sent_at)
-                        {
-                            routers_realtime::bus::span_between(
-                                "event_to_match",
-                                origin,
-                                matched_at,
-                            );
-                        }
+                // The vehicle's lane holds through the round trip: its next
+                // event cannot overtake this one, so a stale solve can never
+                // overwrite a fresh trip. Other vehicles overlap on other
+                // workers.
+                let Some(reply) = solve(
+                    &client,
+                    &request_subject,
+                    &context,
+                    solve_timeout,
+                    solve_retries,
+                    &span,
+                )
+                .instrument(span.clone())
+                .await
+                else {
+                    continue;
+                };
 
-                        match trips.entry(result.vehicle_id) {
-                            Entry::Occupied(mut trip) => {
-                                trip.put(result.trip);
+                if let MatchReply::Solved { diff, trip } = reply {
+                    info_span!(parent: &span, "commit_result", layers = trip.layers()).in_scope(
+                        || {
+                            if let Some(sent_at) = sent_at {
+                                routers_realtime::bus::span_between(
+                                    "event_to_match",
+                                    sent_at,
+                                    routers_realtime::bus::wallclock(),
+                                );
                             }
-                            Entry::Vacant(trip) => {
-                                trip.put_entry(result.trip);
+
+                            match trips.entry(vehicle_id) {
+                                Entry::Occupied(mut entry) => {
+                                    entry.put(trip);
+                                }
+                                Entry::Vacant(entry) => {
+                                    entry.put_entry(trip);
+                                }
                             }
-                        }
+                        },
+                    );
+
+                    if let Err(err) = sink
+                        .send(MatchedEvent { vehicle_id, diff })
+                        .instrument(info_span!(parent: &span, "publish_matched"))
+                        .await
+                    {
+                        error!("could not publish matched event: {err:#}");
                     }
                 }
             }
         }));
     }
 
-    while let Some(inbound) = source.next().await {
+    while let Some(payload) = source.next().await {
         // The wire stamp is only valid while this message is the stream's newest
         // yield, so capture it here rather than in the worker.
         let sent_at = routers_realtime::bus::last_sent_at();
 
-        let vehicle_id = match &inbound {
-            Inbound::Event(payload) => &payload.vehicle_id,
-            Inbound::Result(result) => &result.vehicle_id,
-        };
-
         // The stable path (not `DefaultHasher`): worker pinning is the same
         // per-vehicle spread the fleet's partition scheme derives, so the two
         // must never disagree on a Rust release boundary.
-        let worker = routers_realtime::partition::mix(vehicle_id.0) as usize % args.workers;
+        let worker = routers_realtime::partition::mix(payload.vehicle_id.0) as usize % args.workers;
 
         txs[worker]
             .send(Dispatch {
                 queued_at: routers_realtime::bus::wallclock(),
                 sent_at,
-                inbound,
+                payload,
             })
             .await
             .map_err(|_| anyhow::anyhow!("worker {worker} channel closed"))?;
@@ -296,6 +297,60 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Ask a matcher for one context's solve, re-driving on timeout or transport
+/// error. `None` when every attempt failed and the event is abandoned —
+/// until durable ingest lands, this path is exactly as lossy as the bus
+/// beneath it, just louder.
+async fn solve(
+    client: &async_nats::Client,
+    subject: &str,
+    context: &MatchContext<E>,
+    timeout: Duration,
+    retries: usize,
+    span: &tracing::Span,
+) -> Option<MatchReply<E>> {
+    let payload = match context.encode() {
+        Ok(payload) => payload,
+        Err(err) => {
+            error!("could not encode match context: {err:#}");
+            return None;
+        }
+    };
+
+    for attempt in 0..=retries {
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_millis(250) * attempt as u32).await;
+        }
+
+        let request = client.request_with_headers(
+            subject.to_string(),
+            routers_realtime::bus::outbound(),
+            payload.clone().into(),
+        );
+
+        match tokio::time::timeout(timeout, request).await {
+            Ok(Ok(message)) => {
+                span.record("attempts", attempt as u64 + 1);
+
+                match MatchReply::<E>::decode(&message.payload) {
+                    Ok(reply) => return Some(reply),
+                    // A decode failure is a version skew, not a transient:
+                    // re-driving it would only re-fail.
+                    Err(err) => {
+                        error!("undecodable reply: {err:#}");
+                        return None;
+                    }
+                }
+            }
+            Ok(Err(err)) => warn!("solve request failed (attempt {attempt}): {err}"),
+            Err(_) => warn!("solve request timed out (attempt {attempt})"),
+        }
+    }
+
+    error!("abandoning event after {} attempts", retries + 1);
+    None
 }
 
 impl App<'_> {

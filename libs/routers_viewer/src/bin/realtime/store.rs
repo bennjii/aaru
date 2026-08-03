@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use web_time::Instant;
 
 use geo::Point;
-use routers_realtime::event::{MatchResult, MatchedDiff, VehicleId};
+use routers_realtime::event::{MatchedDiff, MatchedEvent, VehicleId};
 
 use crate::E;
 
@@ -76,7 +76,7 @@ impl TraceStore {
         }
     }
 
-    pub fn ingest(&mut self, result: MatchResult<E>) {
+    pub fn ingest(&mut self, result: MatchedEvent<E>) {
         let now = Instant::now();
 
         self.event_bucket.push_back(now);

@@ -5,7 +5,7 @@ use eframe::CreationContext;
 use egui::SidePanel;
 use futures::StreamExt;
 use routers_realtime::bus::NATSStream;
-use routers_realtime::event::MatchResult;
+use routers_realtime::event::MatchedEvent;
 use walkers::{MapMemory, lon_lat};
 
 use routers_viewer::{ColourFactory, Component, Context, Map, Regular};
@@ -21,14 +21,14 @@ const DRAIN_PER_FRAME: usize = 2_000;
 pub struct RealtimeApp {
     map: Map,
     store: TraceStore,
-    rx: Receiver<MatchResult<E>>,
+    rx: Receiver<MatchedEvent<E>>,
     centered: bool,
 }
 
 impl RealtimeApp {
     pub fn new(
         ctx: &CreationContext<'_>,
-        mut source: NATSStream<MatchResult<E>>,
+        mut source: NATSStream<MatchedEvent<E>>,
         trace_capacity: usize,
         idle_ttl: Duration,
     ) -> Self {
