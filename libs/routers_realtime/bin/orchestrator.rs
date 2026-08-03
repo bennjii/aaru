@@ -1,4 +1,3 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::Duration;
 
 use routers_realtime::event::VehicleId;
@@ -276,9 +275,10 @@ async fn main() -> anyhow::Result<()> {
             Inbound::Result(result) => &result.vehicle_id,
         };
 
-        let mut hasher = DefaultHasher::new();
-        vehicle_id.hash(&mut hasher);
-        let worker = hasher.finish() as usize % args.workers;
+        // The stable path (not `DefaultHasher`): worker pinning is the same
+        // per-vehicle spread the fleet's partition scheme derives, so the two
+        // must never disagree on a Rust release boundary.
+        let worker = routers_realtime::partition::mix(vehicle_id.0) as usize % args.workers;
 
         txs[worker]
             .send(Dispatch {

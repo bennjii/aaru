@@ -9,6 +9,7 @@ use thiserror::Error;
 use url::Url;
 
 use crate::event::VehicleId;
+use crate::partition::{fnv1a, mix};
 use crate::store::Storable;
 
 #[derive(Debug, Error)]
@@ -22,28 +23,6 @@ pub enum StoreError {
 }
 
 type Result<T> = std::result::Result<T, StoreError>;
-
-/// FNV-1a. Stable by construction, which `DefaultHasher` is not: its algorithm
-/// may change between Rust releases, and every binary in the fleet has to agree
-/// on where a vehicle lives.
-fn fnv1a(bytes: &[u8]) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in bytes {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
-}
-
-/// splitmix64 finaliser. FNV-1a avalanches poorly on its own, and rendezvous
-/// hashing compares scores between nodes, so weak mixing would skew placement.
-fn mix(mut x: u64) -> u64 {
-    x ^= x >> 30;
-    x = x.wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    x ^= x >> 27;
-    x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
-    x ^ (x >> 31)
-}
 
 /// Which primary owns a key. Held apart from the connections so the mapping —
 /// the part that has to stay stable for history to survive — is testable
