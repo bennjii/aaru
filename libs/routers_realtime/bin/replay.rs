@@ -3,7 +3,7 @@
 use anyhow::Context;
 use async_nats::{ConnectOptions, ServerAddr};
 use clap::Parser;
-use fnv_rs::{Fnv32, FnvHasher};
+use fnv_rs::{Fnv64, FnvHasher};
 use futures::SinkExt;
 use geo::Point;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -13,7 +13,7 @@ use log::{debug, info};
 use polars::prelude::*;
 use routers_realtime::{
     bus::NATSSink,
-    event::{Payload, TripId, VehicleId},
+    event::{Payload, VehicleId},
 };
 use routers_shard::{GeohashStrategy, ShardingStrategy};
 use std::{fmt::Write, path::PathBuf, time::Duration};
@@ -65,7 +65,6 @@ const BUFFERED_PUBLISH_SIZE: usize = 8;
 
 // Column names
 const VEHICLE_ID_COL: &str = "VehicleID";
-const TRIP_ID_COL: &str = "TripID";
 
 const PROVIDER_COL: &str = "Provider";
 const EVENT_TIME_COL: &str = "EventTime";
@@ -124,7 +123,6 @@ async fn main() -> anyhow::Result<()> {
         .finish()?
         .sort([EVENT_TIME_COL], SortMultipleOptions::default())
         .select([
-            col(TRIP_ID_COL),
             col(VEHICLE_ID_COL),
             col(PROVIDER_COL),
             parse_datetime(TIME_FORMAT).fill_null(parse_datetime(TIME_FORMAT_FRACTIONAL)),
@@ -200,7 +198,6 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn rows_of(df: &DataFrame) -> PolarsResult<impl Iterator<Item = (u64, Payload)> + '_> {
-    let trip = df.column(TRIP_ID_COL)?.str()?;
     let vehicle = df.column(VEHICLE_ID_COL)?.str()?;
     let provider = df.column(PROVIDER_COL)?.str()?;
     let etime = df.column(EVENT_TIME_COL)?.datetime()?;
@@ -208,20 +205,20 @@ fn rows_of(df: &DataFrame) -> PolarsResult<impl Iterator<Item = (u64, Payload)> 
     let lon = df.column(LONGITUDE_COL)?.f64()?;
 
     Ok(izip!(
-        trip.into_iter(),
         vehicle.into_iter(),
         provider.into_iter(),
         etime.into_iter(),
         lat.into_iter(),
         lon.into_iter()
     )
-    .filter_map(|(trip, vehicle, _, etime, lat, lon)| {
-        let trip_id: [u8; 4] = Fnv32::hash(trip?).as_bytes().try_into().ok()?;
-        let vehicle_id: [u8; 4] = Fnv32::hash(vehicle?).as_bytes().try_into().ok()?;
+    .filter_map(|(vehicle, _, etime, lat, lon)| {
+        // The id contract (schema: realtime/v1/event.proto): the FNV-1a
+        // 64-bit hash of the upstream string, as an integer. `as_bytes`
+        // yields it big-endian.
+        let vehicle_id: [u8; 8] = Fnv64::hash(vehicle?).as_bytes().try_into().ok()?;
 
         let payload = Payload {
-            trip_id: TripId(u32::from_le_bytes(trip_id)),
-            vehicle_id: VehicleId(u32::from_le_bytes(vehicle_id)),
+            vehicle_id: VehicleId(u64::from_be_bytes(vehicle_id)),
             // The column is parsed as microseconds since the Unix epoch.
             timestamp: chrono::DateTime::from_timestamp_micros(etime.unwrap_or_default())
                 .unwrap_or_default(),
