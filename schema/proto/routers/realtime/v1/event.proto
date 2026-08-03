@@ -9,17 +9,18 @@ import "routers/model/v1/geo.proto";
 // Producers (in any language) publish this, protobuf-encoded, to the raw
 // events subject (`events.raw.{shard}`).
 //
-// Identifiers are compact 32-bit values, stepped down from the upstream
-// string ids at the ingest boundary (FNV-1a over the string); the strings
-// themselves never cross the wire. The step-down must be stable across
-// processes and runs — every producer must derive the same id for the same
-// vehicle.
+// The vehicle identifier is a compact 64-bit value, stepped down from the
+// upstream string id at the ingest boundary: the FNV-1a 64-bit hash of the
+// string's UTF-8 bytes, taken as an integer. The strings themselves never
+// cross the wire. The step-down must be stable across processes and runs —
+// every producer must derive the same id for the same vehicle.
 message Payload {
-  // The trip this observation was made under.
-  uint32 trip_id = 1;
+  // Field 1 carried a 32-bit trip id; retired, never reuse.
+  reserved 1;
+  reserved "trip_id";
 
   // The observed vehicle.
-  uint32 vehicle_id = 2;
+  uint64 vehicle_id = 2;
 
   // When the observation was made.
   google.protobuf.Timestamp timestamp = 3;

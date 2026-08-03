@@ -19,10 +19,10 @@ macro_rules! wire_id {
     ($(#[$doc:meta])* $name:ident) => {
         $(#[$doc])*
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-        pub struct $name(pub u32);
+        pub struct $name(pub u64);
 
-        impl From<u32> for $name {
-            fn from(value: u32) -> Self {
+        impl From<u64> for $name {
+            fn from(value: u64) -> Self {
                 Self(value)
             }
         }
@@ -36,12 +36,9 @@ macro_rules! wire_id {
 }
 
 wire_id! {
-    /// Identifies one vehicle across its events, history, and matches.
+    /// Identifies one vehicle across its events, history, and matches:
+    /// the FNV-1a 64-bit hash of the upstream string id.
     VehicleId
-}
-wire_id! {
-    /// Identifies the trip an event was observed under.
-    TripId
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,7 +57,6 @@ pub struct MatchResult<E: Entry, M: Metadata> {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Payload {
-    pub trip_id: TripId,
     pub vehicle_id: VehicleId,
 
     /// When the observation was made. Serialized as microseconds since the
@@ -91,7 +87,6 @@ impl Wire for Payload {
 impl From<&Payload> for proto::Payload {
     fn from(payload: &Payload) -> Self {
         proto::Payload {
-            trip_id: payload.trip_id.0,
             vehicle_id: payload.vehicle_id.0,
             timestamp: buffa::MessageField::some(
                 buffa_types::google::protobuf::Timestamp::from_unix(
@@ -115,7 +110,6 @@ impl From<proto::Payload> for Payload {
         let timestamp = payload.timestamp.into_option().unwrap_or_default();
 
         Payload {
-            trip_id: TripId(payload.trip_id),
             vehicle_id: VehicleId(payload.vehicle_id),
             timestamp: DateTime::from_timestamp(timestamp.seconds, timestamp.nanos as u32)
                 .unwrap_or_default(),
@@ -168,8 +162,8 @@ mod tests {
     #[test]
     fn payload_round_trips_over_the_wire() {
         let payload = Payload {
-            trip_id: TripId(0xdead),
-            vehicle_id: VehicleId(0xbeef),
+            // Above u32::MAX, so a truncation anywhere in the round trip fails.
+            vehicle_id: VehicleId(0xdead_beef_cafe_f00d),
             timestamp: DateTime::from_timestamp_micros(1_775_000_000_123_456).unwrap(),
             point: Point::new(150.871294, -33.938879),
         };
@@ -177,7 +171,6 @@ mod tests {
         let bytes = payload.encode().expect("payload must encode");
         let decoded = Payload::decode(&bytes).expect("payload must decode");
 
-        assert_eq!(decoded.trip_id, payload.trip_id);
         assert_eq!(decoded.vehicle_id, payload.vehicle_id);
         assert_eq!(decoded.timestamp, payload.timestamp);
         assert_eq!(decoded.point, payload.point);
