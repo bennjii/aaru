@@ -1,10 +1,12 @@
-/// Loads and sorts the full dataset, then walks events in
-/// chronological order. Publishes directly to the NATS EVENTS JetStream stream.
+/// Loads and sorts the full dataset, then walks events in chronological
+/// order. Publishes each event, broker-acknowledged, to its vehicle's
+/// partition subject on the durable raw streams — the reference producer for
+/// the ingest contract (`routers_realtime::partition` + `ingest`).
 use anyhow::Context;
-use async_nats::{ConnectOptions, ServerAddr};
+use async_nats::{ConnectOptions, ServerAddr, jetstream};
 use clap::Parser;
 use fnv_rs::{Fnv64, FnvHasher};
-use futures::SinkExt;
+use futures::{StreamExt, stream::FuturesUnordered};
 use geo::Point;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
@@ -12,10 +14,11 @@ use itertools::izip;
 use log::{debug, info};
 use polars::prelude::*;
 use routers_realtime::{
-    bus::NATSSink,
+    bus::{self, Wire},
     event::{Payload, VehicleId},
+    ingest, partition,
 };
-use routers_shard::{GeohashStrategy, ShardingStrategy};
+use std::future::IntoFuture;
 use std::{fmt::Write, path::PathBuf, time::Duration};
 use tokio::time::Instant;
 use url::Url;
@@ -41,27 +44,20 @@ struct Args {
     #[arg(short, env, long, default_value_t = 1)]
     loops: usize,
 
-    /// Shard precision level to send the events as
-    #[arg(short, env, long, default_value_t = 4)]
-    precision: u8,
-
-    /// The subject prefix to use for the NATS events stream
-    #[arg(long, env, default_value = "events.position")]
-    subject: String,
-
-    /// Geohash characters that form the cell token. The published subject is
-    /// `<subject>.<cell>.<rest>`, split here rather than sent as one token
-    /// because a NATS wildcard matches exactly one token — the split is what
-    /// lets a historian cover a whole cell with `<subject>.<cell>.*`.
-    #[arg(long, env, default_value_t = 2)]
-    cell_precision: u8,
+    /// How many raw streams the partition space divides across, fleet-wide.
+    /// Fixed config: revisions are stream sequences, so remapping partitions
+    /// to different streams is a migration, not a tuning knob.
+    #[arg(long, env, default_value_t = 4)]
+    streams: u64,
 }
 
 // 2026-04-01 03:40:02 UTC, or 2026-04-01 03:40:02.123456 UTC
 const TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S %Z";
 const TIME_FORMAT_FRACTIONAL: &str = "%Y-%m-%d %H:%M:%S%.f %Z";
 
-const BUFFERED_PUBLISH_SIZE: usize = 8;
+/// Publish acknowledgements kept in flight before the sender waits: enough
+/// to hide broker latency in flood mode without unbounded memory.
+const ACK_WINDOW: usize = 256;
 
 // Column names
 const VEHICLE_ID_COL: &str = "VehicleID";
@@ -97,26 +93,15 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     info!("replay starting: {:?}", args);
 
-    anyhow::ensure!(
-        args.cell_precision < args.precision,
-        "cell_precision ({}) must be below precision ({}), or the shard token would be empty",
-        args.cell_precision,
-        args.precision
-    );
-
     let client = ConnectOptions::new()
         .name("ReplayService")
         .connect(ServerAddr::from_url(args.nats)?)
         .await?;
 
-    let strategy = GeohashStrategy::with_precision(args.precision);
-    let cell_precision = usize::from(args.cell_precision);
-
-    let nats = NATSSink::<Payload>::new(client, move |&Payload { point, .. }| {
-        let geohash = strategy.locate(point).to_string();
-        let (cell, rest) = geohash.split_at(cell_precision);
-        format!("{}.{}.{}", args.subject, cell, rest)
-    });
+    let stream = jetstream::new(client);
+    for index in 0..args.streams {
+        ingest::raw_stream(&stream, index, args.streams).await?;
+    }
 
     let df = LazyCsvReader::new(args.file)
         .with_has_header(true)
@@ -148,8 +133,6 @@ async fn main() -> anyhow::Result<()> {
     let speed = if flood { f64::INFINITY } else { args.speed };
     let realtime_s = if flood { 0.0 } else { timespan_s / speed };
 
-    let mut sink = nats.buffer(BUFFERED_PUBLISH_SIZE);
-
     let pb = ProgressBar::new(df.height() as u64);
     pb.set_style(
         ProgressStyle::with_template(
@@ -171,6 +154,8 @@ async fn main() -> anyhow::Result<()> {
         ));
     }
 
+    let mut acks = FuturesUnordered::new();
+
     for iteration in 0..args.loops {
         pg.reset();
 
@@ -184,15 +169,31 @@ async fn main() -> anyhow::Result<()> {
             let offset = Duration::from_micros(time - min).div_f64(speed);
             tokio::time::sleep_until(start + offset).await;
 
-            sink.feed(payload).await?;
+            let subject = ingest::raw_subject(partition::partition_of(payload.vehicle_id));
+            let bytes = payload.encode().context("could not encode payload")?;
+
+            acks.push(
+                stream
+                    .publish_with_headers(subject, bus::outbound(), bytes.into())
+                    .await
+                    .context("could not publish event")?
+                    .into_future(),
+            );
+
+            // The broker confirms out of band; only wait once the window is
+            // full, so acknowledgement latency overlaps the next sends.
+            while acks.len() >= ACK_WINDOW {
+                acks.next().await.transpose()?;
+            }
         }
 
-        sink.flush().await?;
+        while let Some(ack) = acks.next().await {
+            ack?;
+        }
         pg.finish();
     }
 
     multi.remove(&pg);
-    sink.close().await?;
 
     Ok(())
 }
