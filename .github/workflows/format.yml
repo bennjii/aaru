@@ -3,12 +3,18 @@ name: Format & Check
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     types: [opened, synchronize]
 
+concurrency:
+  group: format-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 env:
   PROTOC_VERSION: 3.20.3
+  # Keep in step with the `buffa` workspace dependency and flake.nix.
+  BUFFA_VERSION: 0.6.0
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -20,6 +26,11 @@ jobs:
         with:
           lfs: true
 
+      - name: install protoc
+        uses: taiki-e/install-action@v2
+        with:
+          tool: protoc@${{ env.PROTOC_VERSION }}
+
       - name: Install Buf
         uses: bufbuild/buf-action@v1
         with:
@@ -27,6 +38,9 @@ jobs:
 
       - name: Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          # Caches are branch-scoped, so only `main` writes one for PRs to restore.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install `toolchain`
         run: rustup toolchain install stable
@@ -37,9 +51,21 @@ jobs:
       - name: Install `clippy`
         run: rustup component add clippy
 
+      - name: Cache packaging plugin
+        id: packager-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo-tools
+          key: buffa-packaging-${{ runner.os }}-${{ runner.arch }}-${{ env.BUFFA_VERSION }}
+
       - name: Install Packager
+        if: steps.packager-cache.outputs.cache-hit != 'true'
         run: |
-          cargo install --locked protoc-gen-buffa-packaging
+          cargo install --locked --root ~/.cargo-tools \
+            protoc-gen-buffa-packaging@${{ env.BUFFA_VERSION }}
+
+      - name: Put packaging plugin on PATH
+        run: echo "$HOME/.cargo-tools/bin" >> "$GITHUB_PATH"
 
       - name: Generate Schema
         run: |
@@ -49,4 +75,4 @@ jobs:
         run: cargo fmt --check
 
       - name: 🔍 Clippy
-        run: cargo clippy
+        run: cargo clippy --workspace
