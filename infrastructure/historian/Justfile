@@ -1,2 +1,0 @@
-build:
-    docker build -f Dockerfile -t routers-historian:latest ../..

@@ -1,7 +1,8 @@
 # Default values for routers-realtime.
 # The release namespace is controlled by `helm -n <ns>`; templates use .Release.Namespace.
 
-# One shard per matcher+orchestrator pair.
+# One matcher deployment per geographic shard. Orchestrators are not
+# geographic — they partition on vehicle id (see `orchestrator.replicas`).
 # Here's a suitable default for Sydney.
 shards:
   - r3gq
@@ -11,16 +12,25 @@ shards:
   - r652
   - r658
 
+# How many raw JetStream streams the 1024 vehicle partitions divide across,
+# fleet-wide. Wire law, not a tuning knob: revisions are stream sequences,
+# and remapping partitions to different streams is a migration.
+streams: 4
+
 # External infra references. Environment-specific values must be supplied via
 # an overlay file (`-f values-<env>.yaml`) or `--set`; the chart intentionally
 # does not ship real defaults so a bare `helm install` fails fast rather than
 # silently pointing at the wrong cluster.
 infra:
   nats:
-    # Client connection URL used by matcher, orchestrator, historian.
+    # Client connection URL used by matcher and orchestrator. Must have
+    # JetStream enabled (NATS server 2.10+: the orchestrator's filtered
+    # work-queue consumers need it).
     url: ""
   valkey:
-    # Client connection URL used by orchestrator and historian.
+    # Valkey primaries, comma-separated. Vehicles spread across them by
+    # rendezvous hash, so the order carries no meaning — but every consumer
+    # must be given the same set.
     url: ""
   otlp:
     # OTLP endpoint (http/protobuf) the matcher and orchestrator export
@@ -53,11 +63,18 @@ matcher:
     repository: routers-matcher
     tag: latest
     pullPolicy: Never
+  # Matchers queue-subscribe their shard subject, so replicas divide the
+  # load; scale per shard density, or let the HPA do it.
+  replicas: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 80
   rustLog: debug
   env:
-    # Worker tasks per matcher; vehicles are hash-pinned so per-vehicle
-    # ordering holds regardless of the count. Solves are CPU-bound, so this
-    # is sized to actually cover the node's cores under load.
+    # Concurrent solves per matcher. Solving is CPU-bound, so this is sized
+    # to actually cover the node's cores under load.
     WORKERS: "10"
   resources:
     requests:
@@ -76,63 +93,33 @@ orchestrator:
     repository: routers-orchestrator
     tag: latest
     pullPolicy: Never
+  # The vehicle-partitioned fleet: each pod derives a disjoint slice of the
+  # 1024 partitions from its StatefulSet ordinal. Re-scaling re-slices the
+  # space — do it with the fleet quiesced, or accept a short double-ownership
+  # window (wasteful, not wrong: emissions dedup by revision).
+  replicas: 4
   rustLog: info
   env:
-    # Concurrent workers per orchestrator. Each vehicle is pinned to one, so
-    # events and result-commits stay ordered per vehicle while the per-event
-    # Redis context fetch — the throughput bound — overlaps across vehicles.
-    # Sized against the fetch's stall tail (~5% of calls stall 50–100ms under
-    # load, lifting the mean to ~5ms): ceiling ≈ workers / mean-fetch, so 32
-    # holds ~6k evt/s per shard even with the tail unfixed. Workers are
-    # cheap — one Redis connection and a map shard each.
-    WORKERS: "32"
-    # Redis history entries fetched per event — also the resume overlap
-    # horizon: a vehicle may go this many events without a committed result
-    # before reconcile loses the overlap and restarts it. Sized to the
-    # historian's full retention so shed bursts and matcher turbulence stay
-    # recoverable; reconcile trims the trip to the true overlap either way,
-    # so resumes stay cheap.
+    # Worker lanes per orchestrator: each vehicle is pinned to one, and a
+    # lane holds through a whole solve round trip — this is the pod's
+    # in-flight solve bound. Workers are tokio tasks, priced accordingly.
+    WORKERS: "64"
+    # History entries a vehicle's context draws from — also the resume
+    # overlap horizon: a vehicle may go this many events without a committed
+    # result before reconcile loses the overlap and restarts it.
     CONTEXT_WINDOW: "25"
-    # Per-event matcher work budget: contexts carrying more fresh points
-    # than this are restarted over the newest points only. Keeps both the
-    # resume AND restart paths ~O(cap) boundaries, so there is no expensive
-    # mode for the system to collapse into under turbulence.
-    FRESH_CAP: "8"
+    # Vehicles each worker keeps trip and history lanes for. The fleet-wide
+    # bound is this × WORKERS per pod; size it above the concurrent vehicles
+    # the pod's partitions carry, or live vehicles thrash the Valkey re-warm.
+    VEHICLE_CACHE: "4096"
   resources:
     requests:
       cpu: 500m
       memory: 256Mi
     limits:
-      # Headroom for the per-vehicle trip map and the worker channels —
-      # trips accumulate over a run, and memory-limit reclaim stalls would
-      # masquerade as latency.
+      # Headroom for the per-vehicle trip and history lanes and the worker
+      # channels — memory-limit reclaim stalls would masquerade as latency.
       memory: 1024Mi
-
-historian:
-  enabled: true
-  image:
-    repository: routers-historian
-    tag: latest
-    pullPolicy: Never
-  replicas: 3
-  rustLog: debug
-  env:
-    # Events retained per vehicle stream (XADD MAXLEN).
-    HISTORY: "25"
-    # Redis batch size and flush deadline for archiving. Kept small on
-    # purpose: valkey is single-threaded, and a 1024-command pipeline
-    # monopolises its event loop for tens of ms — every orchestrator
-    # context fetch that arrives meanwhile queues behind it (measured as a
-    # 50–100ms tail on reads during flush windows). Smaller, more frequent
-    # batches trade a little XADD efficiency for smooth read latency.
-    BATCH_SIZE: "128"
-    BATCH_TIMEOUT: "20ms"
-  resources:
-    requests:
-      cpu: 500m
-      memory: 64Mi
-    limits:
-      memory: 256Mi
 
 grafanaDashboard:
   enabled: true

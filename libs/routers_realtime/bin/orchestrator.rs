@@ -73,9 +73,20 @@ struct Args {
 
     /// The vehicle partitions this pod owns, as an inclusive range
     /// ("0-255"). Assignment is static: give every pod a disjoint slice and
-    /// cover 0-1023 between them.
-    #[arg(short, env, long, value_parser = parse_partitions)]
-    partitions: RangeInclusive<u64>,
+    /// cover 0-1023 between them. Alternatively, derive the slice from a
+    /// StatefulSet identity via --pod-name and --fleet.
+    #[arg(short, env, long, value_parser = parse_partitions, conflicts_with_all = ["pod_name", "fleet"])]
+    partitions: Option<RangeInclusive<u64>>,
+
+    /// This pod's StatefulSet name (e.g. `orchestrator-3`): the trailing
+    /// ordinal picks its slice of the partition space. Pair with --fleet.
+    #[arg(long, env = "POD_NAME", requires = "fleet")]
+    pod_name: Option<String>,
+
+    /// Total pods in the StatefulSet. Every pod must be given the same
+    /// value, or their slices overlap or leave gaps.
+    #[arg(long, env, requires = "pod_name")]
+    fleet: Option<u64>,
 
     /// How many raw streams the partition space divides across, fleet-wide.
     /// Fixed config: revisions are stream sequences, so remapping partitions
@@ -165,6 +176,43 @@ struct Args {
     batch_timeout: Duration,
 }
 
+/// The slice of the partition space this pod owns: explicit, or derived from
+/// its StatefulSet identity — contiguous ordinal blocks, the last pod taking
+/// the remainder.
+fn owned_partitions(args: &Args) -> Result<RangeInclusive<u64>> {
+    if let Some(partitions) = &args.partitions {
+        return Ok(partitions.clone());
+    }
+
+    let (Some(name), Some(fleet)) = (&args.pod_name, args.fleet) else {
+        anyhow::bail!("provide --partitions, or --pod-name with --fleet");
+    };
+    anyhow::ensure!(
+        (1..=PARTITIONS).contains(&fleet),
+        "fleet size {fleet} outside 1..={PARTITIONS}"
+    );
+
+    let ordinal: u64 = name
+        .rsplit('-')
+        .next()
+        .unwrap_or_default()
+        .parse()
+        .with_context(|| format!("pod name {name:?} carries no trailing ordinal"))?;
+    anyhow::ensure!(
+        ordinal < fleet,
+        "ordinal {ordinal} outside fleet of {fleet}"
+    );
+
+    let chunk = PARTITIONS / fleet;
+    let start = ordinal * chunk;
+    let end = if ordinal == fleet - 1 {
+        PARTITIONS - 1
+    } else {
+        (ordinal + 1) * chunk - 1
+    };
+    Ok(start..=end)
+}
+
 /// How one event left the pipeline: fully processed, or deliberately
 /// dropped. Either way it is acknowledged — transient failures never reach
 /// this type, they retry inside the pipeline.
@@ -200,7 +248,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     info!("orchestrator started: {:?}", args);
 
-    let nats_url = ServerAddr::from_url(args.nats).context("could not create NATS url")?;
+    let nats_url = ServerAddr::from_url(args.nats.clone()).context("could not create NATS url")?;
 
     let client = ConnectOptions::new()
         .name("OrchestratorService")
@@ -354,8 +402,9 @@ async fn main() -> anyhow::Result<()> {
     // One forwarder per owned partition: pull the durable consumer, decode,
     // and pin to the vehicle's worker. Poison messages (undecodable) are
     // acked away — redelivering them can never succeed.
+    let owned = owned_partitions(&args)?;
     let mut forwarders = Vec::new();
-    for partition in args.partitions.clone() {
+    for partition in owned.clone() {
         let index = ingest::stream_index(partition, args.streams);
         let raw = ingest::raw_stream(&stream, index, args.streams).await?;
         let consumer =
@@ -413,7 +462,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!(
         "consuming partitions {:?} across {} stream(s)",
-        args.partitions, args.streams
+        owned, args.streams
     );
 
     for forwarder in forwarders {
@@ -697,4 +746,56 @@ async fn solve(
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(extra: &[&str]) -> Args {
+        let base = [
+            "orchestrator",
+            "--nats",
+            "nats://localhost",
+            "--redis",
+            "redis://localhost",
+        ];
+        Args::parse_from(base.iter().copied().chain(extra.iter().copied()))
+    }
+
+    /// Every fleet size slices the space disjointly and completely, ordinal
+    /// blocks in order, the last pod absorbing the remainder.
+    #[test]
+    fn fleet_slices_cover_the_space_disjointly() {
+        for fleet in [1u64, 3, 4, 7, 16] {
+            let mut next = 0;
+            for ordinal in 0..fleet {
+                let name = format!("orchestrator-{ordinal}");
+                let range =
+                    owned_partitions(&args(&["--pod-name", &name, "--fleet", &fleet.to_string()]))
+                        .unwrap();
+
+                assert_eq!(*range.start(), next, "fleet {fleet} ordinal {ordinal}");
+                next = range.end() + 1;
+            }
+            assert_eq!(next, PARTITIONS, "fleet {fleet} must cover the space");
+        }
+    }
+
+    #[test]
+    fn partition_ranges_parse_and_validate() {
+        assert_eq!(parse_partitions("0-255").unwrap(), 0..=255);
+        assert_eq!(parse_partitions("7").unwrap(), 7..=7);
+        assert!(parse_partitions("5-4").is_err());
+        assert!(parse_partitions("0-1024").is_err());
+    }
+
+    #[test]
+    fn fleet_rejects_a_nameless_or_oversized_ordinal() {
+        assert!(owned_partitions(&args(&["--pod-name", "orchestrator", "--fleet", "4"])).is_err());
+        assert!(
+            owned_partitions(&args(&["--pod-name", "orchestrator-4", "--fleet", "4"])).is_err()
+        );
+        assert!(owned_partitions(&args(&[])).is_err());
+    }
 }

@@ -1,54 +1,70 @@
-{{- range $shard := .Values.shards }}
+# The orchestrator fleet is vehicle-partitioned, not geographic: a
+# StatefulSet whose pods each derive a disjoint slice of the 1024 vehicle
+# partitions from their ordinal (POD_NAME + FLEET; see the binary's
+# --pod-name/--fleet). Scaling the fleet re-slices the space, so change
+# `orchestrator.replicas` with the fleet quiesced or accept a window of
+# double-ownership — which revisions make wasteful, not wrong.
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  labels:
+    {{- include "routers.labels" . | nindent 4 }}
+    app: orchestrator
+spec:
+  clusterIP: None
+  selector:
+    app: orchestrator
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: orchestrator-{{ $shard }}
+  name: orchestrator
   labels:
-    {{- include "routers.labels" $ | nindent 4 }}
-    app: orchestrator-shard
-    shard: "{{ $shard }}"
+    {{- include "routers.labels" . | nindent 4 }}
+    app: orchestrator
 spec:
-  replicas: 1
+  serviceName: orchestrator
+  replicas: {{ .Values.orchestrator.replicas }}
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
-      app: orchestrator-shard
-      shard: "{{ $shard }}"
+      app: orchestrator
   template:
     metadata:
       labels:
-        {{- include "routers.labels" $ | nindent 8 }}
-        app: orchestrator-shard
-        shard: "{{ $shard }}"
+        {{- include "routers.labels" . | nindent 8 }}
+        app: orchestrator
     spec:
       containers:
         - name: orchestrator
-          image: "{{ $.Values.orchestrator.image.repository }}:{{ $.Values.orchestrator.image.tag }}"
-          imagePullPolicy: {{ $.Values.orchestrator.image.pullPolicy }}
+          image: "{{ .Values.orchestrator.image.repository }}:{{ .Values.orchestrator.image.tag }}"
+          imagePullPolicy: {{ .Values.orchestrator.image.pullPolicy }}
           env:
             - name: NATS
-              value: {{ $.Values.infra.nats.url | quote }}
+              value: {{ .Values.infra.nats.url | quote }}
             - name: REDIS
-              value: {{ $.Values.infra.valkey.url | quote }}
-            - name: INBOUND_SUBJECT
-              value: "events.raw.{{ $shard }}"
-            - name: OUTBOUND_SUBJECT
-              value: "events.match.{{ $shard }}"
-            - name: RESULTS_SUBJECT
-              value: "events.matched.{{ $shard }}"
+              value: {{ .Values.infra.valkey.url | quote }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: FLEET
+              value: {{ .Values.orchestrator.replicas | quote }}
+            - name: STREAMS
+              value: {{ .Values.streams | quote }}
             - name: RUST_LOG
-              value: {{ $.Values.orchestrator.rustLog | quote }}
-            {{- range $name, $value := $.Values.orchestrator.env }}
+              value: {{ .Values.orchestrator.rustLog | quote }}
+            {{- range $name, $value := .Values.orchestrator.env }}
             - name: {{ $name }}
               value: {{ $value | quote }}
             {{- end }}
-            {{- if $.Values.infra.otlp.url }}
+            {{- if .Values.infra.otlp.url }}
             # Spans exported here become Prometheus series via the
             # collector's spanmetrics pipeline; unset, telemetry degrades
             # to plain structured logs.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: {{ $.Values.infra.otlp.url | quote }}
+              value: {{ .Values.infra.otlp.url | quote }}
             {{- end }}
           resources:
-            {{- toYaml $.Values.orchestrator.resources | nindent 12 }}
-{{- end }}
+            {{- toYaml .Values.orchestrator.resources | nindent 12 }}

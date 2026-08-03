@@ -3,6 +3,8 @@ namespace := "routers-dev"
 bringup: repos
     helm upgrade --install nats nats/nats \
         -n {{ namespace }} --create-namespace \
+        --set config.jetstream.enabled=true \
+        --set config.jetstream.fileStore.pvc.size=10Gi \
         --set promExporter.enabled=true \
         --set promExporter.port=7777 \
         --set promExporter.podMonitor.enabled=true \
@@ -59,6 +61,8 @@ grafana-forward port="3030":
 patch: repos
     helm upgrade nats nats/nats \
         -n {{ namespace }} \
+        --set config.jetstream.enabled=true \
+        --set config.jetstream.fileStore.pvc.size=10Gi \
         --set promExporter.enabled=true \
         --set promExporter.port=7777 \
         --set promExporter.podMonitor.enabled=true \
