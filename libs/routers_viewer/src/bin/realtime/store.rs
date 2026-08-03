@@ -1,42 +1,50 @@
-use alloc::collections::VecDeque;
+use alloc::collections::{BTreeMap, VecDeque};
 use core::time::Duration;
 use std::collections::HashMap;
 use web_time::Instant;
 
 use geo::Point;
-use routers_realtime::event::{MatchResult, VehicleId};
+use routers_realtime::event::{MatchResult, MatchedDiff, VehicleId};
 
-use crate::{E, M};
+use crate::E;
 
-/// A vehicle's latest full matched solution, oldest point first. Each new
-/// result supersedes the previous one entirely.
+/// A vehicle's matched history, merged from diff emissions: one geometry
+/// segment per observation timestamp. Overlapping emissions supersede per
+/// layer — re-emission is convergence, not conflict — so the trace heals as
+/// later solves refine earlier layers.
 pub struct VehicleTrace {
-    pub segments: Vec<Point>,
+    /// Observation timestamp → the geometry driven into that observation
+    /// (its inbound road path, then its matched position).
+    layers: BTreeMap<i64, Vec<Point>>,
     pub last_seen: Instant,
 }
 
 impl VehicleTrace {
     fn new() -> Self {
         Self {
-            segments: Vec::new(),
+            layers: BTreeMap::new(),
             last_seen: Instant::now(),
         }
     }
 
-    fn assign(&mut self, mut segment: Vec<Point>, capacity: usize) {
-        // Keep only the newest `capacity` points; the segment runs
-        // oldest→newest, so trim from the front.
-        if segment.len() > capacity {
-            segment.drain(..segment.len() - capacity);
+    fn merge(&mut self, diff: &MatchedDiff<E>, capacity: usize) {
+        for layer in &diff.layers {
+            let mut segment = layer.path.clone();
+            segment.push(layer.position);
+            self.layers.insert(layer.timestamp, segment);
         }
 
-        self.segments = segment;
+        // Bound by observation count, trimming the oldest.
+        while self.layers.len() > capacity {
+            self.layers.pop_first();
+        }
+
         self.last_seen = Instant::now();
     }
 
-    /// The full tail as one point sequence, for rendering.
+    /// The full tail as one point sequence, oldest observation first.
     pub fn flattened(&self) -> Vec<Point> {
-        self.segments.clone()
+        self.layers.values().flatten().copied().collect()
     }
 }
 
@@ -46,9 +54,9 @@ pub struct StoreStats {
     pub total_events: u64,
 }
 
-/// Latest matched solution per vehicle. Memory is bounded on both axes:
-/// each vehicle retains at most `capacity` points, and vehicles that go
-/// quiet for longer than `idle_ttl` are evicted entirely.
+/// Merged matched history per vehicle. Memory is bounded on both axes:
+/// each vehicle retains at most `capacity` observations, and vehicles that
+/// go quiet for longer than `idle_ttl` are evicted entirely.
 pub struct TraceStore {
     capacity: usize,
     idle_ttl: Duration,
@@ -68,30 +76,23 @@ impl TraceStore {
         }
     }
 
-    pub fn ingest(&mut self, result: MatchResult<E, M>) {
+    pub fn ingest(&mut self, result: MatchResult<E>) {
         let now = Instant::now();
 
         self.event_bucket.push_back(now);
         self.total_events += 1;
 
-        // The matched solution arrives in chronological order, so the last
-        // point is the vehicle's current position, which the plugin marks
-        // with the head dot.
-        let segment: Vec<Point> = result
-            .path
-            .interpolated
-            .iter()
-            .map(|element| Point::from(element.point))
-            .collect();
-
-        if segment.is_empty() {
+        if result.diff.layers.is_empty() {
             return;
         }
 
+        // Layers merge by observation timestamp, so the newest one is the
+        // vehicle's current position, which the plugin marks with the head
+        // dot.
         self.traces
             .entry(result.vehicle_id)
             .or_insert_with(VehicleTrace::new)
-            .assign(segment, self.capacity);
+            .merge(&result.diff, self.capacity);
     }
 
     pub fn evict_idle(&mut self) {

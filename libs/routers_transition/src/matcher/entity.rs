@@ -245,6 +245,22 @@ where
         }
     }
 
+    /// The convergence point of the trip's current solution: the latest layer
+    /// no future push can change, asked of the same solver [`solve`] runs.
+    /// `None` when the live paths never fuse; errors where a solve would
+    /// (nothing to solve, pending boundaries, unreachable).
+    ///
+    /// See [`ViterbiSolver::convergence`] for the guarantee and its price —
+    /// one extra forward pass per ask.
+    ///
+    /// [`solve`]: Self::solve
+    pub fn convergence(&self, trip: &Trip<N::Entry>) -> Result<Option<LayerId>, MatchError> {
+        let Some(trellis) = trip.trellis() else {
+            return Err(TrellisError::Empty.into());
+        };
+        Ok(ViterbiSolver::new().convergence(trellis)?)
+    }
+
     /// Solve (if pending) and collapse the trip's current solution into a
     /// [`CollapsedPath`], re-deriving each chosen hop's routed geometry from
     /// the (warm) predicate cache — nothing is stored during weighing.

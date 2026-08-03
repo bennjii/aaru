@@ -4,7 +4,7 @@ use routers_realtime::event::VehicleId;
 use scc::HashCache;
 use scc::hash_cache::Entry;
 
-use routers_codec::osm::{OsmEdgeMetadata, OsmEntryId};
+use routers_codec::osm::OsmEntryId;
 use routers_realtime::{
     bus::{NATSSink, NATSStream},
     event::{MatchContext, MatchResult, Payload, RawEvent},
@@ -24,13 +24,12 @@ use tracing::{Instrument, field, info_span, warn};
 use url::Url;
 
 type E = OsmEntryId;
-type M = OsmEdgeMetadata;
 
 /// Everything the orchestrator reacts to: raw positions to assemble context
 /// for, and match results whose trip markers it commits to the store.
 enum Inbound {
     Event(Payload),
-    Result(MatchResult<E, M>),
+    Result(MatchResult<E>),
 }
 
 /// An [`Inbound`] handed to a worker, tagged with the wall-clock stamps the
@@ -140,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .map(Inbound::Event);
 
-    let results = NATSStream::<MatchResult<E, M>>::new(
+    let results = NATSStream::<MatchResult<E>>::new(
         client
             .subscribe(args.results_subject)
             .await

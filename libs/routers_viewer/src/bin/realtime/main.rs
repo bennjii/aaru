@@ -16,14 +16,13 @@ use core::time::Duration;
 use anyhow::{Context, Result};
 use clap::Parser;
 use log::info;
-use routers_codec::osm::{OsmEdgeMetadata, OsmEntryId};
+use routers_codec::osm::OsmEntryId;
 use routers_realtime::bus::NATSStream;
 use routers_realtime::event::MatchResult;
 
 use crate::app::RealtimeApp;
 
 type E = OsmEntryId;
-type M = OsmEdgeMetadata;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -65,7 +64,7 @@ async fn main() -> Result<()> {
         .subscribe(args.inbound_subject)
         .await
         .context("could not subscribe to NATS subject")?;
-    let source = NATSStream::<MatchResult<E, M>>::new(subscriber);
+    let source = NATSStream::<MatchResult<E>>::new(subscriber);
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

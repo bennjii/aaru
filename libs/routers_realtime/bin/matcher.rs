@@ -5,12 +5,11 @@ use routers_codec::osm::{OsmEdgeMetadata, OsmEntryId};
 use routers_network::Metadata;
 use routers_realtime::{
     bus::{NATSSink, NATSStream},
-    event::{MatchContext, MatchResult},
+    event::{MatchContext, MatchResult, MatchedDiff},
 };
 use routers_shard::{FileFetcher, Geohash, ShardLoader, ShardedNetwork};
 use routers_transition::{
     Continuation, MatchError, Matcher,
-    candidate::RoutedPath,
     costing::{CostingStrategies, DefaultEmissionCost, DefaultTransitionCost},
     layer::generation::StandardGenerator,
     primitives::PredicateCache,
@@ -90,7 +89,7 @@ impl Matching {
             vehicle_id,
             continuation,
         }: MatchContext<E>,
-    ) -> Option<MatchResult<E, M>> {
+    ) -> Option<MatchResult<E>> {
         let mut generator = StandardGenerator::new(self.network.as_ref(), &self.costing.emission);
         if let Some(distance) = self.search_distance {
             generator = generator.with_search_distance(distance);
@@ -110,6 +109,8 @@ impl Matching {
             outcome = field::Empty,
             severity = field::Empty,
             continuation = field::Empty,
+            converged = field::Empty,
+            emitted = field::Empty,
         );
         let _entered = span.enter();
 
@@ -155,6 +156,9 @@ impl Matching {
             return None;
         }
 
+        // Copied out: the snapshot's borrow spans the whole trip mutably.
+        let origins = trip.origins().to_vec();
+
         let solution = match info_span!("snapshot").in_scope(|| matcher.snapshot(&mut trip)) {
             Ok(solution) => solution,
             Err(err) => {
@@ -165,13 +169,33 @@ impl Matching {
             }
         };
 
+        // Emit everything a future solve could still change — the whole trip
+        // since its last cut. Revision 0 until durable ingest supplies stream
+        // sequences.
+        let diff = info_span!("emit")
+            .in_scope(|| MatchedDiff::new(&solution, &origins, self.network.as_ref(), 0));
+        drop(solution);
+        span.record("emitted", diff.layers.len());
+
+        // Cut behind the convergence point: those layers are final, already
+        // emitted, and only cost wire from here on. The convergence layer
+        // itself stays as the resume anchor. An unfused trip stays whole —
+        // the orchestrator's context window bounds its growth.
+        match matcher.convergence(&trip) {
+            Ok(Some(layer)) => {
+                span.record("converged", layer.index() as u64);
+                trip.tail(trip.layers() - layer.index());
+            }
+            Ok(None) => {}
+            Err(err) => error!("{vehicle_id}: convergence query failed: {err}"),
+        }
+
         span.record("outcome", "success");
         span.record("severity", "ok");
 
-        let path = RoutedPath::new(solution, self.network.as_ref());
         Some(MatchResult {
-            path,
             vehicle_id,
+            diff,
             trip,
         })
     }
@@ -219,7 +243,7 @@ async fn main() -> anyhow::Result<()> {
         .context("could not subscribe to NATS subject")?;
     let source = NATSStream::<MatchContext<E>>::new(subscriber);
 
-    let sink = NATSSink::<MatchResult<E, M>>::new(client, move |_| args.outbound_subject.clone());
+    let sink = NATSSink::<MatchResult<E>>::new(client, move |_| args.outbound_subject.clone());
 
     let matching = Arc::new(Matching {
         network,
