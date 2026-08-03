@@ -1,11 +1,14 @@
-use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::Duration;
+
+use routers_realtime::event::VehicleId;
+use scc::HashCache;
+use scc::hash_cache::Entry;
 
 use routers_codec::osm::{OsmEdgeMetadata, OsmEntryId};
 use routers_realtime::{
     bus::{NATSSink, NATSStream},
-    event::{MatchContext, MatchResult, Payload, RawEvent, VehicleId},
+    event::{MatchContext, MatchResult, Payload, RawEvent},
     store::RedisStore,
 };
 use routers_transition::Continuation;
@@ -47,17 +50,20 @@ struct Args {
     #[arg(short, env, long)]
     nats: Url,
 
-    /// URL of the Redis cluster
-    #[arg(short, env, long)]
-    redis: Url,
+    /// Valkey primaries, comma-separated. Vehicles are spread across them by
+    /// rendezvous hash, so the order carries no meaning and every binary that
+    /// touches the history must be given the same set.
+    #[arg(short, env, long, value_delimiter = ',')]
+    redis: Vec<Url>,
 
     /// The NATS subject to use to source raw events from.
-    /// For example, `events.raw.{shard}` where shard is the geohash shard identifier.
+    /// For example, `events.position.{cell}.{rest}`, the shard's geohash split
+    /// across two tokens.
     #[arg(short, long = "in", env)]
     inbound_subject: String,
 
     /// The NATS subject to emit match context messages out into.
-    /// For example, `events.match.{shard}` where shard is the geohash shard identifier.
+    /// For example, `events.match.{cell}.{rest}`.
     #[arg(short, long = "out", env)]
     outbound_subject: String,
 
@@ -72,7 +78,7 @@ struct Args {
 
     /// Points older than this will be discarded from history, regardless
     /// of if it's within the KV store, or not.
-    #[arg(long, env, value_parser = humantime::parse_duration, default_value = "300s")]
+    #[arg(long, env, value_parser = humantime::parse_duration, default_value = "120s")]
     gap: Duration,
 
     /// Consecutive points further away than this will be treated as a "teleport",
@@ -86,6 +92,20 @@ struct Args {
     /// Redis fetch (the throughput bound) overlaps across vehicles.
     #[arg(short, env, long, default_value = "8")]
     workers: usize,
+
+    /// Vehicles each worker keeps trip state for, before the least recently
+    /// used is evicted.
+    ///
+    /// Vehicles are hash-spread across workers, so the fleet-wide bound is this
+    /// times `workers`. Size it above the concurrent vehicles a shard carries:
+    /// evicting a vehicle that is still moving forces its next event to restart
+    /// the trip rather than resume it. Rounded up to a power of two.
+    ///
+    /// Unbounded is not an option here. Trip state is per vehicle and vehicles
+    /// leave a shard permanently, so an unbounded map grows for the life of the
+    /// pod.
+    #[arg(long, env, default_value_t = 1024)]
+    vehicle_cache: usize,
 }
 
 /// A worker's view of the shared configuration and its own trip state, borrowed
@@ -94,7 +114,7 @@ struct App<'a> {
     gap: chrono::TimeDelta,
     jump_distance: f64,
     context_window: usize,
-    trips: &'a HashMap<VehicleId, Trip<E>>,
+    trips: &'a HashCache<VehicleId, Trip<E>>,
     kv: &'a mut RedisStore<RawEvent>,
 }
 
@@ -133,6 +153,13 @@ async fn main() -> anyhow::Result<()> {
 
     let gap = chrono::Duration::from_std(args.gap).context("gap out of range")?;
 
+    // Connected once, then cloned per worker: the clone shares the multiplexed
+    // sockets, so the pod holds one connection per primary rather than one per
+    // primary per worker.
+    let store = RedisStore::<RawEvent>::new(&args.redis)
+        .await
+        .context("could not connect to redis store")?;
+
     let mut handles = Vec::with_capacity(args.workers);
     let mut txs = Vec::with_capacity(args.workers);
 
@@ -140,24 +167,19 @@ async fn main() -> anyhow::Result<()> {
         let (tx, mut rx) = mpsc::channel::<Dispatch>(1024);
         txs.push(tx);
 
-        let mut kv = RedisStore::<RawEvent>::new(args.redis.clone())
-            .await
-            .context("could not connect to redis store")?;
+        let mut kv = store.clone();
 
         let subject = args.outbound_subject.clone();
         let mut sink = NATSSink::<MatchContext<E>>::new(client.clone(), move |_| subject.clone());
 
         let context_window = args.context_window;
         let jump_distance = args.jump_distance;
+        let vehicle_cache = args.vehicle_cache;
 
         handles.push(tokio::spawn(async move {
-            // This worker's vehicles, and their state. `trips` is the trellis
-            // from each vehicle's last solve, committed back by the matcher and
-            // resumed from on its next event; `origins` is when each vehicle's
-            // newest event was published, for the end-to-end `event_to_match`
-            // span. Both are derived — losing them just forces a restart.
-            let mut trips: HashMap<VehicleId, Trip<E>> = HashMap::new();
-            let mut origins: HashMap<VehicleId, web_time::SystemTime> = HashMap::new();
+            let trips: HashCache<VehicleId, Trip<E>> = HashCache::with_capacity(0, vehicle_cache);
+            let origins: HashCache<VehicleId, web_time::SystemTime> =
+                HashCache::with_capacity(0, vehicle_cache);
 
             while let Some(Dispatch {
                 queued_at,
@@ -174,7 +196,14 @@ async fn main() -> anyhow::Result<()> {
                 match inbound {
                     Inbound::Event(payload) => {
                         if let Some(sent_at) = sent_at {
-                            origins.insert(payload.vehicle_id, sent_at);
+                            match origins.entry(payload.vehicle_id.clone()) {
+                                Entry::Occupied(mut origin) => {
+                                    origin.put(sent_at);
+                                }
+                                Entry::Vacant(origin) => {
+                                    origin.put_entry(sent_at);
+                                }
+                            }
                         }
 
                         let span = info_span!(
@@ -213,7 +242,7 @@ async fn main() -> anyhow::Result<()> {
                         let _span =
                             info_span!("commit_result", layers = result.trip.layers()).entered();
 
-                        if let (Some(origin), Some(matched_at)) =
+                        if let (Some((_, origin)), Some(matched_at)) =
                             (origins.remove(&result.vehicle_id), sent_at)
                         {
                             routers_realtime::bus::span_between(
@@ -223,7 +252,14 @@ async fn main() -> anyhow::Result<()> {
                             );
                         }
 
-                        trips.insert(result.vehicle_id, result.trip);
+                        match trips.entry(result.vehicle_id) {
+                            Entry::Occupied(mut trip) => {
+                                trip.put(result.trip);
+                            }
+                            Entry::Vacant(trip) => {
+                                trip.put_entry(result.trip);
+                            }
+                        }
                     }
                 }
             }
@@ -236,8 +272,8 @@ async fn main() -> anyhow::Result<()> {
         let sent_at = routers_realtime::bus::last_sent_at();
 
         let vehicle_id = match &inbound {
-            Inbound::Event(payload) => payload.vehicle_id,
-            Inbound::Result(result) => result.vehicle_id,
+            Inbound::Event(payload) => &payload.vehicle_id,
+            Inbound::Result(result) => &result.vehicle_id,
         };
 
         let mut hasher = DefaultHasher::new();
@@ -308,7 +344,7 @@ impl App<'_> {
         }
 
         let mut history: Vec<RawEvent> = std::iter::once(RawEvent {
-            vehicle_id,
+            vehicle_id: vehicle_id.clone(),
             point,
             timestamp,
         })
@@ -323,8 +359,9 @@ impl App<'_> {
             .map(|event| event.point)
             .collect::<Vec<Point>>();
 
-        let continuation = info_span!("reconcile")
-            .in_scope(|| Continuation::reconcile(self.trips.get(&vehicle_id).cloned(), &points));
+        let previous = self.trips.get(&vehicle_id).map(|trip| trip.get().clone());
+        let continuation =
+            info_span!("reconcile").in_scope(|| Continuation::reconcile(previous, &points));
 
         let span = tracing::Span::current();
         span.record("cut", cut);

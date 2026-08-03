@@ -3,6 +3,7 @@
 use anyhow::Context;
 use async_nats::{ConnectOptions, ServerAddr};
 use clap::Parser;
+use fnv_rs::{Fnv32, FnvHasher};
 use futures::SinkExt;
 use geo::Point;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -10,7 +11,10 @@ use indicatif_log_bridge::LogWrapper;
 use itertools::izip;
 use log::{debug, info};
 use polars::prelude::*;
-use routers_realtime::{bus::NATSSink, event::Payload};
+use routers_realtime::{
+    bus::NATSSink,
+    event::{Payload, TripId, VehicleId},
+};
 use routers_shard::{GeohashStrategy, ShardingStrategy};
 use std::{fmt::Write, path::PathBuf, time::Duration};
 use tokio::time::Instant;
@@ -42,8 +46,15 @@ struct Args {
     precision: u8,
 
     /// The subject prefix to use for the NATS events stream
-    #[arg(long, env, default_value = "events.raw")]
+    #[arg(long, env, default_value = "events.position")]
     subject: String,
+
+    /// Geohash characters that form the cell token. The published subject is
+    /// `<subject>.<cell>.<rest>`, split here rather than sent as one token
+    /// because a NATS wildcard matches exactly one token — the split is what
+    /// lets a historian cover a whole cell with `<subject>.<cell>.*`.
+    #[arg(long, env, default_value_t = 2)]
+    cell_precision: u8,
 }
 
 // 2026-04-01 03:40:02 UTC, or 2026-04-01 03:40:02.123456 UTC
@@ -56,26 +67,11 @@ const BUFFERED_PUBLISH_SIZE: usize = 8;
 const VEHICLE_ID_COL: &str = "VehicleID";
 const TRIP_ID_COL: &str = "TripID";
 
+const PROVIDER_COL: &str = "Provider";
 const EVENT_TIME_COL: &str = "EventTime";
 
 const LATITUDE_COL: &str = "Latitude";
 const LONGITUDE_COL: &str = "Longitude";
-
-/// Step an upstream string id down to its compact wire id (FNV-1a, 32-bit).
-///
-/// The hash must be stable across processes and runs — the redis history,
-/// a resumed trip, and a restarted orchestrator all have to agree on the
-/// same id for the same vehicle — which rules out `DefaultHasher`
-/// (per-process random keys). Collisions merge two vehicles' streams; at
-/// fleet cardinality `n` the odds are ~`n²/2³³` (a 100k fleet: ~0.1%).
-fn stepdown<I: From<u32>>(value: &str) -> I {
-    let mut hash: u32 = 0x811c9dc5;
-    for byte in value.as_bytes() {
-        hash ^= u32::from(*byte);
-        hash = hash.wrapping_mul(0x01000193);
-    }
-    I::from(hash)
-}
 
 fn parse_datetime(fmt: &str) -> Expr {
     col(EVENT_TIME_COL).str().to_datetime(
@@ -102,14 +98,25 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     info!("replay starting: {:?}", args);
 
+    anyhow::ensure!(
+        args.cell_precision < args.precision,
+        "cell_precision ({}) must be below precision ({}), or the shard token would be empty",
+        args.cell_precision,
+        args.precision
+    );
+
     let client = ConnectOptions::new()
         .name("ReplayService")
         .connect(ServerAddr::from_url(args.nats)?)
         .await?;
 
     let strategy = GeohashStrategy::with_precision(args.precision);
+    let cell_precision = usize::from(args.cell_precision);
+
     let nats = NATSSink::<Payload>::new(client, move |&Payload { point, .. }| {
-        format!("{}.{}", args.subject, strategy.locate(point))
+        let geohash = strategy.locate(point).to_string();
+        let (cell, rest) = geohash.split_at(cell_precision);
+        format!("{}.{}.{}", args.subject, cell, rest)
     });
 
     let df = LazyCsvReader::new(args.file)
@@ -119,6 +126,7 @@ async fn main() -> anyhow::Result<()> {
         .select([
             col(TRIP_ID_COL),
             col(VEHICLE_ID_COL),
+            col(PROVIDER_COL),
             parse_datetime(TIME_FORMAT).fill_null(parse_datetime(TIME_FORMAT_FRACTIONAL)),
             col(LATITUDE_COL),
             col(LONGITUDE_COL),
@@ -194,6 +202,7 @@ async fn main() -> anyhow::Result<()> {
 fn rows_of(df: &DataFrame) -> PolarsResult<impl Iterator<Item = (u64, Payload)> + '_> {
     let trip = df.column(TRIP_ID_COL)?.str()?;
     let vehicle = df.column(VEHICLE_ID_COL)?.str()?;
+    let provider = df.column(PROVIDER_COL)?.str()?;
     let etime = df.column(EVENT_TIME_COL)?.datetime()?;
     let lat = df.column(LATITUDE_COL)?.f64()?;
     let lon = df.column(LONGITUDE_COL)?.f64()?;
@@ -201,22 +210,24 @@ fn rows_of(df: &DataFrame) -> PolarsResult<impl Iterator<Item = (u64, Payload)> 
     Ok(izip!(
         trip.into_iter(),
         vehicle.into_iter(),
+        provider.into_iter(),
         etime.into_iter(),
         lat.into_iter(),
         lon.into_iter()
     )
-    .map(|(trip, vehicle, etime, lat, lon)| {
-        // Step the upstream string ids down to u32s here, at the ingest
-        // boundary, so the strings never cross the wire.
+    .filter_map(|(trip, vehicle, _, etime, lat, lon)| {
+        let trip_id: [u8; 4] = Fnv32::hash(trip?).as_bytes().try_into().ok()?;
+        let vehicle_id: [u8; 4] = Fnv32::hash(vehicle?).as_bytes().try_into().ok()?;
+
         let payload = Payload {
-            trip_id: stepdown(trip.unwrap_or_default()),
-            vehicle_id: stepdown(vehicle.unwrap_or_default()),
+            trip_id: TripId(u32::from_le_bytes(trip_id)),
+            vehicle_id: VehicleId(u32::from_le_bytes(vehicle_id)),
             // The column is parsed as microseconds since the Unix epoch.
             timestamp: chrono::DateTime::from_timestamp_micros(etime.unwrap_or_default())
                 .unwrap_or_default(),
             point: Point::new(lon.unwrap(), lat.unwrap()),
         };
 
-        (etime.unwrap() as u64, payload)
+        Some((etime.unwrap() as u64, payload))
     }))
 }
