@@ -4,8 +4,7 @@ use core::cmp::{Ord, Ordering};
 use core::fmt::Debug;
 use core::hash::{Hash, Hasher};
 use core::ops::Deref;
-use geo::{Destination, Distance, Euclidean, Geodesic, Point};
-use rstar::{AABB, Envelope};
+use geo::{Destination, Geodesic, Point, Rect};
 use serde::{Deserialize, Serialize};
 
 /// The standardised node primitive containing a generic
@@ -29,35 +28,12 @@ where
         Self { id, position }
     }
 
-    /// Constructs the rectangular Axis-Aligned Bounding Box ([AABB](rstar::AABB))
+    /// Constructs the rectangular bounding box (`[Rect](geo::Rect)`)
     /// for the square [distance](#param.distance) around the node position.
-    pub fn bounding(&self, distance: f64) -> AABB<Point> {
+    pub fn bounding(&self, distance: f64) -> Rect<f64> {
         let bottom_right = Geodesic.destination(self.position, 135.0, distance);
         let top_left = Geodesic.destination(self.position, 315.0, distance);
-        AABB::from_corners(top_left, bottom_right)
-    }
-}
-
-impl<E> rstar::PointDistance for Node<E>
-where
-    E: Entry,
-{
-    fn distance_2(
-        &self,
-        point: &<Self::Envelope as Envelope>::Point,
-    ) -> <<Self::Envelope as Envelope>::Point as rstar::Point>::Scalar {
-        Euclidean.distance(self.position, *point).powi(2)
-    }
-}
-
-impl<E> rstar::RTreeObject for Node<E>
-where
-    E: Entry,
-{
-    type Envelope = AABB<Point>;
-
-    fn envelope(&self) -> Self::Envelope {
-        AABB::from_point(self.position)
+        Rect::new(top_left, bottom_right)
     }
 }
 

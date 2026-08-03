@@ -20,7 +20,6 @@ anyhow = { workspace = true }
 
 # Geography
 geo = { workspace = true }
-rstar = { workspace = true }
 petgraph = { workspace = true }
 
 # Utilities
@@ -58,6 +57,7 @@ osm = ["dep:routers_codec"]
 [dev-dependencies]
 routers_fixtures = { workspace = true }
 routers_codec = { workspace = true }
+criterion = { workspace = true }
 
 wkt = { workspace = true }
 tokio = { workspace = true }

@@ -37,7 +37,6 @@ web-time = "1"
 
 # Mock Network Dependencies
 petgraph = { workspace = true }
-rstar = { workspace = true }
 rustc-hash = { workspace = true }
 pathfinding = "4.14.0"
 
