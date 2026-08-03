@@ -94,6 +94,31 @@ impl ViterbiSolver {
         }
     }
 
+    /// The predecessor of `chosen` across `boundary`: the node reaching it
+    /// cheapest, ties to the lowest node. The chosen node's own weight is a
+    /// shared constant per candidate set, so ignoring it preserves the argmin.
+    ///
+    /// This tie-break is what makes "the optimal path ending at a node"
+    /// well-defined, and [`backtrack`](Self::backtrack) and
+    /// [`convergence`](Self::convergence) must agree on it exactly — the
+    /// convergence guarantee is stated over the paths backtracking chooses.
+    fn predecessor(boundary: &Boundary, dist: &[u32], chosen: NodeId) -> Option<NodeId> {
+        let into_chosen = boundary
+            .weights
+            .iter()
+            .skip(chosen.index())
+            .step_by(boundary.next.len());
+
+        dist[boundary.cur.clone()]
+            .iter()
+            .zip(into_chosen)
+            .map(|(&cost, &edge)| cost.saturating_add(edge))
+            .enumerate()
+            .map(|(node, cost)| (cost, NodeId::from_index(node)))
+            .min()
+            .map(|(_, predecessor)| predecessor)
+    }
+
     /// Trace the optimal path backwards through `dist`.
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip_all))]
     fn backtrack(
@@ -118,28 +143,11 @@ impl ViterbiSolver {
             return Err(SolveError::Unreachable);
         }
 
-        // Walk the boundaries in reverse, at each picking the predecessor that
-        // reaches the chosen node cheapest; ties go to the lowest node. The
-        // chosen node's own weight is a shared constant per candidate set, so
-        // ignoring it preserves the argmin.
         let tail_to_head: Vec<NodeId> = boundaries
             .iter()
             .rev()
             .scan(final_node, |chosen, boundary| {
-                let into_chosen = boundary
-                    .weights
-                    .iter()
-                    .skip(chosen.index())
-                    .step_by(boundary.next.len());
-
-                let (_, predecessor) = dist[boundary.cur.clone()]
-                    .iter()
-                    .zip(into_chosen)
-                    .map(|(&cost, &edge)| cost.saturating_add(edge))
-                    .enumerate()
-                    .map(|(node, cost)| (cost, NodeId::from_index(node)))
-                    .min()?;
-
+                let predecessor = Self::predecessor(boundary, dist, *chosen)?;
                 *chosen = predecessor;
                 Some(predecessor)
             })
@@ -152,6 +160,91 @@ impl ViterbiSolver {
             .collect();
         Ok(Path::new(nodes, best_cost))
     }
+
+    /// The sweep behind [`convergence`](Self::convergence), positioned by a
+    /// prepared DP table.
+    ///
+    /// Distinct nodes map to single predecessors, so the frontier only
+    /// narrows walking backwards, and the first collapse is the latest one.
+    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip_all))]
+    fn converged_layer(
+        last: Range<usize>,
+        boundaries: &[Boundary],
+        dist: &[u32],
+    ) -> Option<LayerId> {
+        let mut frontier: Vec<NodeId> = dist[last]
+            .iter()
+            .enumerate()
+            .filter(|&(_, &cost)| cost < INF_W)
+            .map(|(node, _)| NodeId::from_index(node))
+            .collect();
+
+        if frontier.len() == 1 {
+            return Some(LayerId(boundaries.len() as u32));
+        }
+
+        for boundary in boundaries.iter().rev() {
+            frontier = frontier
+                .iter()
+                .filter_map(|&node| Self::predecessor(boundary, dist, node))
+                .collect();
+            frontier.sort_unstable();
+            frontier.dedup();
+
+            // Predecessors live in the boundary's lower layer, which is what
+            // its id names.
+            if frontier.len() == 1 {
+                return Some(boundary.id);
+            }
+        }
+
+        None
+    }
+
+    /// Resolve every boundary and run the forward pass: the positioned DP
+    /// table that backtracking and convergence detection both read.
+    fn tables<'a>(
+        &self,
+        t: &'a Trellis,
+    ) -> Result<(Vec<Boundary<'a>>, Range<usize>, Vec<u32>), SolveError> {
+        let boundaries = Self::boundaries(t).inspect_err(|e| warn!("{e}"))?;
+        let last = t.layer_ranges().last().unwrap_or(0..0);
+
+        // The first layer's starting cost is its node weights; every later
+        // layer is overwritten by the forward pass before use.
+        let mut dist = t.node_table().to_vec();
+        self.forward_pass(&boundaries, &mut dist);
+
+        Ok((boundaries, last, dist))
+    }
+
+    /// The convergence point of `t`'s solution: the latest layer at which the
+    /// optimal paths ending in every *live* final node (cost below infinity —
+    /// every node a future layer could extend) all pass through one shared
+    /// node. The forward pass is prefix-stable, so appending layers can never
+    /// change the chosen path at or before this layer — which is what lets a
+    /// streaming caller emit that prefix and cut the trellis behind it.
+    ///
+    /// Errors exactly where [`solve`] errors, so `None` means one thing only:
+    /// live paths exist but never fuse. Across solvable appends the point
+    /// never moves backwards.
+    ///
+    /// A pure query, priced accordingly: it rebuilds the DP table [`solve`]
+    /// builds, so asking is one extra forward pass. Callers on a hot path
+    /// should ask once per solve, not once per read.
+    #[cfg_attr(
+        feature = "tracing",
+        tracing::instrument(level = "debug", name = "convergence", skip(self, t), fields(layers = t.layers()))
+    )]
+    pub fn convergence(&self, t: &Trellis) -> Result<Option<LayerId>, SolveError> {
+        let (boundaries, last, dist) = self.tables(t)?;
+
+        if dist[last.clone()].iter().all(|&cost| cost >= INF_W) {
+            return Err(SolveError::Unreachable);
+        }
+
+        Ok(Self::converged_layer(last, &boundaries, &dist))
+    }
 }
 
 impl Solve for ViterbiSolver {
@@ -163,14 +256,7 @@ impl Solve for ViterbiSolver {
     fn solve(&self, t: &Trellis) -> Result<Path, SolveError> {
         debug!("{} layers, widths={:?}", t.layers(), t.widths());
 
-        let boundaries = Self::boundaries(t).inspect_err(|e| warn!("{e}"))?;
-        let last = t.layer_ranges().last().unwrap_or(0..0);
-
-        // The first layer's starting cost is its node weights; every later
-        // layer is overwritten by the forward pass before use.
-        let mut dist = t.node_table().to_vec();
-
-        self.forward_pass(&boundaries, &mut dist);
+        let (boundaries, last, dist) = self.tables(t)?;
         let path = self.backtrack(last, &boundaries, &dist)?;
 
         debug!("cost={}", path.cost);

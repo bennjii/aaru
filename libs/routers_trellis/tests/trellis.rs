@@ -472,3 +472,162 @@ fn one_solver_interleaved_across_two_trellises() {
         assert_eq!(solver.solve(&b), ViterbiSolver::new().solve(&b));
     }
 }
+
+// ---- convergence ----
+
+#[test]
+fn single_live_final_node_converges_at_the_last_layer() {
+    let t = line(&[2, 3, 5]);
+    let solver = ViterbiSolver::new();
+    assert_eq!(solver.solve(&t).unwrap().nodes, vec![NodeId(0); 4]);
+    assert_eq!(solver.convergence(&t).unwrap(), Some(LayerId(3)));
+}
+
+#[test]
+fn bottleneck_layer_is_the_convergence_point() {
+    // Both final nodes are live, but every path threads the width-1 middle
+    // layer — the prefix up to it is final, the tail is still ambiguous.
+    let mut t = Trellis::new(vec![2u32, 1, 2]).unwrap();
+    t.fill_transition(LayerId(0), &[1, 2]).unwrap();
+    t.fill_transition(LayerId(1), &[5, 5]).unwrap();
+
+    let solver = ViterbiSolver::new();
+    let path = solver.solve(&t).unwrap();
+    assert_eq!(path.nodes, vec![NodeId(0), NodeId(0), NodeId(0)]);
+    assert_eq!(solver.convergence(&t).unwrap(), Some(LayerId(1)));
+}
+
+#[test]
+fn parallel_lanes_never_converge() {
+    // Two disjoint equal-cost lanes: neither prefix is final, ever.
+    let lanes = [1, NO_EDGE, NO_EDGE, 1];
+    let mut t = Trellis::new(vec![2u32, 2, 2]).unwrap();
+    t.fill_transition(LayerId(0), &lanes).unwrap();
+    t.fill_transition(LayerId(1), &lanes).unwrap();
+
+    assert_eq!(ViterbiSolver::new().convergence(&t).unwrap(), None);
+}
+
+#[test]
+fn dead_final_nodes_do_not_block_convergence() {
+    // The final layer is width 2, but only node 0 is reachable — a future
+    // layer can only extend through it, so the whole path is converged.
+    let mut t = Trellis::new(vec![2u32, 2]).unwrap();
+    t.fill_transition(LayerId(0), &[1, NO_EDGE, 2, NO_EDGE])
+        .unwrap();
+
+    let solver = ViterbiSolver::new();
+    assert_eq!(solver.solve(&t).unwrap().nodes, vec![NodeId(0); 2]);
+    assert_eq!(solver.convergence(&t).unwrap(), Some(LayerId(1)));
+}
+
+#[test]
+fn convergence_of_a_certified_solve_reads_from_its_trellis() {
+    // The intended callsite shape: solve certifies, then the caller asks the
+    // solver about the trellis the certificate holds.
+    let mut t = Trellis::new(vec![2u32, 1, 2]).unwrap();
+    t.fill_transition(LayerId(0), &[1, 2]).unwrap();
+    t.fill_transition(LayerId(1), &[5, 5]).unwrap();
+
+    let solved = t.solve(&ViterbiSolver::new()).unwrap();
+    let convergence = ViterbiSolver::new().convergence(solved.trellis()).unwrap();
+    assert_eq!(convergence, Some(LayerId(1)));
+}
+
+#[test]
+fn convergence_errors_on_pending_like_solve() {
+    let t = Trellis::new(vec![2u32, 2]).unwrap();
+    assert_eq!(
+        ViterbiSolver::new().convergence(&t),
+        Err(SolveError::NotResolved(LayerId(0)))
+    );
+}
+
+#[test]
+fn convergence_errors_on_unreachable_like_solve() {
+    // Symmetry with solve keeps None meaning one thing: live but unfused.
+    let mut t = Trellis::new(vec![2u32, 2]).unwrap();
+    t.fill_transition(LayerId(0), &[NO_EDGE; 4]).unwrap();
+    assert_eq!(
+        ViterbiSolver::new().convergence(&t),
+        Err(SolveError::Unreachable)
+    );
+}
+
+#[test]
+fn a_dead_append_errors_rather_than_regressing_the_point() {
+    // A fused frontier cannot unfuse, but it can die: an append no live path
+    // crosses errors on both APIs instead of demoting Some to None.
+    let mut t = line(&[2, 3]);
+    let solver = ViterbiSolver::new();
+    assert_eq!(solver.convergence(&t).unwrap(), Some(LayerId(2)));
+
+    let boundary = t.last_id();
+    t.add_layer(1).unwrap();
+    t.fill_transition(boundary, &[NO_EDGE]).unwrap();
+
+    assert_eq!(solver.solve(&t), Err(SolveError::Unreachable));
+    assert_eq!(solver.convergence(&t), Err(SolveError::Unreachable));
+}
+
+/// The guarantee itself, tested as stated: everything at or before the
+/// reported convergence point survives any append. Also its corollary — the
+/// point never moves backwards — since a new frontier's paths all thread the
+/// old one's fusion node.
+#[test]
+fn converged_prefix_is_stable_under_appends() {
+    let width = 4u32;
+    let solver = ViterbiSolver::new();
+    let mut converged_mid_trellis = false;
+
+    for seed in 0u64..20 {
+        let mut t = random_noded_trellis(6, width, seed);
+        let mut path = solver.solve(&t).unwrap();
+        let mut convergence = solver.convergence(&t).unwrap();
+
+        let mut s = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1;
+        let mut rng = || {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1);
+            ((s >> 40) as u32) % 100
+        };
+
+        for _ in 0..4 {
+            let boundary = t.last_id();
+            t.add_layer(width).unwrap();
+            let row: Vec<u32> = (0..(width * width) as usize).map(|_| rng()).collect();
+            t.fill_transition(boundary, &row).unwrap();
+            let weights: Vec<u32> = (0..width as usize).map(|_| rng()).collect();
+            t.fill_nodes(t.last_id(), &weights).unwrap();
+
+            let next_path = solver.solve(&t).unwrap();
+            let next_convergence = solver.convergence(&t).unwrap();
+
+            if let Some(layer) = convergence {
+                if layer < t.last_id() {
+                    converged_mid_trellis = true;
+                }
+
+                let frozen = ..=layer.index();
+                assert_eq!(
+                    next_path.nodes[frozen], path.nodes[frozen],
+                    "seed {seed}: converged prefix changed after an append"
+                );
+
+                let moved = next_convergence.expect(
+                    "a fused frontier cannot unfuse: its paths all thread the old fusion node",
+                );
+                assert!(
+                    moved >= layer,
+                    "seed {seed}: convergence moved backwards ({moved} < {layer})"
+                );
+            }
+
+            (path, convergence) = (next_path, next_convergence);
+        }
+    }
+
+    assert!(
+        converged_mid_trellis,
+        "no seed converged mid-trellis; the stability assertions never ran against a live tail"
+    );
+}
