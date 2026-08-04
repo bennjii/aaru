@@ -1,8 +1,8 @@
 use alloc::borrow::Cow;
 
 use crate::candidate::*;
-use crate::primitives::Reachable;
-use geo::LineString;
+use crate::primitives::{Reachable, ResolutionMethod};
+use geo::{LineString, Point};
 use routers_network::Entry;
 use routers_network::Network;
 
@@ -61,22 +61,57 @@ where
             .collect::<LineString>()
     }
 
-    /// The full driven path as a [`LineString`] — the matched positions with the
-    /// routed road geometry between them filled in, showing the turns taken.
+    /// The road geometry driven across hop `hop` (between matched layers
+    /// `hop` and `hop + 1`), exclusive of both endpoints' matched positions:
+    /// the current edge's exit node, any routed intermediate nodes, and the
+    /// next edge's entry node, with the shared seam nodes deduplicated.
+    ///
+    /// Empty for a same-edge hop — travel never leaves the edge, so the
+    /// endpoints alone describe it — and for a `hop` out of range.
+    pub fn hop_geometry(&self, hop: usize, map: &impl Network<Entry = E>) -> Vec<Point> {
+        let Some(reachable) = self.interpolated.get(hop) else {
+            return Vec::new();
+        };
+        if !matches!(reachable.resolution_method, ResolutionMethod::Standard) {
+            return Vec::new();
+        }
+
+        let exit = self
+            .candidates
+            .candidate(&reachable.source)
+            .map(|candidate| candidate.edge.target);
+        let entry = self
+            .candidates
+            .candidate(&reachable.target)
+            .map(|candidate| candidate.edge.source);
+
+        // Consecutive bridge edges share their endpoints with each other and
+        // with the exit/entry nodes, so the seams dedup away.
+        let mut points: Vec<Point> = exit
+            .into_iter()
+            .chain(reachable.path_nodes())
+            .chain(entry)
+            .filter_map(|node| map.point(&node))
+            .collect();
+        points.dedup();
+        points
+    }
+
+    /// The full driven path as a [`LineString`] — the matched positions with
+    /// each hop's [`geometry`](Self::hop_geometry) filled in, showing the
+    /// turns taken.
     pub fn interpolated(&self, map: &impl Network<Entry = E>) -> LineString {
-        self.interpolated
-            .iter()
-            .enumerate()
-            .flat_map(|(index, reachable)| {
-                let source = self.candidates.candidate(&reachable.source).unwrap();
-                let target = self.candidates.candidate(&reachable.target).unwrap();
+        let matched = self.matched();
 
-                let path = reachable.path_nodes().filter_map(|node| map.point(&node));
+        let mut points = Vec::new();
+        if let Some(first) = matched.first() {
+            points.push(first.position);
+        }
+        for (index, target) in matched.iter().enumerate().skip(1) {
+            points.extend(self.hop_geometry(index - 1, map));
+            points.push(target.position);
+        }
 
-                core::iter::repeat_n(source.position, if index == 0 { 1 } else { 0 })
-                    .chain(path)
-                    .chain(core::iter::once(target.position))
-            })
-            .collect::<LineString>()
+        points.into_iter().collect::<LineString>()
     }
 }

@@ -67,7 +67,7 @@ impl Extractor for HeadersRef<'_> {
 
 /// Headers for an outbound message: the current span's context (W3C
 /// `traceparent`) and the send time.
-pub(super) fn outbound() -> HeaderMap {
+pub fn outbound() -> HeaderMap {
     let mut headers = HeaderMap::new();
 
     let context = tracing::Span::current().context();
@@ -82,7 +82,7 @@ pub(super) fn outbound() -> HeaderMap {
     headers
 }
 
-pub(super) fn inbound(subject: &str, headers: Option<&HeaderMap>) {
+pub fn inbound(subject: &str, headers: Option<&HeaderMap>) {
     let Some(headers) = headers else { return };
     let Some(sent_at) = headers
         .get(SENT_AT)

@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
 use geo::Point;
-use routers_network::{Entry, Metadata};
+use routers_network::{Edge, Entry, Network};
 use routers_shard::{Geohash, GeohashStrategy, ShardingStrategy};
-use routers_transition::candidate::RoutedPath;
-use routers_transition::matcher::{Continuation, Trip};
+use routers_transition::candidate::CollapsedPath;
+use routers_transition::matcher::{Continuation, Origin, Trip};
 use serde::{Deserialize, Serialize};
 
 use buffa::Message;
@@ -48,11 +48,111 @@ pub struct MatchContext<E: Entry> {
     pub vehicle_id: VehicleId,
 }
 
+/// The matcher's answer to one [`MatchContext`], returned on the request's
+/// reply inbox. Correlation is the inbox itself; the orchestrator that asked
+/// already knows the vehicle.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MatchResult<E: Entry, M: Metadata> {
-    pub path: RoutedPath<E, M>,
+#[serde(bound(serialize = "E: Serialize", deserialize = "E: Deserialize<'de>"))]
+pub enum MatchReply<E: Entry> {
+    /// Solved: the emission, and the trip cut at its convergence point — the
+    /// resume state the orchestrator commits for the vehicle's next event.
+    Solved { diff: MatchedDiff<E>, trip: Trip<E> },
+
+    /// Nothing to emit: no anchored layers, or a nominal solve failure. The
+    /// orchestrator keeps its previous resume state; the event still enters
+    /// the raw history, so the next context carries it regardless.
+    NoMatch,
+}
+
+/// One vehicle's emission on the matched subject: what the reconciler (and
+/// any observer, e.g. the realtime viewer) consumes. The resume state stays
+/// on the control plane — nothing here carries a trip.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(bound(serialize = "E: Serialize", deserialize = "E: Deserialize<'de>"))]
+pub struct MatchedEvent<E: Entry> {
     pub vehicle_id: VehicleId,
-    pub trip: Trip<E>,
+    pub diff: MatchedDiff<E>,
+}
+
+/// One layer of matched history: the observation's identity (its timestamp),
+/// where it matched, and the road geometry driven since the previous layer.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound(serialize = "E: Serialize", deserialize = "E: Deserialize<'de>"))]
+pub struct MatchedLayer<E: Entry> {
+    /// When the observation was made (microseconds since the Unix epoch).
+    /// With the vehicle, this addresses the layer fleet-wide: overlapping
+    /// emissions merge on it.
+    pub timestamp: i64,
+
+    /// The directed network edge the observation matched onto.
+    pub edge: Edge<E>,
+
+    /// The observation, snapped onto the edge.
+    pub position: Point,
+
+    /// Interpolated road geometry between the previous layer's position and
+    /// this one. Empty on a diff's first layer: its inbound hop was emitted
+    /// while both endpoints were still in the trip.
+    pub path: Vec<Point>,
+}
+
+/// Everything a solve could still change, emitted whole: one layer per trip
+/// observation since the last convergence cut. Consumers merge layers by
+/// (vehicle, timestamp) and resolve competing solves by revision — highest
+/// wins, equal is a duplicate — so re-emission is convergence, not conflict.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound(serialize = "E: Serialize", deserialize = "E: Deserialize<'de>"))]
+pub struct MatchedDiff<E: Entry> {
+    /// Orders competing solves for a vehicle. Becomes the stream sequence of
+    /// the triggering ingest message once durable ingest lands; 0 until then.
+    pub revision: u64,
+
+    /// Set when a resume was rejected and the solve restarted from raw
+    /// history — the emitted region may rewrite more than usual.
+    pub downgraded: bool,
+
+    pub layers: Vec<MatchedLayer<E>>,
+}
+
+impl<E: Entry> MatchedDiff<E> {
+    /// Lift a solved trip into its emission: one layer per observation, hops
+    /// resolved to geometry against the (matcher-local) network.
+    pub fn new<N: Network<Entry = E>>(
+        solution: &CollapsedPath<'_, E>,
+        origins: &[Origin],
+        map: &N,
+        revision: u64,
+    ) -> Self {
+        let layers = solution
+            .route
+            .iter()
+            .zip(origins)
+            .enumerate()
+            .filter_map(|(index, (chosen, origin))| {
+                let candidate = solution.candidates.candidate(chosen)?;
+
+                // Hop `i - 1` carries the roads driven into layer `i`; the
+                // endpoints' own positions live on their layers.
+                let path = match index.checked_sub(1) {
+                    Some(hop) => solution.hop_geometry(hop, map),
+                    None => Vec::new(),
+                };
+
+                Some(MatchedLayer {
+                    timestamp: origin.timestamp,
+                    edge: candidate.edge,
+                    position: candidate.position,
+                    path,
+                })
+            })
+            .collect();
+
+        Self {
+            revision,
+            downgraded: false,
+            layers,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -69,7 +169,8 @@ pub struct Payload {
 
 // The match control plane is Rust-internal: postcard on the wire.
 postcard_wire!(MatchContext<E: Entry>);
-postcard_wire!(MatchResult<E: Entry, M: Metadata>);
+postcard_wire!(MatchReply<E: Entry>);
+postcard_wire!(MatchedEvent<E: Entry>);
 
 /// The ingest surface crosses the bus as protobuf
 /// (`routers.realtime.v1.Payload`), so producers in any language can
@@ -139,12 +240,23 @@ pub struct RawEvent {
     pub timestamp: DateTime<Utc>,
 }
 
+/// The fleet's geographic shard precision. One source of truth: matcher
+/// subjects, storage tags, and shard files must all agree on it.
+pub const SHARD_PRECISION: u8 = 4;
+
+/// The geographic shard an observation belongs to. Orchestrators route match
+/// requests to `events.match.<shard_of(point)>`; matchers each serve the one
+/// shard they loaded.
+pub fn shard_of(point: Point) -> Geohash {
+    GeohashStrategy::with_precision(SHARD_PRECISION).locate(point)
+}
+
 impl Storable for RawEvent {
     type ShardId = Geohash;
     type Key = VehicleId;
 
     fn shard_id(&self) -> Self::ShardId {
-        GeohashStrategy::with_precision(4).locate(self.point)
+        shard_of(self.point)
     }
 
     fn key(&self) -> Self::Key {

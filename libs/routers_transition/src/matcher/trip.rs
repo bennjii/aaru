@@ -4,6 +4,7 @@ use routers_trellis::{LayerId, Path, Solved, Trellis, TrellisError};
 use serde::{Deserialize, Serialize};
 
 use crate::candidate::{Candidate, CandidateRef, CandidateStore};
+use crate::matcher::Origin;
 
 /// The state of a match, ownership and responsibility lies with the caller.
 ///
@@ -16,7 +17,7 @@ pub struct Trip<E>
 where
     E: Entry,
 {
-    origins: Vec<Point>,
+    origins: Vec<Origin>,
     candidates: CandidateStore<E>,
     pub state: TripState,
 }
@@ -63,11 +64,11 @@ where
 
     /// The input position that created `layer`.
     pub fn point(&self, layer: LayerId) -> Option<Point> {
-        self.origins.get(layer.index()).copied()
+        self.origins.get(layer.index()).map(|origin| origin.point)
     }
 
-    /// Every input position, in layer order.
-    pub fn points(&self) -> &[Point] {
+    /// Every input observation, in layer order.
+    pub fn origins(&self) -> &[Origin] {
         &self.origins
     }
 
@@ -151,7 +152,7 @@ where
     /// as node weights. A solved trip reopens through [`Solved::append`].
     pub(crate) fn push_layer(
         &mut self,
-        origin: Point,
+        origin: Origin,
         mut candidates: Vec<Candidate<E>>,
     ) -> Result<LayerId, TrellisError> {
         let width = candidates.len() as u32;

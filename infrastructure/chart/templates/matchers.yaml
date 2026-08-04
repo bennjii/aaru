@@ -9,7 +9,9 @@ metadata:
     app: matcher
     shard: "{{ $shard }}"
 spec:
-  replicas: 1
+  # Replicas divide load: matchers queue-subscribe their shard subject, so
+  # NATS delivers each request to exactly one member.
+  replicas: {{ $.Values.matcher.replicas }}
   selector:
     matchLabels:
       app: matcher
@@ -36,8 +38,6 @@ spec:
               value: {{ $shard | quote }}
             - name: INBOUND_SUBJECT
               value: "events.match.{{ $shard }}"
-            - name: OUTBOUND_SUBJECT
-              value: "events.matched.{{ $shard }}"
             - name: RUST_LOG
               value: {{ $.Values.matcher.rustLog | quote }}
             {{- range $name, $value := $.Values.matcher.env }}
@@ -69,4 +69,29 @@ spec:
           {{- else }}
           {{- fail (printf "shardCache.mode must be 'hostPath' or 'pvc', got %q" $.Values.shardCache.mode) }}
           {{- end }}
+{{- if $.Values.matcher.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: matcher-{{ $shard }}
+  labels:
+    {{- include "routers.labels" $ | nindent 4 }}
+    app: matcher
+    shard: "{{ $shard }}"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: matcher-{{ $shard }}
+  minReplicas: {{ $.Values.matcher.autoscaling.minReplicas }}
+  maxReplicas: {{ $.Values.matcher.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $.Values.matcher.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
 {{- end }}

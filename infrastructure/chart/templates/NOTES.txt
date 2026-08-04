@@ -3,16 +3,14 @@ routers-realtime installed in namespace {{ .Values.namespace }}.
 Rendered for {{ len .Values.shards }} shard(s): {{ join ", " .Values.shards }}
 
 What was deployed:
-  - Matcher and Orchestrator services (for each shard)
-{{- if .Values.historian.enabled }}
-  - Historian (With x{{ .Values.historian.replicas }} replicas)
-{{- end }}
+  - Matcher services ({{ .Values.matcher.replicas }} replica(s) per shard{{ if .Values.matcher.autoscaling.enabled }}, HPA to {{ .Values.matcher.autoscaling.maxReplicas }}{{ end }})
+  - Orchestrator fleet ({{ .Values.orchestrator.replicas }} pods slicing 1024 vehicle partitions across {{ .Values.streams }} stream(s))
 {{- if .Values.grafanaDashboard.enabled }}
   - Grafana Dashboard
 {{- end }}
 
 Pre-existing dependencies that this chart does NOT install:
-  - NATS at {{ .Values.infra.nats.url }}
+  - NATS (JetStream enabled, server 2.10+) at {{ .Values.infra.nats.url }}
   - Valkey at {{ .Values.infra.valkey.url }}
 {{- if .Values.infra.otlp.url }}
   - OTLP collector at {{ .Values.infra.otlp.url }} (spanmetrics -> Prometheus)

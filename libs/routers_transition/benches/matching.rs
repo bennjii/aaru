@@ -13,7 +13,7 @@ use geo::{Coord, LineString, point};
 
 use routers_network::mock::{MockEntryId, MockNetwork, MockNetworkBuilder};
 use routers_transition::{
-    MatchSimpleExt, Matcher,
+    MatchSimpleExt, Matcher, Origin,
     costing::CostingStrategies,
     layer::generation::{LayerGeneration, StandardGenerator},
     weigh::AllCompute,
@@ -95,8 +95,10 @@ fn bench_streaming_match(c: &mut Criterion) {
                 let matcher = Matcher::new(&net, &costing, generator, AllCompute::default(), &());
 
                 let mut trip = matcher.begin();
-                for &point in &points {
-                    matcher.push(&mut trip, point).expect("push must anchor");
+                for (index, &point) in points.iter().enumerate() {
+                    matcher
+                        .push(&mut trip, Origin::new(point, index as i64))
+                        .expect("push must anchor");
                     matcher.solve(&mut trip).expect("solve must succeed");
                 }
 

@@ -37,7 +37,7 @@ extern crate alloc;
 #[doc(inline)]
 pub use r#match::{MatchOptions, MatchSimpleExt};
 #[doc(inline)]
-pub use matcher::{Continuation, Matcher};
+pub use matcher::{Continuation, Matcher, Origin};
 #[doc(inline)]
 pub use primitives::MatchError;
 

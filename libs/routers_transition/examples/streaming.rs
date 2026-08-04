@@ -7,7 +7,7 @@ use routers_transition::costing::CostingStrategies;
 use routers_transition::layer::generation::StandardGenerator;
 use routers_transition::matcher::Trip;
 use routers_transition::weigh::AllCompute;
-use routers_transition::{MatchError, Matcher};
+use routers_transition::{MatchError, Matcher, Origin};
 use routers_trellis::LayerId;
 
 /// A staircase road: west along lat 34.15, south, then west again.
@@ -47,8 +47,8 @@ fn main() -> Result<(), MatchError> {
     let mut trip = matcher.begin();
 
     for (tick, position) in stream().into_iter().enumerate() {
-        // `push` is atomic, it either adds the position, or fails.
-        let layer = match matcher.push(&mut trip, position) {
+        // `push` is atomic, it either adds the observation, or fails.
+        let layer = match matcher.push(&mut trip, Origin::new(position, tick as i64)) {
             Ok(layer) => layer,
             Err(MatchError::Unanchored(e)) => {
                 println!("tick {tick}: dropped off-network point ({e})");

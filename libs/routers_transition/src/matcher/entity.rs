@@ -1,14 +1,14 @@
 use alloc::borrow::Cow;
 
-use geo::{LineString, Point};
+use geo::LineString;
 use routers_network::{Entry, Network};
 use routers_trellis::{LayerId, Path, SolveError, TrellisError, ViterbiSolver};
 
 use crate::candidate::{CandidateRef, CollapsedPath};
 use crate::costing::{CostingStrategies, EmissionStrategy, TransitionStrategy};
 use crate::layer::generation::LayerGeneration;
-use crate::matcher::Trip;
 use crate::matcher::trip::TripState;
+use crate::matcher::{Origin, Trip};
 use crate::primitives::{
     Disconnected, DisconnectedError, MatchError, Reachable, RoutingContext, Unanchored,
     UnanchoredError,
@@ -133,22 +133,22 @@ where
         }
     }
 
-    /// Append one trajectory position as a new layer: generate its candidates,
+    /// Append one observation as a new layer: generate its candidates,
     /// extend the trellis, and record the emission costs as node weights — one
     /// atomic operation, so the trip cannot desynchronise.
     ///
-    /// A point with no road candidate within the generator's search radius is
-    /// rejected ([`UnanchoredError`]) and leaves the trip unchanged, so the
-    /// caller may drop or retry the point.
-    pub fn push(&self, trip: &mut Trip<N::Entry>, origin: Point) -> Result<LayerId, MatchError> {
+    /// An observation with no road candidate within the generator's search
+    /// radius is rejected ([`UnanchoredError`]) and leaves the trip unchanged,
+    /// so the caller may drop or retry it.
+    pub fn push(&self, trip: &mut Trip<N::Entry>, origin: Origin) -> Result<LayerId, MatchError> {
         let layer = trip.next_id();
-        let candidates = self.generator.candidates(&origin, layer);
+        let candidates = self.generator.candidates(&origin.point, layer);
 
         if candidates.is_empty() {
             return Err(UnanchoredError {
                 points: vec![Unanchored {
                     layer: layer.index(),
-                    origin,
+                    origin: origin.point,
                 }],
             }
             .into());
@@ -157,17 +157,24 @@ where
         Ok(trip.push_layer(origin, candidates)?)
     }
 
-    /// Append many positions at once, generating their candidates in parallel.
+    /// Append many observations at once, generating their candidates in
+    /// parallel.
     ///
-    /// Any point with no candidate rejects the whole batch ([`UnanchoredError`]
-    /// reporting *every* such point) and leaves the trip unchanged.
-    pub fn extend(&self, trip: &mut Trip<N::Entry>, points: &[Point]) -> Result<(), MatchError> {
+    /// Any observation with no candidate rejects the whole batch
+    /// ([`UnanchoredError`] reporting *every* such point) and leaves the trip
+    /// unchanged.
+    pub fn extend(&self, trip: &mut Trip<N::Entry>, origins: &[Origin]) -> Result<(), MatchError> {
         let first_layer = trip.next_id();
-        let per_layer = self.generator.generate(points, first_layer);
+
+        let points = origins
+            .iter()
+            .map(|origin| origin.point)
+            .collect::<Vec<_>>();
+        let per_layer = self.generator.generate(&points, first_layer);
 
         let unanchored = per_layer
             .iter()
-            .zip(points)
+            .zip(&points)
             .enumerate()
             .filter(|(_, (candidates, _))| candidates.is_empty())
             .map(|(offset, (_, &origin))| Unanchored {
@@ -179,7 +186,7 @@ where
             return Err(UnanchoredError { points: unanchored }.into());
         }
 
-        for (&origin, candidates) in points.iter().zip(per_layer) {
+        for (&origin, candidates) in origins.iter().zip(per_layer) {
             trip.push_layer(origin, candidates)?;
         }
         Ok(())
@@ -238,6 +245,34 @@ where
         }
     }
 
+    /// Whether every candidate the trip carries resolves against this
+    /// matcher's network. A trip resumed across a shard boundary references
+    /// edges of the shard it was solved on, which this shard's padding may
+    /// not cover — adopting it would route through nodes that do not exist
+    /// here. `false` means the trip must restart from its raw observations.
+    pub fn supports(&self, trip: &Trip<N::Entry>) -> bool {
+        trip.candidates().iter().all(|candidate| {
+            self.map.point(&candidate.edge.source).is_some()
+                && self.map.point(&candidate.edge.target).is_some()
+        })
+    }
+
+    /// The convergence point of the trip's current solution: the latest layer
+    /// no future push can change, asked of the same solver [`solve`] runs.
+    /// `None` when the live paths never fuse; errors where a solve would
+    /// (nothing to solve, pending boundaries, unreachable).
+    ///
+    /// See [`ViterbiSolver::convergence`] for the guarantee and its price —
+    /// one extra forward pass per ask.
+    ///
+    /// [`solve`]: Self::solve
+    pub fn convergence(&self, trip: &Trip<N::Entry>) -> Result<Option<LayerId>, MatchError> {
+        let Some(trellis) = trip.trellis() else {
+            return Err(TrellisError::Empty.into());
+        };
+        Ok(ViterbiSolver::new().convergence(trellis)?)
+    }
+
     /// Solve (if pending) and collapse the trip's current solution into a
     /// [`CollapsedPath`], re-deriving each chosen hop's routed geometry from
     /// the (warm) predicate cache — nothing is stored during weighing.
@@ -271,7 +306,16 @@ where
         linestring: LineString,
     ) -> Result<CollapsedPath<'a, N::Entry>, MatchError> {
         let mut trip = self.begin();
-        self.extend(&mut trip, &linestring.into_points())?;
+
+        // A bare linestring carries no observation times; indices stand in.
+        // Order is the only property the batch lifecycle reads from them.
+        let origins = linestring
+            .into_points()
+            .into_iter()
+            .enumerate()
+            .map(|(index, point)| Origin::new(point, index as i64))
+            .collect::<Vec<_>>();
+        self.extend(&mut trip, &origins)?;
 
         let Collapse {
             cost,

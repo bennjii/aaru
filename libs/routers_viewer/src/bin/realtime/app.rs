@@ -5,14 +5,14 @@ use eframe::CreationContext;
 use egui::SidePanel;
 use futures::StreamExt;
 use routers_realtime::bus::NATSStream;
-use routers_realtime::event::MatchResult;
+use routers_realtime::event::MatchedEvent;
 use walkers::{MapMemory, lon_lat};
 
 use routers_viewer::{ColourFactory, Component, Context, Map, Regular};
 
+use crate::E;
 use crate::plugin::{TraceLine, TracesPlugin, vehicle_colour};
 use crate::store::{StoreStats, TraceStore};
-use crate::{E, M};
 
 /// Maximum events drained from the channel per frame, so a burst can't
 /// stall the UI thread.
@@ -21,14 +21,14 @@ const DRAIN_PER_FRAME: usize = 2_000;
 pub struct RealtimeApp {
     map: Map,
     store: TraceStore,
-    rx: Receiver<MatchResult<E, M>>,
+    rx: Receiver<MatchedEvent<E>>,
     centered: bool,
 }
 
 impl RealtimeApp {
     pub fn new(
         ctx: &CreationContext<'_>,
-        mut source: NATSStream<MatchResult<E, M>>,
+        mut source: NATSStream<MatchedEvent<E>>,
         trace_capacity: usize,
         idle_ttl: Duration,
     ) -> Self {
@@ -67,10 +67,10 @@ impl eframe::App for RealtimeApp {
 
         for result in self.rx.try_iter().take(DRAIN_PER_FRAME) {
             if !self.centered
-                && let Some(element) = result.path.interpolated.first()
+                && let Some(layer) = result.diff.layers.first()
             {
                 self.map
-                    .center_at(lon_lat(element.point.x, element.point.y));
+                    .center_at(lon_lat(layer.position.x(), layer.position.y()));
                 self.centered = true;
             }
 

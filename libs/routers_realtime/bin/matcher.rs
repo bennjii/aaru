@@ -4,13 +4,12 @@ use std::sync::Arc;
 use routers_codec::osm::{OsmEdgeMetadata, OsmEntryId};
 use routers_network::Metadata;
 use routers_realtime::{
-    bus::{NATSSink, NATSStream},
-    event::{MatchContext, MatchResult},
+    bus::{self, Wire},
+    event::{MatchContext, MatchReply, MatchedDiff},
 };
 use routers_shard::{FileFetcher, Geohash, ShardLoader, ShardedNetwork};
 use routers_transition::{
     Continuation, MatchError, Matcher,
-    candidate::RoutedPath,
     costing::{CostingStrategies, DefaultEmissionCost, DefaultTransitionCost},
     layer::generation::StandardGenerator,
     primitives::PredicateCache,
@@ -44,13 +43,15 @@ struct Args {
     #[arg(short, env, long)]
     shard: Geohash,
 
-    // The inbound NATS subject to subscribe to, for matching events.
+    // The inbound NATS subject to serve match requests from.
     #[arg(short, env, long)]
     inbound_subject: String,
 
-    // The outbound NATS subject to publish matching results to.
-    #[arg(short, env, long)]
-    outbound_subject: String,
+    /// The queue group shared by this shard's matchers: NATS delivers each
+    /// request to exactly one member, so replicas divide the load instead of
+    /// duplicating it.
+    #[arg(short, env, long, default_value = "matchers")]
+    queue_group: String,
 
     /// The search distance to use for matching
     #[arg(long, env)]
@@ -82,15 +83,16 @@ struct Matching {
 
 impl Matching {
     /// Solve one context, recording its outcome onto a fresh `match_event`
-    /// span. Returns the result to publish, or `None` when there is nothing to
-    /// emit (no anchor, or a nominal/fatal solve failure).
+    /// span. Returns the reply to send: the emission and resume state, or
+    /// [`MatchReply::NoMatch`] when there is nothing to emit (no anchor, or a
+    /// nominal/fatal solve failure).
     fn solve(
         &self,
         MatchContext {
             vehicle_id,
             continuation,
         }: MatchContext<E>,
-    ) -> Option<MatchResult<E, M>> {
+    ) -> MatchReply<E> {
         let mut generator = StandardGenerator::new(self.network.as_ref(), &self.costing.emission);
         if let Some(distance) = self.search_distance {
             generator = generator.with_search_distance(distance);
@@ -110,23 +112,37 @@ impl Matching {
             outcome = field::Empty,
             severity = field::Empty,
             continuation = field::Empty,
+            converged = field::Empty,
+            emitted = field::Empty,
         );
         let _entered = span.enter();
 
-        let (mut trip, fresh) = match continuation {
+        let (mut trip, fresh, downgraded) = match continuation {
+            // A resume solved on another shard references edges this shard's
+            // padding may not cover: adopting it would route through nodes
+            // that do not exist here. Degrade to a restart over the trip's
+            // own observations — the emission re-covers them under a higher
+            // revision, so the reconciled history heals the seam.
+            Continuation::Resume { trip, fresh } if !matcher.supports(&trip) => {
+                span.record("continuation", "downgrade");
+                warn!("{vehicle_id}: resume references a foreign shard; restarting");
+
+                let fresh = trip.origins().iter().copied().chain(fresh).collect();
+                (matcher.begin(), fresh, true)
+            }
             Continuation::Resume { trip, fresh } => {
                 span.record("continuation", "resume");
-                (trip, fresh)
+                (trip, fresh, false)
             }
             Continuation::Restart { fresh } => {
                 span.record("continuation", "restart");
-                (matcher.begin(), fresh)
+                (matcher.begin(), fresh, false)
             }
         };
 
         info_span!("push", points = fresh.len()).in_scope(|| {
-            for point in fresh {
-                match matcher.push(&mut trip, point) {
+            for origin in fresh {
+                match matcher.push(&mut trip, origin) {
                     Ok(_) => {}
                     Err(MatchError::Unanchored(err)) => {
                         info_span!("point_drop", reason = "unanchored")
@@ -144,7 +160,7 @@ impl Matching {
             span.record("outcome", "no_anchor");
             span.record("severity", "nominal");
             warn!("{vehicle_id}: no anchored layers to solve");
-            return None;
+            return MatchReply::NoMatch;
         }
 
         if let Err(err) = info_span!("solve").in_scope(|| matcher.solve(&mut trip)) {
@@ -152,8 +168,11 @@ impl Matching {
             span.record("outcome", outcome);
             span.record("severity", severity);
             error!("{vehicle_id}: unable to solve trip");
-            return None;
+            return MatchReply::NoMatch;
         }
+
+        // Copied out: the snapshot's borrow spans the whole trip mutably.
+        let origins = trip.origins().to_vec();
 
         let solution = match info_span!("snapshot").in_scope(|| matcher.snapshot(&mut trip)) {
             Ok(solution) => solution,
@@ -161,19 +180,36 @@ impl Matching {
                 let (outcome, severity) = classify(err);
                 span.record("outcome", outcome);
                 span.record("severity", severity);
-                return None;
+                return MatchReply::NoMatch;
             }
         };
+
+        // Emit everything a future solve could still change — the whole trip
+        // since its last cut. The owner stamps the real revision (the ingest
+        // stream sequence) before publishing.
+        let mut diff = info_span!("emit")
+            .in_scope(|| MatchedDiff::new(&solution, &origins, self.network.as_ref(), 0));
+        diff.downgraded = downgraded;
+        drop(solution);
+        span.record("emitted", diff.layers.len());
+
+        // Cut behind the convergence point: those layers are final, already
+        // emitted, and only cost wire from here on. The convergence layer
+        // itself stays as the resume anchor. An unfused trip stays whole —
+        // the orchestrator's context window bounds its growth.
+        match matcher.convergence(&trip) {
+            Ok(Some(layer)) => {
+                span.record("converged", layer.index() as u64);
+                trip.tail(trip.layers() - layer.index());
+            }
+            Ok(None) => {}
+            Err(err) => error!("{vehicle_id}: convergence query failed: {err}"),
+        }
 
         span.record("outcome", "success");
         span.record("severity", "ok");
 
-        let path = RoutedPath::new(solution, self.network.as_ref());
-        Some(MatchResult {
-            path,
-            vehicle_id,
-            trip,
-        })
+        MatchReply::Solved { diff, trip }
     }
 }
 
@@ -213,13 +249,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("could not connect to NATS")?;
 
+    // The queue group makes replicas additive: each request lands on exactly
+    // one member, so scaling a shard's matchers divides the load.
     let subscriber = client
-        .subscribe(args.inbound_subject)
+        .queue_subscribe(args.inbound_subject, args.queue_group)
         .await
         .context("could not subscribe to NATS subject")?;
-    let source = NATSStream::<MatchContext<E>>::new(subscriber);
-
-    let sink = NATSSink::<MatchResult<E, M>>::new(client, move |_| args.outbound_subject.clone());
 
     let matching = Arc::new(Matching {
         network,
@@ -230,23 +265,55 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Each context is solved on the blocking pool (solving is synchronous and
-    // CPU-bound); `buffer_unordered` keeps `workers` in flight at once. Results
-    // stream straight into the sink in completion order.
-    source
-        .map(|context| {
+    // CPU-bound); `for_each_concurrent` keeps `workers` in flight at once.
+    // Every request is answered on its reply inbox — a NoMatch is still an
+    // answer, so the asking orchestrator never waits out a timeout for an
+    // event that solved to nothing.
+    subscriber
+        .for_each_concurrent(args.workers, |message| {
             let matching = Arc::clone(&matching);
+            let client = client.clone();
+
             async move {
-                tokio::task::spawn_blocking(move || matching.solve(context))
+                bus::inbound(message.subject.as_str(), message.headers.as_ref());
+
+                let Some(inbox) = message.reply else {
+                    warn!("dropping request without a reply inbox — not a request?");
+                    return;
+                };
+
+                let context = match MatchContext::<E>::decode(&message.payload) {
+                    Ok(context) => context,
+                    Err(err) => {
+                        warn!("skipping undecodable context: {err}");
+                        return;
+                    }
+                };
+
+                let reply = tokio::task::spawn_blocking(move || matching.solve(context))
                     .await
-                    .ok()
-                    .flatten()
+                    .unwrap_or_else(|err| {
+                        error!("solve task panicked: {err}");
+                        MatchReply::NoMatch
+                    });
+
+                let payload = match reply.encode() {
+                    Ok(payload) => payload,
+                    Err(err) => {
+                        error!("could not encode reply: {err:#}");
+                        return;
+                    }
+                };
+
+                if let Err(err) = client
+                    .publish_with_headers(inbox, bus::outbound(), payload.into())
+                    .await
+                {
+                    error!("could not send reply: {err:#}");
+                }
             }
         })
-        .buffer_unordered(args.workers)
-        .filter_map(std::future::ready)
-        .map(Ok)
-        .forward(sink)
-        .await?;
+        .await;
 
     error!("source terminated");
     Ok(())
