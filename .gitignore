@@ -24,3 +24,11 @@ conformance/external
 *.csv.zip
 
 .direnv/
+
+# Terraform/OpenTofu working directories. Provider binaries are ~60 MiB each
+# and are reinstalled by `tofu init`; the .terraform.lock.hcl beside them is
+# the part worth committing.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
