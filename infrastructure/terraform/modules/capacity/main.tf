@@ -48,6 +48,21 @@ locals {
   matcher_pods         = local.shard_count * local.matcher_replicas_per_shard
   matcher_capacity_eps = local.matcher_pods * local.profile.matcher_eps
 
+  # The fewest matcher pods the target could ever need, ignoring geography
+  # entirely. Worth stating because the intuition it corrects is a strong one:
+  # shards do not multiply the pod count, they divide it, and the two cancel —
+  # `shard_count * (required / shard_count / matcher_eps)` is just
+  # `required / matcher_eps`.
+  #
+  # What does not cancel is the rounding. Each shard rounds its replicas up to
+  # a whole pod, so the fleet pays that remainder once per shard, and finer
+  # geography costs pods rather than saving them. Past `pods_floor` shards
+  # every shard is at its one-replica minimum and the pod count simply follows
+  # the shard count.
+  matcher_pods_floor = max(1, ceil(local.required_eps / local.profile.matcher_eps))
+
+  matcher_rounding_overhead = local.matcher_pods / local.matcher_pods_floor
+
   # Replicas are the first lever and shards the second, so a shard deficit is
   # not "too few shards to carry the load" — replicas carry it — but "one
   # shard now needs more replicas than a single queue group should hold".

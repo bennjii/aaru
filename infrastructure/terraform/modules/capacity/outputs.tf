@@ -34,6 +34,14 @@ output "matcher" {
     `replicas` is the floor derived from the mean rate; `replicas_max` is the
     HPA ceiling, which is what absorbs the difference between a mean and a
     geographic distribution.
+
+    `pods_floor` is the count throughput alone demands. Shards do not multiply
+    the pod count — they divide it, and the two cancel — so the gap between
+    `pods` and `pods_floor` is pure per-shard rounding, and finer geography
+    widens it. Precision is worth spending on shard-file size and on how
+    finely load can be isolated, not on pod count, and it is worth spending
+    carefully: a finer grid means more trips crossing a shard boundary, and
+    every crossing degrades a resume to a restart.
   EOT
   value = {
     shards         = local.shard_count
@@ -41,9 +49,13 @@ output "matcher" {
     replicas_max   = local.matcher_replicas_max
     pods           = local.matcher_pods
     pods_max       = local.shard_count * local.matcher_replicas_max
+    pods_floor     = local.matcher_pods_floor
     eps_per_pod    = local.profile.matcher_eps
     capacity_eps   = local.matcher_capacity_eps
     mean_shard_eps = local.mean_shard_eps
+
+    # 1.0 means the geography costs nothing over the throughput floor.
+    rounding_overhead = local.matcher_rounding_overhead
   }
 }
 
@@ -309,6 +321,7 @@ output "summary" {
 
     matchers      ${local.shard_count} shards x ${local.matcher_replicas_per_shard} replicas = ${local.matcher_pods} pods (HPA to ${local.matcher_replicas_max}/shard, ${local.shard_count * local.matcher_replicas_max} pods)
                   ${format("%d", floor(local.mean_shard_eps))} evt/s mean per shard, capacity ${format("%d", floor(local.matcher_capacity_eps))} evt/s
+                  throughput floor is ${local.matcher_pods_floor} pods; this geography costs ${format("%.2f", local.matcher_rounding_overhead)}x that
     fleet         ${local.fleet} pods x ${local.partitions_per_pod} partitions = ${var.partitions}, capacity ${format("%d", floor(local.orchestrator_capacity_eps))} evt/s
     streams       ${var.streams} raw (${format("%d", floor(local.raw_writes_per_stream))} writes/s each, ceiling ${var.jetstream_writes_per_stream}), ${local.partitions_per_stream} consumers each
                   ${var.matched_streams} matched (${format("%d", floor(local.matched_writes_per_stream))} writes/s each)

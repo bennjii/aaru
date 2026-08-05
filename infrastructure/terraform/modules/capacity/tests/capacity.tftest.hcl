@@ -354,6 +354,70 @@ run "a_shard_that_cannot_be_scaled_recommends_a_finer_precision" {
   }
 }
 
+# Shards divide the pod count rather than multiplying it, so the two cancel and
+# the fleet size is set by throughput alone. What survives the cancellation is
+# the per-shard rounding, which finer geography pays more often — the opposite
+# of the intuition that fewer, bigger shards mean fewer pods.
+run "the_matcher_count_follows_throughput_not_geography" {
+  command = plan
+
+  variables {
+    shards                = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
+    throughput_target_eps = 800000
+  }
+
+  # 1M evt/s over 6000 per pod.
+  assert {
+    condition     = output.matcher.pods_floor == 167
+    error_message = "Expected a 167-pod throughput floor, got ${output.matcher.pods_floor}."
+  }
+
+  # Six shards land within one pod of it: 28 replicas each is 168.
+  assert {
+    condition     = output.matcher.pods == 168
+    error_message = "Expected 168 pods at 6 shards, got ${output.matcher.pods}."
+  }
+
+  assert {
+    condition     = output.matcher.rounding_overhead < 1.02
+    error_message = "Coarse geography should sit within 2% of the floor, got ${output.matcher.rounding_overhead}x."
+  }
+}
+
+# The same target over a finer grid costs more pods, not fewer: every shard
+# rounds its replicas up to a whole pod, and there are more shards to round.
+run "finer_geography_costs_pods_rather_than_saving_them" {
+  command = plan
+
+  variables {
+    shards                = run.shards.shards
+    throughput_target_eps = 800000
+  }
+
+  # 256 shards at 3906 evt/s each: one replica apiece, well under a pod's
+  # 6000, so more than half of every pod is bought and idle.
+  assert {
+    condition     = output.matcher.replicas == 1
+    error_message = "Expected the one-replica minimum at 256 shards, got ${output.matcher.replicas}."
+  }
+
+  assert {
+    condition     = output.matcher.pods == 256
+    error_message = "Expected 256 pods, got ${output.matcher.pods}."
+  }
+
+  assert {
+    condition     = output.matcher.pods > output.matcher.pods_floor
+    error_message = "A grid finer than the throughput floor must cost pods over it."
+  }
+
+  # Past the floor in shard count, the pod count simply follows the shards.
+  assert {
+    condition     = output.shard_count > output.matcher.pods_floor
+    error_message = "This fixture is meant to sit past the throughput floor in shard count."
+  }
+}
+
 # The infra pool must never be packed to the point where losing one node costs
 # JetStream its quorum. Bin packing alone would happily do exactly that, since
 # a big node fits several brokers.
