@@ -171,6 +171,32 @@ output "nats" {
     file_store_gib = local.file_store_gib_server
     cpu_millis     = var.nats_cpu_millis
     memory_mib     = var.nats_memory_mib
+
+    # How many nodes the infra pool must have for the servers to spread. A
+    # node may hold at most half the cluster short of one, or losing it costs
+    # quorum on every stream that node was leading.
+    spread_nodes = local.nats_spread_nodes
+  }
+}
+
+output "jetstream_disk" {
+  description = <<-EOT
+    What the file store must sustain per server, as opposed to how much it must
+    hold. Capacity and performance are separate constraints here, and a pd-*
+    class conflates them: its throughput scales with size, so the broker's
+    write ceiling would depend on the retention window rather than on traffic.
+    The devstack provisions both explicitly from these figures.
+
+    Throughput usually binds before IOPS — JetStream appends sequentially — and
+    the matched stream is most of the bytes, because an emission carries the
+    whole cut trip rather than a delta.
+  EOT
+  value = {
+    write_mib_per_server = local.jetstream_write_mib_server
+    iops_per_server      = local.jetstream_iops_server
+    write_bytes_rate     = local.jetstream_write_bytes_rate
+    gib_per_server       = local.file_store_gib_server
+    messages_per_write   = var.jetstream_messages_per_write
   }
 }
 
@@ -286,7 +312,8 @@ output "summary" {
     fleet         ${local.fleet} pods x ${local.partitions_per_pod} partitions = ${var.partitions}, capacity ${format("%d", floor(local.orchestrator_capacity_eps))} evt/s
     streams       ${var.streams} raw (${format("%d", floor(local.raw_writes_per_stream))} writes/s each, ceiling ${var.jetstream_writes_per_stream}), ${local.partitions_per_stream} consumers each
                   ${var.matched_streams} matched (${format("%d", floor(local.matched_writes_per_stream))} writes/s each)
-    nats          ${local.nats_replicas_total} servers, ${local.stream_leaders_total} stream leaders, ${local.file_store_gib_server} GiB file store each
+    nats          ${local.nats_replicas_total} servers over >=${local.nats_spread_nodes} nodes, ${local.stream_leaders_total} stream leaders
+    file store    ${local.file_store_gib_server} GiB per server at ${local.jetstream_write_mib_server} MiB/s, ${local.jetstream_iops_server} IOPS
     valkey        ${local.valkey_primaries_total} primaries + ${local.valkey_primaries_total * var.valkey_replicas_per_primary} replicas, ${var.valkey_client_mode}, ${var.valkey_io_threads} io-threads
     collectors    ${local.collector_replicas} at ${var.telemetry_sample_ratio} sample ratio (${format("%d", floor(local.span_rate))} spans/s)
 

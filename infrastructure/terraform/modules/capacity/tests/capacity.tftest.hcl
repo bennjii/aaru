@@ -8,8 +8,8 @@
 variables {
   machines = {
     matcher  = { machine_type = "c4-highcpu-32", vcpu = 32, memory_gib = 64 }
-    pipeline = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 64 }
-    infra    = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 32 }
+    pipeline = { machine_type = "c4-highcpu-16", vcpu = 16, memory_gib = 32 }
+    infra    = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 64 }
     system   = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 32 }
   }
 
@@ -351,6 +351,66 @@ run "a_shard_that_cannot_be_scaled_recommends_a_finer_precision" {
   assert {
     condition     = output.recommended_precision > 4
     error_message = "A shard deficit must recommend a finer precision, got ${output.recommended_precision}."
+  }
+}
+
+# The infra pool must never be packed to the point where losing one node costs
+# JetStream its quorum. Bin packing alone would happily do exactly that, since
+# a big node fits several brokers.
+run "the_infra_pool_keeps_the_brokers_spread" {
+  command = plan
+
+  variables {
+    shards                = run.shards.shards
+    throughput_target_eps = 800000
+  }
+
+  # A node may hold at most half the cluster short of one.
+  assert {
+    condition     = output.nats.spread_nodes >= ceil(output.nats.replicas_total / 2)
+    error_message = "A ${output.nats.replicas_total}-server cluster needs at least ${ceil(output.nats.replicas_total / 2)} nodes, got ${output.nats.spread_nodes}."
+  }
+
+  assert {
+    condition     = output.pools["infra"].min_node_count >= output.nats.spread_nodes
+    error_message = "The infra pool floors at ${output.pools["infra"].min_node_count} nodes but the brokers need ${output.nats.spread_nodes} to spread across."
+  }
+
+  # Losing the most loaded node must leave a majority behind.
+  assert {
+    condition     = (output.nats.replicas_total - ceil(output.nats.replicas_total / output.nats.spread_nodes)) > (output.nats.replicas_total / 2)
+    error_message = "Losing one infra node would take ${ceil(output.nats.replicas_total / output.nats.spread_nodes)} of ${output.nats.replicas_total} servers, costing quorum."
+  }
+}
+
+# Capacity and performance are separate constraints on the file store. Sizing
+# the volume for the retention window says nothing about whether it can absorb
+# the write rate, which is why both are derived.
+run "the_file_store_is_sized_for_rate_as_well_as_volume" {
+  command = plan
+
+  variables {
+    shards                = run.shards.shards
+    throughput_target_eps = 800000
+  }
+
+  # 1M evt/s of raw at 256B plus 1M emissions at 2KiB, over 5 servers.
+  assert {
+    condition     = output.jetstream_disk.write_mib_per_server == 440
+    error_message = "Expected 440 MiB/s per server, got ${output.jetstream_disk.write_mib_per_server}."
+  }
+
+  assert {
+    condition     = output.jetstream_disk.iops_per_server == 25000
+    error_message = "Expected 25000 IOPS per server, got ${output.jetstream_disk.iops_per_server}."
+  }
+
+  # The matched stream is most of the bytes, because an emission carries the
+  # whole cut trip rather than a delta. If this ever inverts, the retention
+  # policy is no longer what dominates the disk.
+  assert {
+    condition     = var.matched_event_bytes > var.raw_event_bytes * 4
+    error_message = "The disk model assumes emissions dominate ingest by volume."
   }
 }
 

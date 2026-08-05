@@ -47,9 +47,66 @@ variable "jetstream_file_store_gib" {
 }
 
 variable "jetstream_storage_class" {
-  description = "StorageClass for the file store PVCs. Empty uses the cluster default, which is pd-balanced on GKE. Worth setting to an SSD class if measurement shows the per-stream write ceiling is disk-bound rather than CPU-bound."
+  description = <<-EOT
+    An existing StorageClass to bind the file store PVCs to. Empty — the
+    default — makes this module create one instead, sized from the demand
+    variables below.
+
+    Do not point this at the cluster default. GKE's is pd-balanced, whose
+    throughput and IOPS scale with capacity, so the broker's disk speed becomes
+    a side effect of how much retention was configured.
+  EOT
   type        = string
   default     = ""
+}
+
+variable "jetstream_storage_class_name" {
+  description = "Name of the StorageClass this module creates when `jetstream_storage_class` is empty."
+  type        = string
+  default     = "routers-jetstream"
+}
+
+variable "jetstream_disk_type" {
+  description = <<-EOT
+    Disk type behind the file store.
+
+    Hyperdisk, because it provisions IOPS and throughput independently of
+    capacity — a pd-* class would tie the broker's write ceiling to its
+    retention window. `hyperdisk-balanced` covers this workload;
+    `hyperdisk-extreme` exists for a measured IOPS wall that balanced cannot
+    reach.
+  EOT
+  type        = string
+  default     = "hyperdisk-balanced"
+
+  validation {
+    condition     = startswith(var.jetstream_disk_type, "hyperdisk-")
+    error_message = "jetstream_disk_type must be a hyperdisk type: a pd-* volume's performance scales with its size, which makes the write ceiling depend on the retention window rather than on the traffic."
+  }
+}
+
+variable "jetstream_provisioned_iops" {
+  description = "IOPS provisioned per file store volume. One volume per NATS server, so this is per server."
+  type        = number
+  default     = 30000
+}
+
+variable "jetstream_provisioned_throughput_mib" {
+  description = "Throughput in MiB/s provisioned per file store volume. This is usually the binding one rather than IOPS: JetStream appends sequentially, so the bytes matter more than the operation count."
+  type        = number
+  default     = 750
+}
+
+variable "jetstream_required_iops" {
+  description = "IOPS the streams will actually need per server, from the capacity model. Checked against the provisioned figure."
+  type        = number
+  default     = 0
+}
+
+variable "jetstream_required_throughput_mib" {
+  description = "MiB/s the streams will actually write per server, from the capacity model. Checked against the provisioned figure."
+  type        = number
+  default     = 0
 }
 
 variable "valkey_primaries" {

@@ -73,7 +73,29 @@ variable "vertical_profile" {
   default = "standard"
 }
 
+# --- JetStream storage ------------------------------------------------------
+
+variable "jetstream_provisioned_throughput_mib" {
+  description = <<-EOT
+    MiB/s provisioned per NATS server's file store volume.
+
+    Set above the model's derived demand, not equal to it: the derived figure
+    is a mean, and ingest is burstier than a mean — a matcher shard recovering
+    from a restart re-drives its backlog as fast as the orchestrators can push
+    it. The devstack fails the plan if this drops below what the model needs.
+  EOT
+  type        = number
+  default     = 750
+}
+
+variable "jetstream_provisioned_iops" {
+  description = "IOPS provisioned per file store volume. Rarely the binding constraint — JetStream appends sequentially, so throughput runs out first."
+  type        = number
+  default     = 30000
+}
+
 variable "machines" {
+  description = "Machine shape per node pool. Must match ../platform, which built the pools from these; this root only recomputes the model to size what it deploys onto them."
   type = map(object({
     machine_type = string
     vcpu         = number
@@ -82,8 +104,8 @@ variable "machines" {
 
   default = {
     matcher  = { machine_type = "c4-highcpu-32", vcpu = 32, memory_gib = 64 }
-    pipeline = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 64 }
-    infra    = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 32 }
+    pipeline = { machine_type = "c4-highcpu-16", vcpu = 16, memory_gib = 32 }
+    infra    = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 64 }
     system   = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 32 }
   }
 }

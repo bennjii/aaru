@@ -115,7 +115,19 @@ variable "vertical_profile" {
 }
 
 variable "machines" {
-  description = "Machine shape per node pool. Keys must match the capacity module's pools: matcher, pipeline, infra, system."
+  description = <<-EOT
+    Machine shape per node pool. Keys must match the capacity module's pools:
+    matcher, pipeline, infra, system. `vcpu` and `memory_gib` must match
+    `machine_type` — the model derives allocatable capacity from them, so an
+    overstated figure plans too few nodes and the shortfall appears as Pending
+    pods rather than as a wrong number here.
+
+    Every pool is CPU-bound at these pod shapes, which is why the two carrying
+    the pipeline are highcpu: a standard node's extra memory would be paid for
+    and left idle. The infra pool is the exception and is deliberately not
+    packed tight — see `nats.spread_nodes`, which floors its node count so the
+    brokers can spread across failure domains.
+  EOT
   type = map(object({
     machine_type = string
     vcpu         = number
@@ -124,8 +136,8 @@ variable "machines" {
 
   default = {
     matcher  = { machine_type = "c4-highcpu-32", vcpu = 32, memory_gib = 64 }
-    pipeline = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 64 }
-    infra    = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 32 }
+    pipeline = { machine_type = "c4-highcpu-16", vcpu = 16, memory_gib = 32 }
+    infra    = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 64 }
     system   = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 32 }
   }
 }

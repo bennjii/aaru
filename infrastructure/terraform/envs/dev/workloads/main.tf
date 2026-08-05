@@ -31,6 +31,15 @@ module "devstack" {
   nats_replicas            = module.capacity.nats.replicas_total
   jetstream_file_store_gib = module.capacity.nats.file_store_gib
 
+  # Capacity and performance are provisioned separately, because they are
+  # separate constraints: the volume is sized for the retention window and
+  # provisioned for the write rate. A class whose speed scales with its size
+  # would tie the two together.
+  jetstream_required_throughput_mib    = module.capacity.jetstream_disk.write_mib_per_server
+  jetstream_required_iops              = module.capacity.jetstream_disk.iops_per_server
+  jetstream_provisioned_throughput_mib = var.jetstream_provisioned_throughput_mib
+  jetstream_provisioned_iops           = var.jetstream_provisioned_iops
+
   valkey_primaries  = module.capacity.valkey.primaries
   valkey_io_threads = module.capacity.valkey.io_threads
 

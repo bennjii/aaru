@@ -74,16 +74,15 @@ resource "helm_release" "nats" {
         # the target moves.
         fileStore = {
           enabled = true
-          pvc = merge(
-            {
-              enabled = true
-              size    = "${var.jetstream_file_store_gib}Gi"
-            },
-            # Left to the cluster default when unset, which is pd-balanced on
-            # GKE. Worth setting to an SSD class if the write ceiling turns out
-            # to be disk rather than CPU.
-            var.jetstream_storage_class == "" ? {} : { storageClassName = var.jetstream_storage_class },
-          )
+          pvc = {
+            enabled = true
+            size    = "${var.jetstream_file_store_gib}Gi"
+
+            # Never the cluster default: see storage.tf. The class provisions
+            # throughput independently of this size, so retention and write
+            # ceiling stop being the same dial.
+            storageClassName = local.jetstream_storage_class
+          }
         }
       }
     }
@@ -94,11 +93,20 @@ resource "helm_release" "nats" {
 
     podTemplate = merge(
       {
-        # Spread servers across nodes, or the availability floor buys nothing.
+        # Hard, not best-effort. Every stream elects a raft leader, so the
+        # cluster's fault tolerance is a property of how the servers are
+        # spread, not of how many there are: five servers on two nodes lose
+        # quorum to a single node failure.
+        #
+        # `ScheduleAnyway` would let exactly that happen the first time the
+        # scheduler found the infra pool tight, and it would look like a
+        # healthy five-server cluster right up until a node drained. The
+        # capacity model keeps the pool's node floor high enough for this to be
+        # satisfiable — see `nats_spread_nodes`.
         topologySpreadConstraints = {
           "kubernetes.io/hostname" = {
             maxSkew           = 1
-            whenUnsatisfiable = "ScheduleAnyway"
+            whenUnsatisfiable = "DoNotSchedule"
           }
         }
       },

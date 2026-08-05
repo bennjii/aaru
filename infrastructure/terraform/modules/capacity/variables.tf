@@ -414,6 +414,25 @@ variable "jetstream_stream_replicas" {
   default     = 1
 }
 
+variable "jetstream_messages_per_write" {
+  description = <<-EOT
+    Messages a stream commits per disk write.
+
+    JetStream appends and fsyncs in batches rather than once per message, so
+    the volume's operation count is well under the message rate. The softest
+    number in the disk model, and it only sets IOPS — throughput is derived
+    from bytes and is usually what binds first, since the appends are
+    sequential.
+  EOT
+  type        = number
+  default     = 16
+
+  validation {
+    condition     = var.jetstream_messages_per_write >= 1
+    error_message = "jetstream_messages_per_write must be at least 1."
+  }
+}
+
 variable "raw_event_bytes" {
   description = "Wire size of one postcard-encoded raw event, including its JetStream framing and subject. Sizes the work-queue backlog on disk."
   type        = number

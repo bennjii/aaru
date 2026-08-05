@@ -152,6 +152,39 @@ locals {
   file_store_bytes_server = ceil(local.jetstream_disk_bytes / local.nats_replicas_total)
   file_store_gib_server   = max(1, ceil(local.file_store_bytes_server / 1073741824))
 
+  # What the file store has to sustain, as opposed to how much it has to hold.
+  # These are different constraints and only one of them is capacity: a volume
+  # sized for the retention window can still be far too slow for the write
+  # rate, which is why the storage class provisions performance explicitly
+  # rather than inheriting it from the size.
+  #
+  # The matched stream dominates the bytes. An emission carries the entire cut
+  # trip rather than a delta — the property that lets competing solves resolve
+  # by revision — so it costs an order of magnitude more per message than the
+  # raw event that produced it.
+  jetstream_write_bytes_rate = (
+    (local.required_eps * var.raw_event_bytes + local.required_eps * var.matched_event_bytes)
+    * var.jetstream_stream_replicas
+  )
+
+  jetstream_write_mib_server = ceil(
+    local.jetstream_write_bytes_rate / local.nats_replicas_total / 1048576
+  )
+
+  # JetStream appends and fsyncs in batches rather than once per message, so
+  # the operation count is well under the message rate. The divisor is the
+  # softest number here.
+  jetstream_iops_server = ceil(
+    (local.required_eps * 2 * var.jetstream_stream_replicas)
+    / local.nats_replicas_total / var.jetstream_messages_per_write
+  )
+
+  # Fault tolerance is a property of how the servers are spread, not of how
+  # many there are. A node may hold at most half the cluster short of one, or
+  # losing it costs quorum — so the pool needs at least this many nodes for the
+  # hard spread constraint to be satisfiable.
+  nats_spread_nodes = ceil(local.nats_replicas_total / 2)
+
   # --- Valkey -------------------------------------------------------------
 
   # One fleet, hashed by vehicle, sized from the total command rate because
@@ -341,17 +374,26 @@ locals {
   # Shapes are summed rather than bin-packed together, so a mixed pool carries
   # slack. That is the conservative direction, and the pools that dominate the
   # fleet hold one shape each.
-  node_counts = {
+  node_counts_packed = {
     for pool, shapes in local.packing : pool => max(1, sum([
       for s in shapes : s.per_node < 1 ? s.count : ceil(s.count / s.per_node)
     ]))
   }
 
-  node_counts_max = {
+  # Packing alone would happily put every NATS server on one large node, which
+  # is efficient and destroys the cluster's fault tolerance. The infra pool
+  # therefore has a floor independent of how well its pods pack.
+  node_counts = merge(local.node_counts_packed, {
+    infra = max(local.node_counts_packed["infra"], local.nats_spread_nodes)
+  })
+
+  node_counts_max = merge({
     for pool, shapes in local.packing : pool => max(1, sum([
       for s in shapes : s.per_node < 1 ? s.count_max : ceil(s.count_max / s.per_node)
     ]))
-  }
+    }, {
+    infra = max(local.node_counts_packed["infra"], local.nats_spread_nodes)
+  })
 
   demand = {
     for pool, shapes in local.shapes : pool => {
