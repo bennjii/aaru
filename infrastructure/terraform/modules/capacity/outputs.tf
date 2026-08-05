@@ -92,10 +92,32 @@ output "fleet" {
     required           = local.fleet_required
     partitions         = var.partitions
     partitions_per_pod = local.partitions_per_pod
-    eps_per_pod        = local.profile.orchestrator_eps
+    eps_per_pod        = local.orchestrator_eps
     capacity_eps       = local.orchestrator_capacity_eps
     fits_partitions    = local.fleet_fits_the_partition_space
+
+    # Which ceiling the pod actually hits, and what the other one would allow.
+    # `concurrency` means the fix is a worker count, not a bigger pod.
+    bound               = local.orchestrator_bound
+    io_eps              = local.orchestrator_io_eps
+    cpu_eps             = local.orchestrator_cpu_eps
+    workers             = local.profile.orchestrator_workers
+    round_trip_ms       = local.profile.orchestrator_round_trip_ms
+    stranded_cpu_millis = local.orchestrator_stranded_cpu_millis
   }
+}
+
+output "orchestrator_efficiency_note" {
+  description = "Non-empty when the fleet is bought CPU it cannot reach, because concurrency rather than compute is what binds each pod."
+  value = local.orchestrator_bound != "concurrency" ? "" : join(" ", [
+    "Each orchestrator is concurrency-bound at ${local.orchestrator_io_eps} evt/s,",
+    "against the ${local.orchestrator_cpu_eps} evt/s its CPU request could serve.",
+    "That strands ${format("%.0f", local.orchestrator_stranded_cpu_millis)}m per pod across a fleet of ${local.fleet}.",
+    "Workers are tokio tasks holding a lane across a round trip, not threads,",
+    "so raising orchestrator_workers costs memory rather than cores —",
+    "and VEHICLE_CACHE is per worker, so lower it in step or the pod's",
+    "lane memory grows with the same change.",
+  ])
 }
 
 # --- Streams ----------------------------------------------------------------
@@ -386,7 +408,7 @@ output "summary" {
   description = "Human-readable sizing report. `tofu output -raw capacity_summary` in an env root."
   value       = <<-EOT
     target        ${format("%d", var.throughput_target_eps)} evt/s (+${format("%d", floor(var.headroom_ratio * 100))}% headroom = ${format("%d", floor(local.required_eps))})
-    profile       ${var.vertical_profile} (matcher ${local.profile.matcher_eps} evt/s x ${local.profile.matcher_workers}w, orchestrator ${local.profile.orchestrator_eps} evt/s x ${local.profile.orchestrator_workers}w)
+    profile       ${var.vertical_profile} (matcher ${local.profile.matcher_eps} evt/s x ${local.profile.matcher_workers}w, orchestrator ${local.orchestrator_eps} evt/s x ${local.profile.orchestrator_workers}w, ${local.orchestrator_bound}-bound)
     verdict       ${local.meets_target ? "MEETS TARGET" : "SHORT"}
 
     matchers      ${local.shard_count} shards x ${local.matcher_replicas_per_shard} replicas = ${local.matcher_pods} pods (HPA to ${local.matcher_replicas_max}/shard, ${local.shard_count * local.matcher_replicas_max} pods)

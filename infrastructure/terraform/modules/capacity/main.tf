@@ -88,7 +88,33 @@ locals {
     d if d <= var.partitions && var.partitions % d == 0
   ]
 
-  fleet_required = max(1, ceil(local.required_eps / local.profile.orchestrator_eps))
+  # Two independent ceilings on one pod, because the orchestrator is mostly an
+  # I/O scheduler rather than a compute service. Whichever is lower is the
+  # pod's rate, and which one it is decides how to fix a shortfall: raising
+  # concurrency is a config change, raising compute is a bill.
+  orchestrator_io_eps = floor(
+    local.profile.orchestrator_workers * 1000 / local.profile.orchestrator_round_trip_ms
+  )
+
+  # A millicore-second is 1000 CPU-microseconds, so a pod's budget in events is
+  # its request over the per-event cost.
+  orchestrator_cpu_eps = floor(
+    local.profile.orchestrator_cpu_millis * 1000 / local.profile.orchestrator_cpu_micros_per_event
+  )
+
+  orchestrator_eps   = min(local.orchestrator_io_eps, local.orchestrator_cpu_eps)
+  orchestrator_bound = local.orchestrator_io_eps <= local.orchestrator_cpu_eps ? "concurrency" : "compute"
+
+  # Cores bought and unreachable because the pod cannot hold enough work in
+  # flight to use them. This is the waste a single fused `orchestrator_eps`
+  # made invisible.
+  orchestrator_stranded_cpu_millis = (
+    local.orchestrator_bound == "concurrency"
+    ? local.profile.orchestrator_cpu_millis * (1 - local.orchestrator_io_eps / local.orchestrator_cpu_eps)
+    : 0
+  )
+
+  fleet_required = max(1, ceil(local.required_eps / local.orchestrator_eps))
   fleet_eligible = [for d in local.fleet_divisors : d if d >= local.fleet_required]
 
   # No eligible divisor means the target needs more pods than there are
@@ -97,7 +123,7 @@ locals {
   fleet = length(local.fleet_eligible) > 0 ? local.fleet_eligible[0] : var.partitions
 
   partitions_per_pod        = var.partitions / local.fleet
-  orchestrator_capacity_eps = local.fleet * local.profile.orchestrator_eps
+  orchestrator_capacity_eps = local.fleet * local.orchestrator_eps
 
   # One pod per partition is the hard ceiling: a partition is the smallest
   # thing an owner can hold, so past this the answer is a fatter profile.
@@ -248,8 +274,8 @@ locals {
     streams_required  = ceil(local.design_required_eps / var.jetstream_writes_per_stream)
     streams_ok        = (local.design_required_eps / var.streams) <= var.jetstream_writes_per_stream
 
-    fleet_required   = ceil(local.design_required_eps / local.profile.orchestrator_eps)
-    fleet_fits       = ceil(local.design_required_eps / local.profile.orchestrator_eps) <= var.partitions
+    fleet_required   = ceil(local.design_required_eps / local.orchestrator_eps)
+    fleet_fits       = ceil(local.design_required_eps / local.orchestrator_eps) <= var.partitions
     matcher_pods     = local.shard_count * max(1, ceil((local.design_required_eps / local.shard_count) / local.profile.matcher_eps))
     valkey_primaries = max(1, ceil((local.design_required_eps * var.valkey_ops_per_event) / var.valkey_ops_per_primary))
 

@@ -141,14 +141,16 @@ variable "otlp_url" {
 variable "profile" {
   description = "Per-service worker counts and resources, from the capacity module's `profile` output, so the sizing model and the deployment cannot drift apart."
   type = object({
-    matcher_workers         = number
-    matcher_cpu_millis      = number
-    matcher_memory_mib      = number
-    matcher_eps             = number
-    orchestrator_workers    = number
-    orchestrator_cpu_millis = number
-    orchestrator_memory_mib = number
-    orchestrator_eps        = number
+    matcher_workers    = number
+    matcher_cpu_millis = number
+    matcher_memory_mib = number
+    matcher_eps        = number
+
+    orchestrator_workers              = number
+    orchestrator_round_trip_ms        = number
+    orchestrator_cpu_micros_per_event = number
+    orchestrator_cpu_millis           = number
+    orchestrator_memory_mib           = number
   })
 }
 

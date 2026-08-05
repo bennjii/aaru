@@ -229,64 +229,95 @@ variable "profiles" {
   description = <<-EOT
     Vertical scaling steps.
 
-    `matcher_eps` is the sustained request rate one matcher replica serves, and
-    `orchestrator_eps` the sustained rate one orchestrator pod drives. The two
-    are independent now: a matcher is a pure request/reply solver behind a
-    queue group, and an orchestrator owns vehicle partitions rather than
-    geography, so neither is pinned to the other's count.
+    `matcher_eps` is the sustained request rate one matcher replica serves. It
+    is CPU-bound work — a Viterbi solve fanned across rayon — so one number
+    describes it.
 
-    Both are estimates from the shipped worker defaults, not measurements. The
-    orchestrator figure is the softer of the two: a worker holds its vehicle's
-    lane across the whole round trip — solve, broker-confirmed publish, batched
-    archive flush — so the pod's ceiling is `workers / mean_round_trip`, and
-    the round trip is dominated by parts this model cannot see.
+    The orchestrator is not, and a single number hid that. It is mostly an I/O
+    scheduler: a worker holds its vehicle's lane across the whole round trip —
+    solve, broker-confirmed publish, batched archive flush — and spends almost
+    all of that awaiting rather than computing. So its ceiling is whichever of
+    two independent bounds binds first:
+
+      concurrency   `workers / round_trip`. Workers are tokio tasks, so this
+                    bound is cheap to raise and has nothing to do with cores.
+
+      compute       the real per-event CPU: decode, context assembly,
+                    reconcile, encode. This is what the CPU request buys.
+
+    Holding them apart matters because they are measured differently and fixed
+    differently. A pod short on concurrency is one config change away from
+    twice the throughput on the same cores; a pod short on CPU is not. Fusing
+    them into one `orchestrator_eps` made a concurrency shortfall look like a
+    hardware requirement, and bought cores that could not be used.
+
+    Every figure here is an estimate from the shipped defaults rather than a
+    measurement. `orchestrator_round_trip_ms` and
+    `orchestrator_cpu_micros_per_event` are the two worth measuring first,
+    because between them they set the whole pipeline pool.
   EOT
   type = map(object({
-    matcher_workers         = number
-    matcher_cpu_millis      = number
-    matcher_memory_mib      = number
-    matcher_eps             = number
-    orchestrator_workers    = number
-    orchestrator_cpu_millis = number
-    orchestrator_memory_mib = number
-    orchestrator_eps        = number
+    matcher_workers    = number
+    matcher_cpu_millis = number
+    matcher_memory_mib = number
+    matcher_eps        = number
+
+    orchestrator_workers              = number
+    orchestrator_round_trip_ms        = number
+    orchestrator_cpu_micros_per_event = number
+    orchestrator_cpu_millis           = number
+    orchestrator_memory_mib           = number
   }))
 
   default = {
     small = {
-      matcher_workers         = 5
-      matcher_cpu_millis      = 1000
-      matcher_memory_mib      = 3072
-      matcher_eps             = 1500
-      orchestrator_workers    = 16
-      orchestrator_cpu_millis = 500
-      orchestrator_memory_mib = 1024
-      orchestrator_eps        = 2000
+      matcher_workers    = 5
+      matcher_cpu_millis = 1000
+      matcher_memory_mib = 3072
+      matcher_eps        = 1500
+
+      orchestrator_workers              = 64
+      orchestrator_round_trip_ms        = 8
+      orchestrator_cpu_micros_per_event = 50
+      orchestrator_cpu_millis           = 500
+      orchestrator_memory_mib           = 1024
     }
 
-    # The calibration anchor: the chart's shipped worker counts.
+    # The calibration anchor. Concurrency is sized so neither bound wastes the
+    # other: 512 workers at an 8 ms round trip is 64k evt/s of scheduling
+    # against 40k evt/s of CPU, so the pod is compute-bound with the
+    # concurrency to keep those cores fed through a latency spike.
+    #
+    # The chart's shipped 64 workers is 8k evt/s — a fifth of what the same
+    # cores can do — so a pod sized this way and left at that count would buy
+    # CPU it could never reach.
     standard = {
-      matcher_workers         = 10
-      matcher_cpu_millis      = 2000
-      matcher_memory_mib      = 3072
-      matcher_eps             = 6000
-      orchestrator_workers    = 64
-      orchestrator_cpu_millis = 1000
-      orchestrator_memory_mib = 1024
-      orchestrator_eps        = 8000
+      matcher_workers    = 10
+      matcher_cpu_millis = 2000
+      matcher_memory_mib = 3072
+      matcher_eps        = 6000
+
+      orchestrator_workers              = 512
+      orchestrator_round_trip_ms        = 8
+      orchestrator_cpu_micros_per_event = 50
+      orchestrator_cpu_millis           = 2000
+      orchestrator_memory_mib           = 4096
     }
 
     # Fewer, fatter pods. Fewer objects is its own win: a fleet of thousands
-    # of Deployments makes a rollout an API-server problem.
+    # of Deployments makes a rollout an API-server problem. It is not a cost
+    # win — see the summary's per-event line.
     large = {
-      matcher_workers         = 24
-      matcher_cpu_millis      = 6000
-      matcher_memory_mib      = 6144
-      matcher_eps             = 16000
-      orchestrator_workers    = 256
-      orchestrator_cpu_millis = 4000
-      orchestrator_memory_mib = 4096
-      orchestrator_eps        = 30000
+      matcher_workers    = 24
+      matcher_cpu_millis = 6000
+      matcher_memory_mib = 6144
+      matcher_eps        = 16000
+
+      orchestrator_workers              = 2048
+      orchestrator_round_trip_ms        = 8
+      orchestrator_cpu_micros_per_event = 50
+      orchestrator_cpu_millis           = 8000
+      orchestrator_memory_mib           = 16384
     }
   }
 }

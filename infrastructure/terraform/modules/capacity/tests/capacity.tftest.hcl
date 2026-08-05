@@ -97,16 +97,103 @@ run "the_two_halves_scale_independently" {
     error_message = "Expected an HPA ceiling of 4 replicas, got ${output.matcher.replicas_max}."
   }
 
-  # 1M / 8000 per pod = 125, snapped up to 128 so every pod takes exactly 8
+  # 1M / 40000 per pod = 25, snapped up to 32 so every pod takes exactly 32
   # partitions. The fleet is independent of the shard count entirely.
   assert {
-    condition     = output.fleet.size == 128
-    error_message = "Expected a fleet of 128, got ${output.fleet.size}."
+    condition     = output.fleet.size == 32
+    error_message = "Expected a fleet of 32, got ${output.fleet.size}."
   }
 
   assert {
-    condition     = output.fleet.partitions_per_pod == 8
-    error_message = "Expected 8 partitions per pod, got ${output.fleet.partitions_per_pod}."
+    condition     = output.fleet.partitions_per_pod == 32
+    error_message = "Expected 32 partitions per pod, got ${output.fleet.partitions_per_pod}."
+  }
+}
+
+# The orchestrator is an I/O scheduler with a compute cost, and the two bind
+# separately. Fusing them into one rate hid a concurrency shortfall as a
+# hardware requirement — the shipped 64 workers reach 8k evt/s against cores
+# worth 40k, so a pod sized for the cores could never use them.
+run "the_orchestrator_reports_which_ceiling_binds" {
+  command = plan
+
+  variables {
+    shards                = run.shards.shards
+    throughput_target_eps = 800000
+  }
+
+  # 512 workers over an 8 ms round trip.
+  assert {
+    condition     = output.fleet.io_eps == 64000
+    error_message = "Expected 64000 evt/s of concurrency, got ${output.fleet.io_eps}."
+  }
+
+  # 2000 millicores at 50 microseconds an event.
+  assert {
+    condition     = output.fleet.cpu_eps == 40000
+    error_message = "Expected 40000 evt/s of compute, got ${output.fleet.cpu_eps}."
+  }
+
+  # The lower of the two is the pod's rate, and the profile is deliberately
+  # sized so compute is what binds: concurrency is cheap, cores are not.
+  assert {
+    condition     = output.fleet.eps_per_pod == 40000
+    error_message = "The pod's rate must be the lower bound, got ${output.fleet.eps_per_pod}."
+  }
+
+  assert {
+    condition     = output.fleet.bound == "compute"
+    error_message = "Expected the profile to be compute-bound, got ${output.fleet.bound}."
+  }
+
+  # Nothing stranded when compute binds: every core bought is reachable.
+  assert {
+    condition     = output.orchestrator_efficiency_note == ""
+    error_message = output.orchestrator_efficiency_note
+  }
+}
+
+# A profile with the chart's shipped worker count against these cores, to show
+# the failure the split exists to catch.
+run "a_concurrency_starved_profile_is_called_out" {
+  command = plan
+
+  variables {
+    shards                = run.shards.shards
+    throughput_target_eps = 800000
+
+    profiles = {
+      starved = {
+        matcher_workers    = 10
+        matcher_cpu_millis = 2000
+        matcher_memory_mib = 3072
+        matcher_eps        = 6000
+
+        # The chart default, against a pod sized for far more.
+        orchestrator_workers              = 64
+        orchestrator_round_trip_ms        = 8
+        orchestrator_cpu_micros_per_event = 50
+        orchestrator_cpu_millis           = 2000
+        orchestrator_memory_mib           = 4096
+      }
+    }
+    vertical_profile = "starved"
+  }
+
+  assert {
+    condition     = output.fleet.bound == "concurrency"
+    error_message = "64 workers over an 8ms round trip must bind on concurrency, got ${output.fleet.bound}."
+  }
+
+  # 8k of 40k reachable, so four fifths of every pod's cores are unusable.
+  assert {
+    condition     = output.fleet.stranded_cpu_millis == 1600
+    error_message = "Expected 1600m stranded per pod, got ${output.fleet.stranded_cpu_millis}."
+  }
+
+  assert {
+    condition     = length(output.orchestrator_efficiency_note) > 0
+    error_message = "A concurrency-bound fleet must say so, and say that workers are the fix."
   }
 }
 
