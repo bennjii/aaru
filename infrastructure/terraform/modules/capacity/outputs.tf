@@ -78,7 +78,8 @@ output "shard_memory_note" {
   EOT
   value = join(" ", [
     "The largest shard is ${var.largest_shard_file_mib} MiB on disk and",
-    "${local.matcher_graph_mib} MiB resident at ${var.shard_memory_expansion}x,",
+    "${local.matcher_graph_mib} MiB resident — ${var.shard_memory_slope}x the file plus",
+    "${var.shard_memory_fixed_mib} MiB that does not scale with it —",
     "so every matcher is sized at ${local.matcher_memory_mib} MiB including its working set.",
     "Across ${local.matcher_pods} pods that is ${format("%.1f", local.matcher_graph_mib_total / 1024)} GiB of graph,",
     "most of it the same shards loaded again per replica.",
@@ -87,8 +88,8 @@ output "shard_memory_note" {
     "so the pool is ${
       floor(local.allocatable["matcher"].memory_mib / local.matcher_memory_mib) <
       floor(local.allocatable["matcher"].cpu_millis / local.profile.matcher_cpu_millis)
-      ? "memory-bound — a finer grid would shrink the graph and recover nodes"
-      : "CPU-bound, so the graph is currently free"
+      ? "memory-bound: a finer grid would shrink the graph and recover nodes"
+      : "CPU-bound, and the graph costs nothing"
     }.",
   ])
 }

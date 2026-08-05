@@ -505,34 +505,57 @@ run "finer_geography_costs_pods_rather_than_saving_them" {
   }
 }
 
-# A matcher's memory is its shard's graph, measured rather than assumed: `r1`
-# is 413 MiB on disk and 3.31 GB resident. The file understates the pod by
-# 7.6x, which is why sizing a matcher from its shard file would OOM it.
-run "matcher_memory_is_derived_from_the_measured_shard" {
+# A matcher's memory is its shard's graph, and the model is a line fitted
+# through two real shards rather than a ratio. These pin it against both, which
+# is the whole justification for the two-term form: a single expansion factor
+# cannot reproduce them, because they disagree about the factor (7.6x and
+# 11.8x) while agreeing about the line.
+run "the_memory_model_reproduces_the_small_shard" {
   command = plan
 
   variables {
-    shards                 = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
-    throughput_target_eps  = 800000
-    largest_shard_file_mib = 413
-  }
+    shards                = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
+    throughput_target_eps = 800000
 
-  # 413 MiB at 7.6x.
-  assert {
-    condition     = output.matcher.graph_mib == 3139
-    error_message = "Expected a 3139 MiB resident graph, got ${output.matcher.graph_mib}."
-  }
-
-  # The graph plus the working set, and above the 3072 MiB the chart used to
-  # hardcode — which the graph alone would already have exceeded.
-  assert {
-    condition     = output.matcher.memory_mib == 4163
-    error_message = "Expected 4163 MiB per matcher, got ${output.matcher.memory_mib}."
+    # r3gr over Sydney: 21.2 MB on disk, 250 MB resident.
+    largest_shard_file_mib = 20.2
   }
 
   assert {
-    condition     = output.matcher.memory_mib > 3072
-    error_message = "A shard this size no longer fits the chart's old flat 3072 MiB limit, and the model must say so."
+    condition     = abs(output.matcher.graph_mib - 238) <= 5
+    error_message = "The fit must land on r3gr's measured 238 MiB, got ${output.matcher.graph_mib}."
+  }
+
+  # With a shard this size the pod is mostly working set, so CPU binds and the
+  # graph is effectively free.
+  assert {
+    condition     = length(regexall("CPU-bound", output.shard_memory_note)) > 0
+    error_message = "A precision-4 graph should leave the pool CPU-bound: ${output.shard_memory_note}"
+  }
+}
+
+run "the_memory_model_reproduces_the_large_shard" {
+  command = plan
+
+  variables {
+    shards                = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
+    throughput_target_eps = 800000
+
+    # r1, the largest in Australia at precision 2: 433 MB on disk, 3.31 GB
+    # resident. The same line, twenty times the shard.
+    largest_shard_file_mib = 412.9
+  }
+
+  assert {
+    condition     = abs(output.matcher.graph_mib - 3157) <= 30
+    error_message = "The fit must land on r1's measured 3157 MiB, got ${output.matcher.graph_mib}."
+  }
+
+  # The graph alone exceeds the flat 3072 MiB the chart used to hardcode, so a
+  # matcher holding this shard was never going to start.
+  assert {
+    condition     = output.matcher.graph_mib > 3072
+    error_message = "r1's graph must be shown to exceed the old flat limit, got ${output.matcher.graph_mib}."
   }
 
   # Every replica loads its shard's whole graph, so the fleet holds the same
@@ -541,37 +564,12 @@ run "matcher_memory_is_derived_from_the_measured_shard" {
     condition     = output.matcher.graph_mib_total == output.matcher.pods * output.matcher.graph_mib
     error_message = "Fleet-wide graph memory must be the pod count times the graph."
   }
-}
 
-# A bigger shard cannot be offset by having fewer of them, because throughput
-# fixes the pod count. Coarsening therefore multiplies memory without reducing
-# pods, and tips the pool from CPU-bound to memory-bound.
-run "a_coarser_grid_costs_memory_without_saving_pods" {
-  command = plan
-
-  variables {
-    shards                 = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
-    throughput_target_eps  = 800000
-    largest_shard_file_mib = 6.5
-  }
-
-  # A precision-4 shard is ~1/64 of a precision-2 one, so the pod shrinks to
-  # roughly its working set.
-  assert {
-    condition     = output.matcher.memory_mib < 1200
-    error_message = "A fine-grained shard should leave the working set dominant, got ${output.matcher.memory_mib}."
-  }
-
-  # The pod count is identical to the coarse case: geography never moved it.
+  # The pod count is identical to the small-shard case: geography never moved
+  # it, so a bigger shard multiplies memory with nothing removed to hold it.
   assert {
     condition     = output.matcher.pods == 168
     error_message = "Pod count must not depend on shard size, got ${output.matcher.pods}."
-  }
-
-  # And with the graph small, CPU is what binds — the graph is free.
-  assert {
-    condition     = length(regexall("CPU-bound", output.shard_memory_note)) > 0
-    error_message = "With a small graph the pool should be CPU-bound: ${output.shard_memory_note}"
   }
 }
 

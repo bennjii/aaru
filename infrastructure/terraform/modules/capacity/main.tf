@@ -40,13 +40,20 @@ locals {
 
   # A matcher's memory is a property of its geography, not of its vertical
   # profile: the profile decides how fast a pod solves, the shard decides how
-  # much graph it has to hold. Measured rather than assumed — `r1` is 413 MiB
-  # on disk and 3.31 GB resident, so the file understates the pod by 7.6x.
+  # much graph it has to hold.
+  #
+  # Two terms, not one ratio, because the two measurements disagree about the
+  # ratio and agree about the line: r1 expands 7.6x and r3gr 11.8x, which is a
+  # fixed overhead showing through rather than a varying expansion. A single
+  # factor taken from either would misjudge the other by a third.
   #
   # Sized for the largest shard because the chart gives every matcher
   # Deployment one limit, and a pod that cannot load its graph does not
-  # degrade, it is OOM-killed at startup and never serves a request.
-  matcher_graph_mib  = ceil(var.largest_shard_file_mib * var.shard_memory_expansion)
+  # degrade — it is OOM-killed at startup and never serves a request.
+  matcher_graph_mib = ceil(
+    var.largest_shard_file_mib * var.shard_memory_slope + var.shard_memory_fixed_mib
+  )
+
   matcher_memory_mib = local.matcher_graph_mib + var.matcher_working_set_mib
 
   # Every replica of a shard loads that shard's whole graph, so the fleet's

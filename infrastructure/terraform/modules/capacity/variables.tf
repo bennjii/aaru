@@ -117,11 +117,16 @@ variable "shard_fanout_per_precision" {
 
     Geohash grows 32x per level, but populated cells grow far slower: a road
     network is close to one-dimensional inside a two-dimensional cell, so
-    subdividing mostly yields empty children. Recalibrate by generating shards
-    at two adjacent precisions and taking the ratio.
+    subdividing mostly yields empty children.
+
+    Calibrated from the shard files rather than guessed. The same network split
+    two levels apart gives `r1` at 433 MB and `r3gr` at 21.2 MB — a factor of
+    20 across two levels, so about 4.5 per level. Total network size is fixed,
+    so a shard shrinking 4.5x per level is the same statement as the shard
+    count growing 4.5x.
   EOT
   type        = number
-  default     = 8
+  default     = 4.5
 
   validation {
     condition     = var.shard_fanout_per_precision > 1
@@ -135,15 +140,19 @@ variable "largest_shard_file_mib" {
 
     The largest and not the mean, because the chart gives every matcher
     Deployment the same limit, so it has to fit the worst shard rather than the
-    typical one. Measured, not estimated: `r1` — the largest in Australia, at
-    precision 2 — is 433 MB, which is 413 MiB.
+    typical one.
 
-    Re-measure it when the precision changes. A shard's size is roughly the
-    network divided by the shard count, so a level of precision cuts it by
-    about the same factor it multiplies the shard count by.
+    Measured, not estimated. At the deployed precision 4, `r3gr` over Sydney is
+    21.2 MB — 20.2 MiB — and is the densest cell in the shipped set. For
+    comparison, `r1` at precision 2 is 433 MB (413 MiB), which is the figure to
+    use if the grid is ever coarsened.
+
+    Re-measure when the precision changes rather than scaling it: the two
+    measurements put the real fan-out at about 4.5x per level, not the 32x the
+    geohash grid suggests.
   EOT
   type        = number
-  default     = 413
+  default     = 20.2
 
   validation {
     condition     = var.largest_shard_file_mib > 0
@@ -151,23 +160,45 @@ variable "largest_shard_file_mib" {
   }
 }
 
-variable "shard_memory_expansion" {
+variable "shard_memory_slope" {
   description = <<-EOT
-    Resident bytes per byte of `.shard.rt` once loaded.
+    Resident MiB per MiB of `.shard.rt`, for the part that scales with the
+    graph.
 
-    Measured at 7.6: `r1` is 413 MiB on disk and 3.31 GB resident before any
-    other cache is populated. The graph is deserialised into nodes, edges and
-    their indices, so the on-disk form is far more compact than the working
-    one — which is why sizing a matcher from its file size understates it by
-    almost an order of magnitude.
+    A single expansion ratio does not describe this. Two measurements:
+
+      r1    413 MiB on disk -> 3.31 GB resident   7.6x
+      r3gr   20 MiB on disk ->  250 MB resident  11.8x
+
+    The smaller shard expands further, which is the signature of a fixed cost
+    rather than a varying ratio. Fitting a line through both gives 7.43x on the
+    graph itself plus `shard_memory_fixed_mib` of overhead, and that recovers
+    each measurement to within a percent.
+
+    Using either ratio as a constant would be wrong in one direction or the
+    other: 7.6x understates a small shard's pod by a third, and 11.8x
+    over-provisions a large one by 1.8 GB.
   EOT
   type        = number
-  default     = 7.6
+  default     = 7.43
 
   validation {
-    condition     = var.shard_memory_expansion >= 1
-    error_message = "shard_memory_expansion must be at least 1; a loaded graph cannot be smaller than its file."
+    condition     = var.shard_memory_slope >= 1
+    error_message = "shard_memory_slope must be at least 1; a loaded graph cannot be smaller than its file."
   }
+}
+
+variable "shard_memory_fixed_mib" {
+  description = <<-EOT
+    Resident memory a matcher holds regardless of its shard's size: the
+    runtime, the allocator's arenas, and the parts of the index that do not
+    scale with the network.
+
+    The intercept of the fit through the two measurements. It is what makes a
+    small shard look like a worse deal per byte than a large one.
+  EOT
+  type        = number
+  default     = 88
 }
 
 variable "matcher_working_set_mib" {
