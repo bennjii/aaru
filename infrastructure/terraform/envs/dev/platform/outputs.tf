@@ -3,6 +3,16 @@ output "capacity_summary" {
   value       = module.capacity.summary
 }
 
+output "cost_report" {
+  description = "Estimated monthly spend for the sized fleet. `just cost`, or `just cost-what-if 'pricing_commitment=cud_3y'` to compare tiers without applying."
+  value       = module.capacity.cost_report
+}
+
+output "cost" {
+  description = "The same estimate as structured data, broken down by node pool and by service."
+  value       = module.capacity.cost
+}
+
 output "cluster_name" {
   value = module.platform.cluster_name
 }

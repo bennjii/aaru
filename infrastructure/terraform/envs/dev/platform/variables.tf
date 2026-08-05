@@ -137,8 +137,8 @@ variable "machines" {
   default = {
     matcher  = { machine_type = "c4-highcpu-32", vcpu = 32, memory_gib = 64 }
     pipeline = { machine_type = "c4-highcpu-16", vcpu = 16, memory_gib = 32 }
-    infra    = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 64 }
-    system   = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 32 }
+    infra    = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 60 }
+    system   = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 30 }
   }
 }
 

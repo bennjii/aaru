@@ -49,3 +49,23 @@ summary root="envs/dev/platform":
 plan-summary root="envs/dev/platform" *args:
     {{ tofu }} -chdir="{{ root }}" init -backend=false -input=false > /dev/null
     {{ tofu }} -chdir="{{ root }}" plan {{ args }}
+
+# Estimated monthly spend for the applied fleet, by node pool and by service.
+# The rates are inputs carrying the region and the date they were read, so
+# confirm against the billing account before anything depends on the total.
+cost root="envs/dev/platform":
+    {{ tofu }} -chdir="{{ root }}" output -raw cost_report
+
+# The same estimate at another commitment tier or target, without applying:
+#
+#   just terraform::cost-what-if 'pricing_commitment=cud_3y'
+#   just terraform::cost-what-if 'throughput_target_eps=5000000'
+#
+# `output` reads state, so an override has to be evaluated rather than read
+# back — which also makes this work before the first apply.
+cost-what-if override root="envs/dev/platform":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{ tofu }} -chdir="{{ root }}" init -backend=false -input=false > /dev/null
+    echo 'module.capacity.cost_report' \
+        | {{ tofu }} -chdir="{{ root }}" console -var '{{ override }}'

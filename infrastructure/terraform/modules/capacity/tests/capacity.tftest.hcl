@@ -9,8 +9,8 @@ variables {
   machines = {
     matcher  = { machine_type = "c4-highcpu-32", vcpu = 32, memory_gib = 64 }
     pipeline = { machine_type = "c4-highcpu-16", vcpu = 16, memory_gib = 32 }
-    infra    = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 64 }
-    system   = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 32 }
+    infra    = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 60 }
+    system   = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 30 }
   }
 
   shard_precision = 4
@@ -475,6 +475,55 @@ run "the_file_store_is_sized_for_rate_as_well_as_volume" {
   assert {
     condition     = var.matched_event_bytes > var.raw_event_bytes * 4
     error_message = "The disk model assumes emissions dominate ingest by volume."
+  }
+}
+
+# Cost is derived from the same pod shapes as the node counts, so it cannot
+# describe a fleet other than the one that would be built. These pin the
+# arithmetic, not the rates — a price change moves the totals and should.
+run "cost_follows_the_fleet_that_would_be_built" {
+  command = plan
+
+  variables {
+    shards                = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
+    throughput_target_eps = 800000
+  }
+
+  # Nodes are bought whole, so the pool total is count times rate.
+  assert {
+    condition = (
+      output.cost.by_pool["matcher"]
+      == output.pools["matcher"].min_node_count * var.prices.machines["c4-highcpu-32"].on_demand
+    )
+    error_message = "The matcher pool's cost must be its node count at its machine's rate."
+  }
+
+  # Attribution splits the pools without inventing or losing money.
+  assert {
+    condition     = abs(sum(values(output.cost.by_service)) - output.cost.compute) < 1
+    error_message = "Per-service attribution (${sum(values(output.cost.by_service))}) must reconcile with compute (${output.cost.compute})."
+  }
+
+  assert {
+    condition = abs(
+      output.cost.total - (output.cost.compute + output.cost.storage.total + output.cost.cluster_fee)
+    ) < 1
+    error_message = "The total must be compute plus storage plus the cluster fee."
+  }
+
+  # Only what exceeds the class baseline is billable, and the brokers are well
+  # past it — so most of the file store's cost is performance, not capacity.
+  assert {
+    condition     = output.cost.storage.jetstream_performance > output.cost.storage.jetstream_capacity
+    error_message = "Provisioned performance should dominate the file store's cost at this write rate."
+  }
+
+  # Committing buys nothing on disk or the cluster fee, so the saving is
+  # bounded by the compute share and a three-year term cannot halve the bill
+  # without also being most of it.
+  assert {
+    condition     = output.cost.compute / output.cost.total > 0.9
+    error_message = "Compute should dominate; if it does not, the storage model has drifted."
   }
 }
 
