@@ -143,6 +143,45 @@ run "rejects_the_kubernetes_spelling_of_a_taint_effect" {
   expect_failures = [var.node_pools]
 }
 
+# C4 supports Hyperdisk only. A pd-* boot disk there is not the slower choice,
+# it is an unavailable one, and it fails during apply — after the cluster
+# exists and while its pools are building.
+run "rejects_persistent_disk_on_a_hyperdisk_only_series" {
+  command = plan
+
+  variables {
+    node_disk_type = "pd-balanced"
+
+    node_pools = {
+      matcher = {
+        machine_type   = "c4-highcpu-32"
+        min_node_count = 1
+        max_node_count = 2
+      }
+    }
+  }
+
+  expect_failures = [google_container_node_pool.pool["matcher"]]
+}
+
+# The same pool is fine once the disk matches what the series offers, so the
+# guard is about compatibility rather than about C4 being unusable.
+run "accepts_hyperdisk_on_a_hyperdisk_only_series" {
+  command = plan
+
+  variables {
+    node_disk_type = "hyperdisk-balanced"
+
+    node_pools = {
+      matcher = {
+        machine_type   = "c4-highcpu-32"
+        min_node_count = 1
+        max_node_count = 2
+      }
+    }
+  }
+}
+
 # Preemption on an untainted pool is silent: pods land there because nothing
 # stopped them, and a matcher losing its node takes its shard offline.
 run "rejects_an_untainted_spot_pool" {

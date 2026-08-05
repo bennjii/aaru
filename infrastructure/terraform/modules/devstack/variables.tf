@@ -70,11 +70,23 @@ variable "jetstream_disk_type" {
   description = <<-EOT
     Disk type behind the file store.
 
-    Hyperdisk, because it provisions IOPS and throughput independently of
-    capacity — a pd-* class would tie the broker's write ceiling to its
-    retention window. `hyperdisk-balanced` covers this workload;
-    `hyperdisk-extreme` exists for a measured IOPS wall that balanced cannot
-    reach.
+    Hyperdisk, because it provisions performance independently of capacity — a
+    pd-* class would tie the broker's write ceiling to its retention window,
+    and C4 does not offer Persistent Disk in any case.
+
+    Balanced rather than Extreme, for two independent reasons:
+
+      Extreme is unavailable at this node size. C4 requires at least 96 vCPUs
+      to attach a Hyperdisk Extreme volume, and the infra pool is nowhere near
+      that. Reaching it would mean sizing the pool for the disk rather than for
+      the brokers.
+
+      Extreme is also the wrong shape. It provisions IOPS only: throughput
+      comes as 250 MiB/s per 1,000 IOPS, capped at 5,000. This workload is
+      throughput-bound — JetStream appends sequentially — so Balanced, which
+      provisions both, targets the constraint that actually binds. Balanced
+      reaches 160,000 IOPS and 2,400 MiB/s per volume, well past what the
+      streams need.
   EOT
   type        = string
   default     = "hyperdisk-balanced"
@@ -83,6 +95,25 @@ variable "jetstream_disk_type" {
     condition     = startswith(var.jetstream_disk_type, "hyperdisk-")
     error_message = "jetstream_disk_type must be a hyperdisk type: a pd-* volume's performance scales with its size, which makes the write ceiling depend on the retention window rather than on the traffic."
   }
+}
+
+variable "jetstream_instance_iops_limit" {
+  description = <<-EOT
+    IOPS the NATS pod's *node* can sustain across every disk attached to it,
+    from the machine series' Hyperdisk performance limits.
+
+    A volume cannot reach its provisioned performance on an instance that does
+    not support that level, and nothing reports the shortfall: the disk simply
+    runs at the instance's ceiling while the bill reflects the provisioning.
+  EOT
+  type        = number
+  default     = 100000
+}
+
+variable "jetstream_instance_throughput_limit_mib" {
+  description = "MiB/s the NATS pod's node can sustain across every attached disk, including its boot disk. The same silent-shortfall applies as for IOPS."
+  type        = number
+  default     = 1600
 }
 
 variable "jetstream_provisioned_iops" {

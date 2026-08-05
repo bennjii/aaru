@@ -27,6 +27,16 @@ locals {
   # fleet, so widening the range is cheap and getting it wrong is not.
   pod_range_node_capacity = pow(2, local.node_pod_slice_prefix - local.pods_prefix)
 
+  # Machine series that support Hyperdisk only. A pd-* boot disk on one of
+  # these does not run slower, it fails instance creation — and it fails
+  # during apply, after the cluster exists and while its pools are building.
+  hyperdisk_only_series = ["c4", "c4a", "c4d", "n4", "z3"]
+
+  pools_requiring_hyperdisk = [
+    for name, pool in var.node_pools : "${name} (${pool.machine_type})"
+    if contains(local.hyperdisk_only_series, split("-", pool.machine_type)[0])
+  ]
+
   # Kubernetes node labels, keyed by pool. Deliberately only the pool
   # identity: these become nodeSelectors in the realtime chart, and mixing
   # billing labels into a selector makes a pod's placement depend on a

@@ -193,13 +193,27 @@ variable "node_disk_size_gb" {
 }
 
 variable "node_disk_type" {
-  description = "Boot disk type. pd-balanced is the usual choice; nodes hold no state worth pd-ssd."
+  description = <<-EOT
+    Boot disk type.
+
+    `hyperdisk-balanced`, and on C4 there is no alternative: the series does
+    not support Persistent Disk at all, so a pd-* value fails at instance
+    creation rather than merely being a slower choice. For a series that
+    supports only Hyperdisk, the boot disk must itself be Hyperdisk Balanced.
+
+    Nodes still hold no state worth paying for — this is image layers under
+    streaming — so the capacity is small and the performance is left at the
+    class default.
+  EOT
   type        = string
-  default     = "pd-balanced"
+  default     = "hyperdisk-balanced"
 
   validation {
-    condition     = contains(["pd-standard", "pd-balanced", "pd-ssd", "hyperdisk-balanced"], var.node_disk_type)
-    error_message = "node_disk_type must be pd-standard, pd-balanced, pd-ssd or hyperdisk-balanced."
+    condition = contains([
+      "pd-standard", "pd-balanced", "pd-ssd",
+      "hyperdisk-balanced", "hyperdisk-balanced-high-availability",
+    ], var.node_disk_type)
+    error_message = "node_disk_type must be a pd-* or hyperdisk-balanced type."
   }
 }
 

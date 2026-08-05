@@ -67,3 +67,18 @@ check "the_file_store_can_absorb_the_write_rate" {
     error_message = "The JetStream file store is provisioned for ${var.jetstream_provisioned_iops} IOPS per server but the streams need ${var.jetstream_required_iops}."
   }
 }
+
+# Provisioning past what the node can deliver is the quieter failure: the
+# volume runs at the instance ceiling, nothing reports a shortfall, and the
+# bill reflects the provisioning rather than the delivery.
+check "the_node_can_deliver_what_the_volume_provisions" {
+  assert {
+    condition     = var.jetstream_provisioned_throughput_mib <= var.jetstream_instance_throughput_limit_mib
+    error_message = "The file store provisions ${var.jetstream_provisioned_throughput_mib} MiB/s but the node tops out at ${var.jetstream_instance_throughput_limit_mib} MiB/s across every disk attached to it, boot disk included. The volume would run at the node's ceiling and the difference would be paid for and not delivered; use a larger machine type for the infra pool, or provision less."
+  }
+
+  assert {
+    condition     = var.jetstream_provisioned_iops <= var.jetstream_instance_iops_limit
+    error_message = "The file store provisions ${var.jetstream_provisioned_iops} IOPS but the node tops out at ${var.jetstream_instance_iops_limit}."
+  }
+}

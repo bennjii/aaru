@@ -40,6 +40,13 @@ module "devstack" {
   jetstream_provisioned_throughput_mib = var.jetstream_provisioned_throughput_mib
   jetstream_provisioned_iops           = var.jetstream_provisioned_iops
 
+  # The infra pool's machine type caps what any volume attached to it can
+  # actually deliver, so provisioning past this would be bought and not
+  # received. c4-standard-16 sustains 100,000 IOPS and 1,600 MiB/s across
+  # every disk on the node, its boot disk included.
+  jetstream_instance_iops_limit           = 100000
+  jetstream_instance_throughput_limit_mib = 1600
+
   valkey_primaries  = module.capacity.valkey.primaries
   valkey_io_threads = module.capacity.valkey.io_threads
 

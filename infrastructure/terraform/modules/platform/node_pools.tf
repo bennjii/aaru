@@ -124,6 +124,14 @@ resource "google_container_node_pool" "pool" {
     ignore_changes = [initial_node_count]
 
     precondition {
+      condition = (
+        length(local.pools_requiring_hyperdisk) == 0
+        || startswith(var.node_disk_type, "hyperdisk-")
+      )
+      error_message = "node_disk_type is ${var.node_disk_type}, but these pools use a machine series that supports Hyperdisk only: ${join(", ", local.pools_requiring_hyperdisk)}. Persistent Disk is not slower there, it is unavailable, so the pool would fail to create nodes. Use hyperdisk-balanced."
+    }
+
+    precondition {
       condition     = !(each.value.spot && length(each.value.taints) == 0)
       error_message = "Pool ${each.key} is spot with no taint, so anything may land on preemptible nodes. That is survivable for a shard's matchers, which are a queue group, and not for the orchestrator fleet, whose pods each own vehicle partitions outright. Make the placement deliberate: add a taint and select for it in the chart."
     }
