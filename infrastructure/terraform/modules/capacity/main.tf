@@ -50,8 +50,16 @@ locals {
   # Sized for the largest shard because the chart gives every matcher
   # Deployment one limit, and a pod that cannot load its graph does not
   # degrade — it is OOM-killed at startup and never serves a request.
+  #
+  # A pod holds one graph per shard it serves, so arity multiplies the scaling
+  # term. Whether it multiplies the fixed one is unresolved — see
+  # `shard_memory_fixed_is_per_process` — and the conservative default says it
+  # does, leaving arity to win on pod count alone.
   matcher_graph_mib = ceil(
-    var.largest_shard_file_mib * var.shard_memory_slope + var.shard_memory_fixed_mib
+    var.largest_shard_file_mib * local.matcher_shards_per_pod * var.shard_memory_slope
+    + var.shard_memory_fixed_mib * (
+      var.shard_memory_fixed_is_per_process ? 1 : local.matcher_shards_per_pod
+    )
   )
 
   matcher_memory_mib = local.matcher_graph_mib + var.matcher_working_set_mib
@@ -66,10 +74,31 @@ locals {
   # covers the difference between it and a geographic distribution.
   mean_shard_eps = local.required_eps / local.shard_count
 
-  matcher_replicas_per_shard = max(1, ceil(local.mean_shard_eps / local.profile.matcher_eps))
-  matcher_replicas_max       = ceil(local.matcher_replicas_per_shard * var.hot_shard_replica_factor)
+  # The two directions of the shard-to-pod mapping, resolved by which side has
+  # the spare capacity. A pod worth 6000 evt/s against a shard carrying 39
+  # should hold more geography; against a shard carrying 39000 it should be one
+  # of seven. Both are the same statement about throughput, so one expression
+  # covers the whole range and the crossover needs no special case.
+  matcher_shards_per_pod = max(1, min(
+    var.max_shards_per_matcher,
+    floor(local.profile.matcher_eps / local.mean_shard_eps),
+  ))
 
-  matcher_pods         = local.shard_count * local.matcher_replicas_per_shard
+  # Deployments, each serving `matcher_shards_per_pod` shards. Equal to the
+  # shard count whenever arity is 1, which is what ships today.
+  matcher_groups = ceil(local.shard_count / local.matcher_shards_per_pod)
+  group_eps      = local.mean_shard_eps * local.matcher_shards_per_pod
+  matcher_pods   = local.matcher_groups * local.matcher_replicas_per_group
+
+  # Above 1 shard per pod this is always 1 by construction: a group is only
+  # grouped because its load fits one pod.
+  matcher_replicas_per_group = max(1, ceil(local.group_eps / local.profile.matcher_eps))
+
+  # Kept under the old name because it is what the chart renders per
+  # Deployment, and a Deployment is a group.
+  matcher_replicas_per_shard = local.matcher_replicas_per_group
+  matcher_replicas_max       = ceil(local.matcher_replicas_per_group * var.hot_shard_replica_factor)
+
   matcher_capacity_eps = local.matcher_pods * local.profile.matcher_eps
 
   # The fewest matcher pods the target could ever need, ignoring geography

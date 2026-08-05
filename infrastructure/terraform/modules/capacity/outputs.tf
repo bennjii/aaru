@@ -57,6 +57,13 @@ output "matcher" {
     # 1.0 means the geography costs nothing over the throughput floor.
     rounding_overhead = local.matcher_rounding_overhead
 
+    # The shard-to-pod arity, and the Deployments it produces. Above 1 a pod
+    # serves several shards because its capacity exceeds theirs; at 1 the
+    # relationship inverts and `replicas` splits a single shard instead.
+    shards_per_pod = local.matcher_shards_per_pod
+    groups         = local.matcher_groups
+    group_eps      = local.group_eps
+
     # Memory is set by geography, not by the profile: the graph a shard makes
     # a pod hold. `graph_mib_total` is the fleet-wide duplication — every
     # replica loads its shard's whole graph, and the pod count is fixed by

@@ -573,6 +573,102 @@ run "the_memory_model_reproduces_the_large_shard" {
   }
 }
 
+# Both directions of the shard-to-pod mapping are throughput statements, so one
+# expression covers them and the crossover needs no special case. Below the
+# knee a pod's capacity exceeds a shard's load and should absorb more
+# geography; above it a shard's load exceeds a pod and replicas split it.
+run "arity_collapses_the_low_end_pod_floor" {
+  command = plan
+
+  variables {
+    shards                 = run.shards.shards
+    throughput_target_eps  = 1000
+    max_shards_per_matcher = 8
+  }
+
+  # 1250 evt/s over 256 shards is 5 evt/s each, so a 6000 evt/s pod could hold
+  # over a thousand of them — the cap is what binds, not the arithmetic.
+  assert {
+    condition     = output.matcher.shards_per_pod == 8
+    error_message = "Expected the arity cap to bind at 8, got ${output.matcher.shards_per_pod}."
+  }
+
+  assert {
+    condition     = output.matcher.groups == 32
+    error_message = "256 shards at 8 per pod is 32 Deployments, got ${output.matcher.groups}."
+  }
+
+  # Where the old model needed 256 pods for 1250 evt/s, purely because a shard
+  # could not share a pod.
+  assert {
+    condition     = output.matcher.pods == 32
+    error_message = "Expected 32 pods, got ${output.matcher.pods}."
+  }
+
+  # A group only exists because its load fits one pod, so replicas stay at one.
+  assert {
+    condition     = output.matcher.replicas == 1
+    error_message = "A grouped shard set must not also need replicas, got ${output.matcher.replicas}."
+  }
+}
+
+# Arity has to disappear on its own as load rises, or it would cap throughput.
+# Once one shard fills a pod the relationship inverts back to replicas, which is
+# exactly what ships today.
+run "arity_self_disables_above_the_knee" {
+  command = plan
+
+  variables {
+    shards                 = run.shards.shards
+    throughput_target_eps  = 800000
+    max_shards_per_matcher = 8
+  }
+
+  # 1M over 256 shards is 3906 each, under one pod's 6000 — so grouping two
+  # would exceed it and the arity collapses to one.
+  assert {
+    condition     = output.matcher.shards_per_pod == 1
+    error_message = "At 3906 evt/s per shard the arity must be 1, got ${output.matcher.shards_per_pod}."
+  }
+
+  # Identical to the figures the model produced before arity existed.
+  assert {
+    condition     = output.matcher.pods == 256
+    error_message = "Above the knee the pod count must be unchanged by arity, got ${output.matcher.pods}."
+  }
+
+  assert {
+    condition     = output.matcher.groups == output.shard_count
+    error_message = "At arity 1 a group is a shard."
+  }
+}
+
+# A pod holding several shards holds several graphs, so arity trades pods for
+# per-pod memory. It is still a large net win, because the pod count falls
+# faster than the graph grows.
+run "arity_trades_pods_for_per_pod_memory" {
+  command = plan
+
+  variables {
+    shards                 = run.shards.shards
+    throughput_target_eps  = 1000
+    max_shards_per_matcher = 8
+    largest_shard_file_mib = 20.2
+  }
+
+  # Eight graphs and, conservatively, eight fixed terms.
+  assert {
+    condition     = output.matcher.memory_mib > 1263
+    error_message = "Eight shards in a pod must cost more memory than one, got ${output.matcher.memory_mib}."
+  }
+
+  # Fleet-wide it still falls: 32 pods of 8 graphs against 256 pods of one.
+  assert {
+    condition     = output.matcher.graph_mib_total < 256 * 1263
+    error_message = "Arity must reduce fleet-wide graph memory, got ${output.matcher.graph_mib_total}."
+  }
+}
+
 # The infra pool must never be packed to the point where losing one node costs
 # JetStream its quorum. Bin packing alone would happily do exactly that, since
 # a big node fits several brokers.

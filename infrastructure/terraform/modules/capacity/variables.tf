@@ -214,6 +214,61 @@ variable "matcher_working_set_mib" {
   default     = 1024
 }
 
+variable "max_shards_per_matcher" {
+  description = <<-EOT
+    How many shards one matcher instance may serve — the arity of the
+    shard-to-pod mapping, in the direction the current code cannot express.
+
+    Both directions of that mapping are throughput statements, and only one
+    applies at a time:
+
+      many pods per shard   a shard's load exceeds one pod, so replicas split
+                            it through the queue group. This is what happens
+                            above the knee, and it is what ships today.
+      many shards per pod   a pod's capacity exceeds a shard's load, so the
+                            spare is filled with more geography. This is what
+                            the low end needs, and 1 forbids it.
+
+    At 1 the model reproduces today's behaviour: one Deployment per shard, and
+    a floor of one pod per shard however little traffic there is. That floor is
+    the entire bill below the knee.
+
+    Above 1 this needs a matcher change. `ShardLoader::load` already returns a
+    separate network per shard from a cache map, and the request subject's last
+    token says which shard a request belongs to, so a pod can hold several
+    networks and pick per request — the per-shard solver is unchanged, there
+    are just several of it in one process. Nothing on the wire moves: the
+    orchestrator still addresses `events.match.<shard>` and does not care which
+    pod answers.
+  EOT
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.max_shards_per_matcher >= 1 && floor(var.max_shards_per_matcher) == var.max_shards_per_matcher
+    error_message = "max_shards_per_matcher must be a whole number of at least 1."
+  }
+}
+
+variable "shard_memory_fixed_is_per_process" {
+  description = <<-EOT
+    Whether `shard_memory_fixed_mib` is paid once per pod or once per shard.
+
+    Unresolved, and it decides whether arity saves memory as well as pods. Both
+    measurements come from a process holding exactly one network, so they
+    cannot separate a per-process cost (runtime, allocator arenas) from a
+    per-network one (index structures that do not scale with the graph).
+
+    Defaulted to per-shard, which is the conservative direction: it assumes
+    arity saves nothing on memory and wins only on pod count. Loading two
+    shards into one matcher and reading its RSS would settle it, and if the
+    cost is per-process then arity 6 also saves five times the fixed term per
+    pod.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "hot_shard_replica_factor" {
   description = <<-EOT
     Ceiling multiplier for a shard's matcher HPA, over the replica count the
