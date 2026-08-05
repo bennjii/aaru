@@ -70,20 +70,33 @@ locals {
   # pool's CPU demand. Three of the four pools carry a single service and the
   # attribution is exact; only `infra` splits, between the brokers and the
   # keyspace.
-  service_pools = {
-    matcher      = "matcher"
-    orchestrator = "pipeline"
-    nats         = "infra"
-    valkey       = "infra"
-    telemetry    = "system"
-  }
+  service_pools = (
+    var.pool_layout == "dedicated"
+    ? {
+      matcher      = "matcher"
+      orchestrator = "pipeline"
+      nats         = "infra"
+      valkey       = "infra"
+      telemetry    = "system"
+    }
+    : {
+      matcher      = "shared"
+      orchestrator = "shared"
+      nats         = "shared"
+      valkey       = "shared"
+      telemetry    = "shared"
+    }
+  )
 
   service_cpu_millis = {
     matcher      = local.matcher_pods * local.profile.matcher_cpu_millis
     orchestrator = local.fleet * local.profile.orchestrator_cpu_millis
     nats         = local.nats_replicas_total * var.nats_cpu_millis
     valkey       = local.valkey_pods_total * var.valkey_cpu_millis
-    telemetry    = local.demand["system"].cpu_millis
+    telemetry = (
+      local.collector_replicas * var.collector_cpu_millis
+      + (var.observability_enabled ? 4000 : 0)
+    )
   }
 
   service_monthly = {

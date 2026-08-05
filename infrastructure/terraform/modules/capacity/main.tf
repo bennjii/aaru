@@ -350,7 +350,7 @@ locals {
   # is what the pool must be able to grow to, which sets the ceiling — for
   # matchers that is the HPA's, so a hot shard finds nodes rather than leaving
   # replicas Pending, without paying for them while traffic is even.
-  shapes = {
+  shapes_dedicated = {
     matcher = [{
       name       = "matcher"
       count      = local.matcher_pods
@@ -392,27 +392,35 @@ locals {
       },
     ]
 
-    system = [
-      {
+    system = concat(
+      [{
         name       = "otel-collector"
         count      = local.collector_replicas
         count_max  = local.collector_replicas
         pods       = 1
         cpu_millis = var.collector_cpu_millis
         memory_mib = var.collector_memory_mib
-      },
-      {
-        # prometheus, grafana, alertmanager, the operator, kube-state-metrics
-        # and the dashboard sidecars, as one lumped allowance.
+      }],
+      # prometheus, grafana, alertmanager, the operator, kube-state-metrics
+      # and the dashboard sidecars, as one lumped allowance.
+      var.observability_enabled ? [{
         name       = "observability"
         count      = 1
         count_max  = 1
         pods       = 6
         cpu_millis = 4000
         memory_mib = 16384
-      },
-    ]
+      }] : [],
+    )
   }
+
+  # Under `shared` every shape lands in one pool, so the per-shape node floor
+  # collapses from one each to one overall.
+  shapes = (
+    var.pool_layout == "dedicated"
+    ? local.shapes_dedicated
+    : { shared = flatten(values(local.shapes_dedicated)) }
+  )
 
   # How many of each shape fit one node, bounded by whichever of CPU, memory or
   # the pod budget binds first.
@@ -439,25 +447,54 @@ locals {
   # Shapes are summed rather than bin-packed together, so a mixed pool carries
   # slack. That is the conservative direction, and the pools that dominate the
   # fleet hold one shape each.
+  # Per shape, rounded up: a pool holding several shapes carries the slack of
+  # each, which is the conservative direction and barely matters when a pool
+  # holds one shape and thousands of pods.
+  #
+  # It matters enormously when a pool holds six shapes and seven pods, so the
+  # shared layout costs them together instead: total demand over one node's
+  # capacity, whichever of CPU, memory or the pod budget binds. That is a lower
+  # bound rather than a packing — fragmentation can still cost a node — but at
+  # this size the per-shape rounding is the whole answer, and summing it would
+  # report six nodes for a deployment that fits on one.
   node_counts_packed = {
-    for pool, shapes in local.packing : pool => max(1, sum([
-      for s in shapes : s.per_node < 1 ? s.count : ceil(s.count / s.per_node)
-    ]))
+    for pool, shapes in local.packing : pool => (
+      var.pool_layout == "shared"
+      ? max(1,
+        ceil(sum([for s in shapes : s.count * s.cpu_millis]) / local.allocatable[pool].cpu_millis),
+        ceil(sum([for s in shapes : s.count * s.memory_mib]) / local.allocatable[pool].memory_mib),
+        ceil(sum([for s in shapes : s.count * s.pods]) / local.allocatable[pool].pods),
+      )
+      : max(1, sum([
+        for s in shapes : s.per_node < 1 ? s.count : ceil(s.count / s.per_node)
+      ]))
+    )
   }
 
   # Packing alone would happily put every NATS server on one large node, which
-  # is efficient and destroys the cluster's fault tolerance. The infra pool
-  # therefore has a floor independent of how well its pods pack.
+  # is efficient and destroys the cluster's fault tolerance. The pool holding
+  # the brokers therefore has a floor independent of how well its pods pack.
+  broker_pool  = var.pool_layout == "dedicated" ? "infra" : "shared"
+  matcher_pool = var.pool_layout == "dedicated" ? "matcher" : "shared"
+
   node_counts = merge(local.node_counts_packed, {
-    infra = max(local.node_counts_packed["infra"], local.nats_spread_nodes)
+    (local.broker_pool) = max(local.node_counts_packed[local.broker_pool], local.nats_spread_nodes)
   })
 
   node_counts_max = merge({
-    for pool, shapes in local.packing : pool => max(1, sum([
-      for s in shapes : s.per_node < 1 ? s.count_max : ceil(s.count_max / s.per_node)
-    ]))
+    for pool, shapes in local.packing : pool => (
+      var.pool_layout == "shared"
+      ? max(1,
+        ceil(sum([for s in shapes : s.count_max * s.cpu_millis]) / local.allocatable[pool].cpu_millis),
+        ceil(sum([for s in shapes : s.count_max * s.memory_mib]) / local.allocatable[pool].memory_mib),
+        ceil(sum([for s in shapes : s.count_max * s.pods]) / local.allocatable[pool].pods),
+      )
+      : max(1, sum([
+        for s in shapes : s.per_node < 1 ? s.count_max : ceil(s.count_max / s.per_node)
+      ]))
+    )
     }, {
-    infra = max(local.node_counts_packed["infra"], local.nats_spread_nodes)
+    (local.broker_pool) = max(local.node_counts_packed[local.broker_pool], local.nats_spread_nodes)
   })
 
   demand = {

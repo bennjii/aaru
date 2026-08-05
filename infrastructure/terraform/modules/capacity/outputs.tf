@@ -83,11 +83,11 @@ output "shard_memory_note" {
     "so every matcher is sized at ${local.matcher_memory_mib} MiB including its working set.",
     "Across ${local.matcher_pods} pods that is ${format("%.1f", local.matcher_graph_mib_total / 1024)} GiB of graph,",
     "most of it the same shards loaded again per replica.",
-    "One node fits ${floor(local.allocatable["matcher"].memory_mib / local.matcher_memory_mib)} by memory",
-    "and ${floor(local.allocatable["matcher"].cpu_millis / local.profile.matcher_cpu_millis)} by CPU,",
+    "One node fits ${floor(local.allocatable[local.matcher_pool].memory_mib / local.matcher_memory_mib)} by memory",
+    "and ${floor(local.allocatable[local.matcher_pool].cpu_millis / local.profile.matcher_cpu_millis)} by CPU,",
     "so the pool is ${
-      floor(local.allocatable["matcher"].memory_mib / local.matcher_memory_mib) <
-      floor(local.allocatable["matcher"].cpu_millis / local.profile.matcher_cpu_millis)
+      floor(local.allocatable[local.matcher_pool].memory_mib / local.matcher_memory_mib) <
+      floor(local.allocatable[local.matcher_pool].cpu_millis / local.profile.matcher_cpu_millis)
       ? "memory-bound: a finer grid would shrink the graph and recover nodes"
       : "CPU-bound, and the graph costs nothing"
     }.",

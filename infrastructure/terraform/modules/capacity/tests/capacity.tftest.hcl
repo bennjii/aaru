@@ -682,6 +682,111 @@ run "cost_follows_the_fleet_that_would_be_built" {
   }
 }
 
+# A test environment is all floors and no throughput: one matcher per shard
+# whatever the load, an availability floor on the brokers, and a fixed
+# observability allowance. Under the dedicated layout each of those is a node
+# of its own, so the deployment costs six nodes to run seven pods.
+run "the_shared_layout_collapses_the_per_shape_node_floor" {
+  command = plan
+
+  variables {
+    machines              = { shared = { machine_type = "c4-standard-8", vcpu = 8, memory_gib = 30 } }
+    pool_layout           = "shared"
+    observability_enabled = false
+
+    shards                 = ["r1", "r3", "r6"]
+    shard_precision        = 2
+    binary_shard_precision = 2
+    throughput_target_eps  = 1000
+    design_target_eps      = 1000
+    vertical_profile       = "small"
+    largest_shard_file_mib = 413
+    pricing_commitment     = "spot"
+
+    nats_min_replicas           = 1
+    nats_cpu_millis             = 1000
+    nats_memory_mib             = 4096
+    valkey_replicas_per_primary = 0
+    valkey_cpu_millis           = 1000
+    valkey_memory_mib           = 2048
+    provisioned_iops            = 3000
+    provisioned_throughput_mib  = 140
+    collector_cpu_millis        = 500
+    collector_memory_mib        = 1024
+    matcher_working_set_mib     = 256
+  }
+
+  assert {
+    condition     = length(keys(output.pools)) == 1
+    error_message = "The shared layout must produce one pool, got ${join(", ", keys(output.pools))}."
+  }
+
+  # Three matchers, an orchestrator, a broker, a keyspace and a collector.
+  assert {
+    condition     = output.totals.pods == 7
+    error_message = "Expected 7 pods, got ${output.totals.pods}."
+  }
+
+  assert {
+    condition     = output.totals.nodes == 1
+    error_message = "The whole test deployment should fit one node, got ${output.totals.nodes}."
+  }
+
+  # Tight but real: 6000m of requests against 7310m allocatable. If a profile
+  # change pushes this over, the deployment silently needs a second node and
+  # doubles.
+  assert {
+    condition     = output.pools["shared"].cpu_utilisation < 1
+    error_message = "The shared pool is over-committed at ${output.pools["shared"].cpu_utilisation}."
+  }
+
+  # The budget this layout exists to hit. The cluster fee is nearly a third of
+  # it, which is why a test environment wants a zonal cluster.
+  assert {
+    condition     = output.cost.total < 250
+    error_message = "Expected the test tier under $250/month, got ${output.cost.total}."
+  }
+
+  assert {
+    condition     = output.cost.cluster_fee > output.cost.storage.total
+    error_message = "At this size the cluster fee outweighs all storage, which is worth knowing before optimising disks."
+  }
+}
+
+# The brokers' spread floor has to follow them into whichever pool holds them,
+# or the shared layout would quietly drop the guarantee.
+run "the_broker_spread_floor_follows_the_layout" {
+  command = plan
+
+  variables {
+    machines              = { shared = { machine_type = "c4-standard-16", vcpu = 16, memory_gib = 60 } }
+    pool_layout           = "shared"
+    observability_enabled = false
+
+    shards                 = ["r1", "r3", "r6"]
+    shard_precision        = 2
+    binary_shard_precision = 2
+    throughput_target_eps  = 1000
+    design_target_eps      = 1000
+    vertical_profile       = "small"
+    largest_shard_file_mib = 413
+
+    # Three brokers on one pool: the spread floor must still force three nodes,
+    # even though every pod would otherwise fit on one.
+    nats_min_replicas = 3
+  }
+
+  assert {
+    condition     = output.nats.spread_nodes == 2
+    error_message = "A 3-server cluster needs 2 nodes to survive a loss, got ${output.nats.spread_nodes}."
+  }
+
+  assert {
+    condition     = output.totals.nodes >= output.nats.spread_nodes
+    error_message = "The shared pool must still honour the broker spread floor."
+  }
+}
+
 # Coverage is how a shard list generated over the wrong extent is caught before
 # it becomes a fleet of idle matchers.
 run "coverage_catches_shards_outside_the_service_region" {

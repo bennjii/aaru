@@ -832,12 +832,58 @@ variable "prices" {
 # --- Nodes ------------------------------------------------------------------
 
 variable "machines" {
-  description = "Machine shape per node pool. `vcpu` and `memory_gib` must match `machine_type`; the model derives allocatable capacity from them."
+  description = <<-EOT
+    Machine shape per node pool. `vcpu` and `memory_gib` must match
+    `machine_type`; the model derives allocatable capacity from them.
+
+    Keys are the pool names: `matcher`, `pipeline`, `infra` and `system` under
+    the default layout, or just `shared` when `pool_layout` is `shared`.
+  EOT
   type = map(object({
     machine_type = string
     vcpu         = number
     memory_gib   = number
   }))
+}
+
+variable "pool_layout" {
+  description = <<-EOT
+    How workloads are distributed over node pools.
+
+    `dedicated` gives each tier its own tainted pool, which is what a real
+    deployment wants: matchers get a compute-optimised shape, the brokers are
+    kept off it, and one tier's autoscaling cannot evict another's pods. It
+    also sets a floor of one node per pod shape — six shapes, so six nodes —
+    which is irrelevant at scale and dominant at nothing.
+
+    `shared` puts everything in one untainted pool. It exists for a test
+    environment, where the whole deployment is a handful of pods and the floor
+    is the entire bill. Do not use it for anything carrying load: a matcher
+    scaling up would then compete with the broker holding its stream.
+  EOT
+  type        = string
+  default     = "dedicated"
+
+  validation {
+    condition     = contains(["dedicated", "shared"], var.pool_layout)
+    error_message = "pool_layout must be 'dedicated' or 'shared'."
+  }
+}
+
+variable "observability_enabled" {
+  description = <<-EOT
+    Whether kube-prometheus-stack is installed, mirroring the devstack flag of
+    the same name.
+
+    Its allowance is 6 pods, 4 cores and 16 GiB, which is a rounding error
+    against a production fleet and the largest single shape in a test one — it
+    alone forces a node. The collector is not covered by this and is always
+    counted: the services have no metrics endpoint, so spans are the only
+    telemetry they emit and dropping it makes the pipeline blind rather than
+    unmonitored.
+  EOT
+  type        = bool
+  default     = true
 }
 
 variable "max_pods_per_node" {
