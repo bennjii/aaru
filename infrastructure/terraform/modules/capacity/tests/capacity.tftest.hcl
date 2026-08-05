@@ -505,6 +505,76 @@ run "finer_geography_costs_pods_rather_than_saving_them" {
   }
 }
 
+# A matcher's memory is its shard's graph, measured rather than assumed: `r1`
+# is 413 MiB on disk and 3.31 GB resident. The file understates the pod by
+# 7.6x, which is why sizing a matcher from its shard file would OOM it.
+run "matcher_memory_is_derived_from_the_measured_shard" {
+  command = plan
+
+  variables {
+    shards                 = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
+    throughput_target_eps  = 800000
+    largest_shard_file_mib = 413
+  }
+
+  # 413 MiB at 7.6x.
+  assert {
+    condition     = output.matcher.graph_mib == 3139
+    error_message = "Expected a 3139 MiB resident graph, got ${output.matcher.graph_mib}."
+  }
+
+  # The graph plus the working set, and above the 3072 MiB the chart used to
+  # hardcode — which the graph alone would already have exceeded.
+  assert {
+    condition     = output.matcher.memory_mib == 4163
+    error_message = "Expected 4163 MiB per matcher, got ${output.matcher.memory_mib}."
+  }
+
+  assert {
+    condition     = output.matcher.memory_mib > 3072
+    error_message = "A shard this size no longer fits the chart's old flat 3072 MiB limit, and the model must say so."
+  }
+
+  # Every replica loads its shard's whole graph, so the fleet holds the same
+  # geography many times over. This is the cost coarse shards actually carry.
+  assert {
+    condition     = output.matcher.graph_mib_total == output.matcher.pods * output.matcher.graph_mib
+    error_message = "Fleet-wide graph memory must be the pod count times the graph."
+  }
+}
+
+# A bigger shard cannot be offset by having fewer of them, because throughput
+# fixes the pod count. Coarsening therefore multiplies memory without reducing
+# pods, and tips the pool from CPU-bound to memory-bound.
+run "a_coarser_grid_costs_memory_without_saving_pods" {
+  command = plan
+
+  variables {
+    shards                 = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
+    throughput_target_eps  = 800000
+    largest_shard_file_mib = 6.5
+  }
+
+  # A precision-4 shard is ~1/64 of a precision-2 one, so the pod shrinks to
+  # roughly its working set.
+  assert {
+    condition     = output.matcher.memory_mib < 1200
+    error_message = "A fine-grained shard should leave the working set dominant, got ${output.matcher.memory_mib}."
+  }
+
+  # The pod count is identical to the coarse case: geography never moved it.
+  assert {
+    condition     = output.matcher.pods == 168
+    error_message = "Pod count must not depend on shard size, got ${output.matcher.pods}."
+  }
+
+  # And with the graph small, CPU is what binds — the graph is free.
+  assert {
+    condition     = length(regexall("CPU-bound", output.shard_memory_note)) > 0
+    error_message = "With a small graph the pool should be CPU-bound: ${output.shard_memory_note}"
+  }
+}
+
 # The infra pool must never be packed to the point where losing one node costs
 # JetStream its quorum. Bin packing alone would happily do exactly that, since
 # a big node fits several brokers.

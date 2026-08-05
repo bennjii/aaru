@@ -143,7 +143,6 @@ variable "profile" {
   type = object({
     matcher_workers    = number
     matcher_cpu_millis = number
-    matcher_memory_mib = number
     matcher_eps        = number
 
     orchestrator_workers              = number
@@ -152,6 +151,24 @@ variable "profile" {
     orchestrator_cpu_millis           = number
     orchestrator_memory_mib           = number
   })
+}
+
+variable "matcher_memory_mib" {
+  description = <<-EOT
+    Memory request and limit for every matcher, from the capacity module's
+    `matcher.memory_mib`.
+
+    Not part of the vertical profile, because it is not a property of how fast
+    a pod should solve — it is the size of the graph its shard makes it hold,
+    which the profile has no say in. A pod given less than its graph needs is
+    not slow, it is OOM-killed before it serves a request.
+  EOT
+  type        = number
+
+  validation {
+    condition     = var.matcher_memory_mib > 0
+    error_message = "matcher_memory_mib must be positive."
+  }
 }
 
 variable "orchestrator_env" {

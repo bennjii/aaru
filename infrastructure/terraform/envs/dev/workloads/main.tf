@@ -88,6 +88,7 @@ module "realtime" {
   fleet_size = module.capacity.fleet.size
 
   matcher_replicas     = module.capacity.matcher.replicas
+  matcher_memory_mib   = module.capacity.matcher.memory_mib
   matcher_replicas_max = module.capacity.matcher.replicas_max
 
   nats_url    = module.devstack.nats_url

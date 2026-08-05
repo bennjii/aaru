@@ -56,7 +56,41 @@ output "matcher" {
 
     # 1.0 means the geography costs nothing over the throughput floor.
     rounding_overhead = local.matcher_rounding_overhead
+
+    # Memory is set by geography, not by the profile: the graph a shard makes
+    # a pod hold. `graph_mib_total` is the fleet-wide duplication — every
+    # replica loads its shard's whole graph, and the pod count is fixed by
+    # throughput, so a bigger shard cannot be offset by having fewer of them.
+    memory_mib      = local.matcher_memory_mib
+    graph_mib       = local.matcher_graph_mib
+    graph_mib_total = local.matcher_graph_mib_total
   }
+}
+
+output "shard_memory_note" {
+  description = <<-EOT
+    How a shard's size lands on the fleet, and which resource ends up binding
+    the matcher pool.
+
+    Worth reading before changing precision. Pod count is throughput's to
+    decide, so coarsening the grid does not buy fewer pods — it makes each one
+    hold a bigger graph, and the pool tips from CPU-bound to memory-bound.
+  EOT
+  value = join(" ", [
+    "The largest shard is ${var.largest_shard_file_mib} MiB on disk and",
+    "${local.matcher_graph_mib} MiB resident at ${var.shard_memory_expansion}x,",
+    "so every matcher is sized at ${local.matcher_memory_mib} MiB including its working set.",
+    "Across ${local.matcher_pods} pods that is ${format("%.1f", local.matcher_graph_mib_total / 1024)} GiB of graph,",
+    "most of it the same shards loaded again per replica.",
+    "One node fits ${floor(local.allocatable["matcher"].memory_mib / local.matcher_memory_mib)} by memory",
+    "and ${floor(local.allocatable["matcher"].cpu_millis / local.profile.matcher_cpu_millis)} by CPU,",
+    "so the pool is ${
+      floor(local.allocatable["matcher"].memory_mib / local.matcher_memory_mib) <
+      floor(local.allocatable["matcher"].cpu_millis / local.profile.matcher_cpu_millis)
+      ? "memory-bound — a finer grid would shrink the graph and recover nodes"
+      : "CPU-bound, so the graph is currently free"
+    }.",
+  ])
 }
 
 output "shards_required" {

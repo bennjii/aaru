@@ -96,10 +96,10 @@ locals {
         # scheduling; the memory limit still bounds the pod.
         requests = {
           cpu    = "${var.profile.matcher_cpu_millis}m"
-          memory = "${var.profile.matcher_memory_mib}Mi"
+          memory = "${var.matcher_memory_mib}Mi"
         }
         limits = {
-          memory = "${var.profile.matcher_memory_mib}Mi"
+          memory = "${var.matcher_memory_mib}Mi"
         }
       }
     }

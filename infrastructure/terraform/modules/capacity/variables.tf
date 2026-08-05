@@ -129,6 +129,60 @@ variable "shard_fanout_per_precision" {
   }
 }
 
+variable "largest_shard_file_mib" {
+  description = <<-EOT
+    The biggest `<shard>.shard.rt` in the deployed set, on disk.
+
+    The largest and not the mean, because the chart gives every matcher
+    Deployment the same limit, so it has to fit the worst shard rather than the
+    typical one. Measured, not estimated: `r1` — the largest in Australia, at
+    precision 2 — is 433 MB, which is 413 MiB.
+
+    Re-measure it when the precision changes. A shard's size is roughly the
+    network divided by the shard count, so a level of precision cuts it by
+    about the same factor it multiplies the shard count by.
+  EOT
+  type        = number
+  default     = 413
+
+  validation {
+    condition     = var.largest_shard_file_mib > 0
+    error_message = "largest_shard_file_mib must be positive."
+  }
+}
+
+variable "shard_memory_expansion" {
+  description = <<-EOT
+    Resident bytes per byte of `.shard.rt` once loaded.
+
+    Measured at 7.6: `r1` is 413 MiB on disk and 3.31 GB resident before any
+    other cache is populated. The graph is deserialised into nodes, edges and
+    their indices, so the on-disk form is far more compact than the working
+    one — which is why sizing a matcher from its file size understates it by
+    almost an order of magnitude.
+  EOT
+  type        = number
+  default     = 7.6
+
+  validation {
+    condition     = var.shard_memory_expansion >= 1
+    error_message = "shard_memory_expansion must be at least 1; a loaded graph cannot be smaller than its file."
+  }
+}
+
+variable "matcher_working_set_mib" {
+  description = <<-EOT
+    Memory a matcher needs above its graph: the candidate caches and one
+    trellis per concurrent solve, plus allocator headroom.
+
+    Sized alongside the graph rather than inside the profile because it scales
+    with `matcher_workers`, and the graph does not scale with anything the
+    profile controls.
+  EOT
+  type        = number
+  default     = 1024
+}
+
 variable "hot_shard_replica_factor" {
   description = <<-EOT
     Ceiling multiplier for a shard's matcher HPA, over the replica count the
@@ -259,7 +313,6 @@ variable "profiles" {
   type = map(object({
     matcher_workers    = number
     matcher_cpu_millis = number
-    matcher_memory_mib = number
     matcher_eps        = number
 
     orchestrator_workers              = number
@@ -273,7 +326,6 @@ variable "profiles" {
     small = {
       matcher_workers    = 5
       matcher_cpu_millis = 1000
-      matcher_memory_mib = 3072
       matcher_eps        = 1500
 
       orchestrator_workers              = 64
@@ -294,7 +346,6 @@ variable "profiles" {
     standard = {
       matcher_workers    = 10
       matcher_cpu_millis = 2000
-      matcher_memory_mib = 3072
       matcher_eps        = 6000
 
       orchestrator_workers              = 512
@@ -310,7 +361,6 @@ variable "profiles" {
     large = {
       matcher_workers    = 24
       matcher_cpu_millis = 6000
-      matcher_memory_mib = 6144
       matcher_eps        = 16000
 
       orchestrator_workers              = 2048

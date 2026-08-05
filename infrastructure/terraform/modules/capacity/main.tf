@@ -38,6 +38,23 @@ locals {
 
   # --- Matchers -----------------------------------------------------------
 
+  # A matcher's memory is a property of its geography, not of its vertical
+  # profile: the profile decides how fast a pod solves, the shard decides how
+  # much graph it has to hold. Measured rather than assumed — `r1` is 413 MiB
+  # on disk and 3.31 GB resident, so the file understates the pod by 7.6x.
+  #
+  # Sized for the largest shard because the chart gives every matcher
+  # Deployment one limit, and a pod that cannot load its graph does not
+  # degrade, it is OOM-killed at startup and never serves a request.
+  matcher_graph_mib  = ceil(var.largest_shard_file_mib * var.shard_memory_expansion)
+  matcher_memory_mib = local.matcher_graph_mib + var.matcher_working_set_mib
+
+  # Every replica of a shard loads that shard's whole graph, so the fleet's
+  # memory is the pod count times the graph — which is why coarse geography is
+  # expensive. Pod count is fixed by throughput, so a bigger shard cannot be
+  # offset by having fewer of them.
+  matcher_graph_mib_total = local.matcher_pods * local.matcher_graph_mib
+
   # The mean is all this model can compute; `hot_shard_replica_factor` is what
   # covers the difference between it and a geographic distribution.
   mean_shard_eps = local.required_eps / local.shard_count
@@ -333,7 +350,7 @@ locals {
       count_max  = local.shard_count * local.matcher_replicas_max
       pods       = 1
       cpu_millis = local.profile.matcher_cpu_millis
-      memory_mib = local.profile.matcher_memory_mib
+      memory_mib = local.matcher_memory_mib
     }]
 
     # One shape now: the historian this pipeline absorbed is gone, and the
