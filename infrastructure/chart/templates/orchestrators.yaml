@@ -4,6 +4,7 @@
 # --pod-name/--fleet). Scaling the fleet re-slices the space, so change
 # `orchestrator.replicas` with the fleet quiesced or accept a window of
 # double-ownership — which revisions make wasteful, not wrong.
+{{- include "routers.validate" . -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -36,9 +37,12 @@ spec:
         {{- include "routers.labels" . | nindent 8 }}
         app: orchestrator
     spec:
+      {{- with (include "routers.podSpecCommon" (dict "root" $ "service" .Values.orchestrator) | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       containers:
         - name: orchestrator
-          image: "{{ .Values.orchestrator.image.repository }}:{{ .Values.orchestrator.image.tag }}"
+          image: {{ include "routers.image" (dict "registry" .Values.image.registry "image" .Values.orchestrator.image) | quote }}
           imagePullPolicy: {{ .Values.orchestrator.image.pullPolicy }}
           env:
             - name: NATS

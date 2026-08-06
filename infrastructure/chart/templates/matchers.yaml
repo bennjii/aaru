@@ -1,3 +1,4 @@
+{{- include "routers.validate" . -}}
 {{- range $shard := .Values.shards }}
 ---
 apiVersion: apps/v1
@@ -18,14 +19,24 @@ spec:
       shard: "{{ $shard }}"
   template:
     metadata:
+      {{- if eq $.Values.shardCache.mode "gcsfuse" }}
+      annotations:
+        # The CSI driver injects its sidecar only into pods carrying this
+        # annotation. Without it the pod sits Pending on a volume that cannot
+        # mount, and nothing in the event names the annotation as the cause.
+        gke-gcsfuse/volumes: "true"
+      {{- end }}
       labels:
         {{- include "routers.labels" $ | nindent 8 }}
         app: matcher
         shard: "{{ $shard }}"
     spec:
+      {{- with (include "routers.podSpecCommon" (dict "root" $ "service" $.Values.matcher) | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       containers:
         - name: matcher
-          image: "{{ $.Values.matcher.image.repository }}:{{ $.Values.matcher.image.tag }}"
+          image: {{ include "routers.image" (dict "registry" $.Values.image.registry "image" $.Values.matcher.image) | quote }}
           imagePullPolicy: {{ $.Values.matcher.image.pullPolicy }}
           env:
             - name: NATS
@@ -66,8 +77,21 @@ spec:
           {{- else if eq $.Values.shardCache.mode "pvc" }}
           persistentVolumeClaim:
             claimName: {{ $.Values.shardCache.pvc.claimName }}
+          {{- else if eq $.Values.shardCache.mode "gcsfuse" }}
+          {{- if not $.Values.shardCache.gcs.bucket }}
+          {{- fail "shardCache.mode is 'gcsfuse' but shardCache.gcs.bucket is empty; matchers would start with an empty /shards and match nothing" }}
+          {{- end }}
+          # An inline CSI volume rather than a PV/PVC pair: the bucket is the
+          # volume's identity, so there is nothing per-shard to provision and
+          # every matcher mounts the same bucket read-only.
+          csi:
+            driver: gcsfuse.csi.storage.gke.io
+            readOnly: true
+            volumeAttributes:
+              bucketName: {{ $.Values.shardCache.gcs.bucket | quote }}
+              mountOptions: {{ $.Values.shardCache.gcs.mountOptions | quote }}
           {{- else }}
-          {{- fail (printf "shardCache.mode must be 'hostPath' or 'pvc', got %q" $.Values.shardCache.mode) }}
+          {{- fail (printf "shardCache.mode must be 'hostPath', 'pvc' or 'gcsfuse', got %q" $.Values.shardCache.mode) }}
           {{- end }}
 {{- if $.Values.matcher.autoscaling.enabled }}
 ---

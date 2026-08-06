@@ -39,14 +39,48 @@ infra:
     # disable span export; the services fall back to plain logging.
     url: ""
 
-# Shard precision passed to the matcher. Ensure shards are generated for this precision level.
+# Shard precision passed to the matcher. Ensure shards are generated for this
+# precision level.
+#
+# The orchestrator does NOT read this: it derives an event's shard with the
+# compiled `event::SHARD_PRECISION`, because the subject it routes to must be
+# decided identically by every pod whether or not it holds chart values. So
+# this has to agree with that constant, or requests address subjects no
+# matcher serves. The terraform capacity module asserts the equality.
 shardPrecision: 4
 
+# Registry (or registry/project) prefix prepended to every service's
+# `image.repository`. Empty renders bare image names, which is what a local
+# cluster with pre-built images wants; GKE sets an Artifact Registry path so
+# the per-service repository/tag pairs need no duplication.
+image:
+  registry: ""
+
+# Pull secrets for every pod. Not needed for Artifact Registry, where the node
+# service account authenticates.
+imagePullSecrets: []
+
+# Identity the pods run as. Required for `shardCache.mode: gcsfuse`, which
+# reaches GCS through Workload Identity: annotate the account with
+# `iam.gke.io/gcp-service-account` and GKE exchanges its token for the Google
+# one, so no service account key exists to leak. Left off, pods keep the
+# namespace default and local dev behaves as before.
+serviceAccount:
+  create: false
+  # Defaults to the chart name when created and left empty.
+  name: ""
+  annotations: {}
+
 # Source for the {shard}.shard.rt files mounted read-only into every
-# matcher pod. Two modes:
+# matcher pod. Three modes:
 #
 #   mode: hostPath  → bind-mount a directory from the node filesystem.
 #   mode: pvc       → mount a PersistentVolumeClaim.
+#   mode: gcsfuse   → mount a GCS bucket through the GKE CSI driver.
+#
+# `gcsfuse` is what GKE uses: adding a shard needs no volume work, only a new
+# object in the bucket. `pvc` would need ReadOnlyMany, which GCE persistent
+# disks cannot provide across zones.
 #
 # Override hostPath via -f or --set, if necessary.
 shardCache:
@@ -54,6 +88,12 @@ shardCache:
   hostPath: /var/lib/routers/shards-cache
   pvc:
     claimName: routers-shards
+  gcs:
+    bucket: ""
+    # `implicit-dirs` lets a flat bucket present as a directory. The file
+    # cache matters: a matcher reads its whole shard file at startup, so a
+    # restart would otherwise re-read it over the network.
+    mountOptions: implicit-dirs,file-cache:max-size-mb:-1,metadata-cache:ttl-secs:-1
 
 # Each service's `env` map is rendered verbatim into the container: keys are
 # the binaries' clap-derived env names (see `--help` of each bin), so a knob
@@ -76,6 +116,11 @@ matcher:
     # Concurrent solves per matcher. Solving is CPU-bound, so this is sized
     # to actually cover the node's cores under load.
     WORKERS: "10"
+  # Matching is CPU-bound and wants a compute-optimised shape of its own, so
+  # in a multi-pool cluster this pins matchers to that pool and tolerates the
+  # taint keeping everything else off it.
+  nodeSelector: {}
+  tolerations: []
   resources:
     requests:
       cpu: 1000m
@@ -112,6 +157,8 @@ orchestrator:
     # bound is this × WORKERS per pod; size it above the concurrent vehicles
     # the pod's partitions carry, or live vehicles thrash the Valkey re-warm.
     VEHICLE_CACHE: "4096"
+  nodeSelector: {}
+  tolerations: []
   resources:
     requests:
       cpu: 500m

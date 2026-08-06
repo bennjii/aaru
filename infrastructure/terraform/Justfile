@@ -1,0 +1,71 @@
+# OpenTofu is assumed on PATH. The capacity module needs no credentials at all;
+# the others use mock providers in their tests, so nothing here reaches GCP.
+
+tofu := env("TOFU", "tofu")
+
+modules := "modules/capacity modules/platform"
+roots := "envs/dev/platform envs/dev/workloads"
+validate-only := "modules/devstack modules/realtime"
+
+# Everything that can be checked without a cloud account.
+default: fmt-check validate test
+
+# The sizing model plus the mock-provider suites.
+test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for d in {{ modules }} {{ roots }}; do
+        if compgen -G "$d/tests/*.tftest.hcl" > /dev/null; then
+            echo "==> $d"
+            {{ tofu }} -chdir="$d" init -backend=false -input=false > /dev/null
+            {{ tofu }} -chdir="$d" test
+        fi
+    done
+
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for d in {{ modules }} {{ roots }} {{ validate-only }}; do
+        echo "==> $d"
+        {{ tofu }} -chdir="$d" init -backend=false -input=false > /dev/null
+        {{ tofu }} -chdir="$d" validate
+    done
+
+fmt:
+    {{ tofu }} fmt -recursive .
+
+fmt-check:
+    {{ tofu }} fmt -recursive -check .
+
+# The sizing report for an environment, e.g. `just summary envs/dev/platform`.
+# Read this before an apply: the model reports shortfalls as warnings rather
+# than errors, so a plan succeeds while telling you it will not reach the
+# target.
+summary root="envs/dev/platform":
+    {{ tofu }} -chdir="{{ root }}" output -raw capacity_summary
+
+# The sizing report without applying anything, straight from the model. Useful
+# for asking "what would 5M need" by overriding the target.
+plan-summary root="envs/dev/platform" *args:
+    {{ tofu }} -chdir="{{ root }}" init -backend=false -input=false > /dev/null
+    {{ tofu }} -chdir="{{ root }}" plan {{ args }}
+
+# Estimated monthly spend for the applied fleet, by node pool and by service.
+# The rates are inputs carrying the region and the date they were read, so
+# confirm against the billing account before anything depends on the total.
+cost root="envs/dev/platform":
+    {{ tofu }} -chdir="{{ root }}" output -raw cost_report
+
+# The same estimate at another commitment tier or target, without applying:
+#
+#   just terraform::cost-what-if 'pricing_commitment=cud_3y'
+#   just terraform::cost-what-if 'throughput_target_eps=5000000'
+#
+# `output` reads state, so an override has to be evaluated rather than read
+# back — which also makes this work before the first apply.
+cost-what-if override root="envs/dev/platform":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{ tofu }} -chdir="{{ root }}" init -backend=false -input=false > /dev/null
+    echo 'module.capacity.cost_report' \
+        | {{ tofu }} -chdir="{{ root }}" console -var '{{ override }}'
