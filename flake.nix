@@ -31,6 +31,15 @@
             vulkan-loader
             wayland
           ];
+
+        # `gcloud` supplies the credentials the google provider reads, through
+        # `gcloud auth application-default login`. The GKE component is for
+        # `kubectl` and `helm`, which call it as an exec credential plugin; the
+        # terraform roots do not need it, because they take a token from
+        # `google_client_config` instead.
+        gcloud = pkgs.google-cloud-sdk.withExtraComponents [
+          pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
+        ];
       in
       {
         devShells.default = pkgs.mkShell {
@@ -62,6 +71,12 @@
 
             kubectl
             kubernetes-helm
+
+            # `infrastructure/terraform` runs on OpenTofu, not Terraform: the
+            # Justfile calls `tofu`, and the lock files record provider hashes
+            # from the OpenTofu registry.
+            opentofu
+            gcloud
 
             pkg-config
             cmake
