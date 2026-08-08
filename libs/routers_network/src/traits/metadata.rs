@@ -9,8 +9,14 @@ pub trait Metadata: Clone + Debug + Serialize + Send + Sync {
     where
         Self: 'a;
 
-    /// TODO: Describe
-    type Runtime: Clone + Debug + Send + Sync;
+    /// The runtime routing configuration (mode, vehicle properties, time,
+    /// private-access) that [`accessible`](Self::accessible) is evaluated
+    /// against.
+    ///
+    /// `PartialEq` lets accessibility-dependent caches assert they only ever
+    /// serve one runtime. It is not `Eq`/`Hash` because a runtime may carry
+    /// `f32` vehicle properties.
+    type Runtime: Clone + Debug + Send + Sync + PartialEq;
 
     /// TODO: Describe
     type TripContext;
