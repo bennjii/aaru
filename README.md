@@ -15,3 +15,11 @@ Routers is a set of routing tools designed for system-agnostic maps.
 - Point-to-Point Routing
 - Nearest Point (Pure or Snapped), Nearest Edge
 - ... more to come.
+
+## Licensing
+
+This software is **free for non-commercial, academic, and evaluation use**, and follows Apache 2.0.
+
+If you intend to use this software in a for-profit environment, deploy it to a production server, 
+or integrate it into a commercial product, you must purchase an annual or perpetual commercial license, 
+by contacting the author at contact@bennjii.dev.
