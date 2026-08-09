@@ -26,6 +26,9 @@ connectrpc = { workspace = true }
 # GeoRust
 geo = { workspace = true }
 
+# Units of measure
+uom = { workspace = true }
+
 log = { workspace = true }
 tokio = { workspace = true }
 

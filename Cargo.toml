@@ -72,6 +72,14 @@ tokio = { version = "1.47.1", features = [
     "fs",
 ] }
 
+# Units of measure. `autoconvert` is off: everything here is SI, and it only
+# costs compile time once there is a single system.
+uom = { version = "0.38.0", default-features = false, features = [
+    "si",
+    "f64",
+    "std",
+] }
+
 # GeoRust
 geo = { version = "0.31.0", features = ["use-serde"] }
 geo-index = { version = "0.3.1" }
