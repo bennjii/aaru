@@ -5,6 +5,7 @@ use dotenv::dotenv;
 use routers_codec::osm::OsmNetwork;
 use routers_fixtures::{LOS_ANGELES, LOS_ANGELES_SAVED, fixture};
 use routers_rpc::Tracer;
+use routers_rpc::meta::QueryMetadata;
 use routers_rpc::services::RPCAdapter;
 
 use connectrpc::{Router, Server};
@@ -39,6 +40,7 @@ async fn main() -> Result<(), Box<dyn core::error::Error>> {
     tracing::info!(message = "Starting server.", %addr);
 
     Server::new(router)
+        .with_interceptor(QueryMetadata)
         .serve(addr)
         .await
         .map_err(|e| -> Box<dyn core::error::Error> { e.to_string().into() })?;

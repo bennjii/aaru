@@ -5,6 +5,7 @@ use core::net::SocketAddr;
 
 use clap::Parser;
 use connectrpc::{Router, Server};
+use routers_rpc::meta::QueryMetadata;
 use routers_rpc::services::timezone::TimezoneAdapter;
 use routers_tz::S2CellStorage;
 use schema::connect::routers::api::timezone::v1::TimezoneServiceExt;
@@ -38,6 +39,7 @@ async fn main() -> Result<(), Box<dyn core::error::Error>> {
 
     info!("starting server: {}", args.addr);
     Server::new(router)
+        .with_interceptor(QueryMetadata)
         .serve(args.addr)
         .await
         .map_err(|e| -> Box<dyn core::error::Error> { e.to_string().into() })?;

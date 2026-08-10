@@ -45,6 +45,7 @@ itertools = "0.14.0"
 indexmap = "2.9.0"
 petgraph = { version = "0.8.2", features = ["serde-1", "graphmap", "rayon"] }
 rustc-hash = "2.1.1"
+sha2 = "0.10.9"
 
 # Logging
 log = { version = "0.4.28" }

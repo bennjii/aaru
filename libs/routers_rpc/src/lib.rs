@@ -2,6 +2,7 @@ extern crate alloc;
 
 pub mod services;
 
+pub mod meta;
 pub mod sdk;
 #[cfg(feature = "telemetry")]
 pub mod trace;
