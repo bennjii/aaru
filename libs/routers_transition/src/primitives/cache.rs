@@ -231,7 +231,7 @@ mod predicate {
 
     use super::*;
 
-    /// How far the bounded Dijkstra reaches from its root — two kilometres of
+    /// How far the bounded Dijkstra reaches from its root — one kilometre of
     /// network distance, not straight-line.
     ///
     /// Spelled as a literal because [`Length::new`] is not `const`; a
@@ -418,7 +418,7 @@ mod tests {
     fn a_cache_reports_the_reach_it_was_built_at() {
         let default = PredicateCache::<MockNetwork>::default();
         assert_eq!(default.reach_distance(), DEFAULT_REACH_DISTANCE);
-        assert_eq!(default.reach_distance().get::<meter>(), 2_000.0);
+        assert_eq!(default.reach_distance().get::<meter>(), 1_000.0);
 
         let wide =
             PredicateCache::<MockNetwork>::with_reach_distance(Length::new::<meter>(8_000.0));

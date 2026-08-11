@@ -481,14 +481,14 @@ fn reach_distance_bounds_the_search() {
     }
 }
 
-/// No cache means a fresh one at the 2km default — not enough for a 5.5km span.
+/// No cache means a fresh one at the 1km default — not enough for a 5.5km span.
 #[test]
 fn no_cache_matches_at_the_default_reach() {
     let net = long_road();
 
     assert_eq!(
         interpolated_nodes(&net, MatchOptions::new()),
-        interpolated_nodes(&net, reaching(m(2_000.0))),
+        interpolated_nodes(&net, reaching(m(1_000.0))),
         "an absent cache must behave as one built at the default reach"
     );
 }
