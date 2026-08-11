@@ -61,6 +61,13 @@ pub struct MatchOptions<N: Network> {
     /// Any given value of the enumeration is accepted,
     pub solver: SolverVariant,
 
+    /// A [`PredicateCache`] to answer reachability queries from, shared across
+    /// matches to keep it warm. `None` builds a fresh one at
+    /// [`DEFAULT_REACH_DISTANCE`](crate::primitives::DEFAULT_REACH_DISTANCE).
+    ///
+    /// The cache also carries how far the solver reaches between consecutive
+    /// positions, so `PredicateCache::with_reach_distance` is how you change
+    /// it.
     pub cache: Option<Arc<PredicateCache<N>>>,
 }
 

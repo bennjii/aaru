@@ -18,6 +18,12 @@ message MatchRequest {
 
   // Configurable options to dictate the costing functions
   model.v1.CostOptions options = 4;
+
+  // How far (in m of road distance, not straight-line) the router searches out
+  // from one matched position to find the next. Positions at or beyond this
+  // distance along the road cannot be linked, and the match breaks there.
+  // The default value is 2000 meters.
+  optional double reach_distance = 5;
 }
 
 message MatchResponse {

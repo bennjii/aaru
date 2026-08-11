@@ -4,7 +4,6 @@ use geo::Distance;
 use routers_network::{DataPlane, Metadata, Network};
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use scc::HashCache;
-use scc::hash_cache::Entry;
 
 /// Entries retained before the cache starts evicting.
 ///
@@ -31,6 +30,9 @@ const _: () = assert!(
 /// recently used entry of a bucket once that bucket is full. Eviction is
 /// therefore O(1) and bucket-local: the cache can evict a little before it is
 /// globally full, which is the price of not scanning.
+///
+/// Anything the value varies with beyond its key belongs in `Meta`, and caches
+/// whose metadata disagrees must stay separate maps.
 pub struct CacheMap<V, N, Meta>
 where
     V: Debug,
@@ -181,6 +183,8 @@ mod successor {
 
     use geo::Haversine;
     use routers_network::DirectionAwareEdgeId;
+    use uom::si::f64::Length;
+    use uom::si::length::meter;
 
     /// The weights, given as output from the [`SuccessorsCache::calculate`] function.
     type SuccessorWeights<E> = Vec<(E, DirectionAwareEdgeId<E>, WeightAndDistance)>;
@@ -201,17 +205,15 @@ mod successor {
             ctx.map
                 .edges_outof(key)
                 .map(|(_, next, (w, edge))| {
-                    const METER_TO_CM: f64 = 100.0;
-
                     #[allow(unsafe_code)]
                     let position = unsafe { ctx.map.point(&next).unwrap_unchecked() };
 
-                    // In centimeters (1m = 100cm)
-                    let distance = Haversine.distance(source, position);
-                    (next, (distance * METER_TO_CM) as u32, w, edge)
+                    // `Haversine` answers in metres; the unit goes on here so
+                    // nothing downstream has to remember that.
+                    let distance = Length::new::<meter>(Haversine.distance(source, position));
+                    (next, distance, w, edge)
                 })
                 .map(|(next, distance, weight, edge)| {
-                    // Stores the weight and distance (in cm) to the candidate
                     let cost = WeightAndDistance::new(weight, distance);
 
                     (next, edge, cost)
@@ -223,11 +225,23 @@ mod successor {
 
 mod predicate {
     use crate::primitives::{Dijkstra, algorithms::DijkstraReachableItem};
+    use core::marker::PhantomData;
     use routers_network::Network;
+    use uom::si::f64::Length;
 
     use super::*;
 
-    const DEFAULT_THRESHOLD: f64 = 100_000f64; // 1km in cm
+    /// How far the bounded Dijkstra reaches from its root — two kilometres of
+    /// network distance, not straight-line.
+    ///
+    /// Spelled as a literal because [`Length::new`] is not `const`; a
+    /// quantity's field holds its value in the SI base unit, so this is
+    /// metres.
+    pub const DEFAULT_REACH_DISTANCE: Length = Length {
+        dimension: PhantomData,
+        units: PhantomData,
+        value: 1_000.0,
+    };
 
     #[derive(Debug)]
     pub struct PredicateMetadata<N>
@@ -238,8 +252,8 @@ mod predicate {
         /// prevent repeated calculations.
         successors: SuccessorsCache<N>,
 
-        /// The threshold by which the solver is bounded, in centimeters.
-        threshold_distance: f64,
+        /// How far the solver reaches.
+        reach: Length,
     }
 
     impl<N> Default for PredicateMetadata<N>
@@ -249,7 +263,7 @@ mod predicate {
         fn default() -> Self {
             Self {
                 successors: SuccessorsCache::default(),
-                threshold_distance: DEFAULT_THRESHOLD,
+                reach: DEFAULT_REACH_DISTANCE,
             }
         }
     }
@@ -266,30 +280,42 @@ mod predicate {
     ///
     /// Keyed by a root node, it holds the parent-pointer map of an
     /// upper-bounded Dijkstra rooted there: every node reachable within the
-    /// threshold, mapped to the node it was reached from. Computed once on
-    /// first query and read thereafter — and deterministic, which is what
-    /// lets collapse re-derive hop geometry rather than store it.
+    /// cache's `reach_distance`, mapped to the node it was reached from.
+    /// Computed once on first query and read thereafter — and deterministic,
+    /// which is what lets collapse re-derive hop geometry rather than store
+    /// it.
     ///
-    /// Matching many trajectories over the same map? Share one cache across
-    /// matches (see
-    /// [`MatchOptions::with_cache`](crate::MatchOptions::with_cache)) so
-    /// later matches run warm.
+    /// Every entry is computed at the cache's reach, so the reach is fixed at
+    /// construction. Build one with `with_reach_distance` to match at anything
+    /// other than [`DEFAULT_REACH_DISTANCE`], and pass it to
+    /// [`MatchOptions::with_cache`](crate::MatchOptions::with_cache) — which
+    /// also keeps it warm across matches.
     pub type PredicateCache<N> =
         LockedMap<Predicates<<N as DataPlane>::Entry>, N, PredicateMetadata<N>>;
 
     impl<N: Network> PredicateCache<N> {
-        pub fn with_threshold(threshold_cm: f64) -> Self {
+        /// An empty cache whose entries reach `reach_distance`.
+        ///
+        /// Raise it for sparse traces — long gaps between positions, or
+        /// motorway driving. The cost is superlinear: a Dijkstra reaching
+        /// twice as far settles far more than twice the nodes.
+        pub fn with_reach_distance(reach_distance: Length) -> Self {
             LockedMap(Arc::new(CacheMap::with_metadata(PredicateMetadata {
                 successors: SuccessorsCache::default(),
-                threshold_distance: threshold_cm,
+                reach: reach_distance,
             })))
+        }
+
+        /// How far this cache's entries reach.
+        pub fn reach_distance(&self) -> Length {
+            self.0.metadata.reach
         }
     }
 
     impl<N: Network> Calculable<N, Predicates<N::Entry>> for PredicateCache<N> {
         #[inline]
         fn calculate(&self, ctx: &RoutingContext<N>, key: N::Entry) -> Predicates<N::Entry> {
-            let threshold = self.0.metadata.threshold_distance;
+            let reach = self.0.metadata.reach;
 
             Dijkstra
                 .reach(&key, move |node| {
@@ -315,10 +341,7 @@ mod predicate {
                         })
                         .map(|(a, _, b)| (a, b))
                 })
-                .take_while(|p| {
-                    // Bounded by the threshold distance (centimeters)
-                    (p.total_cost.distance_cm() as f64) < threshold
-                })
+                .take_while(|p| p.total_cost.distance() < reach)
                 .map(|DijkstraReachableItem { node, parent, .. }| {
                     (node, parent.unwrap_or_default())
                 })
@@ -354,15 +377,17 @@ where
     }
 }
 
-pub use predicate::PredicateCache;
+pub use predicate::{DEFAULT_REACH_DISTANCE, PredicateCache};
 pub use successor::SuccessorsCache;
 
 use crate::primitives::RoutingContext;
 
 #[cfg(test)]
 mod tests {
-    use super::{Arc, DEFAULT_CACHE_CAPACITY, PredicateCache};
+    use super::{Arc, DEFAULT_CACHE_CAPACITY, DEFAULT_REACH_DISTANCE, PredicateCache};
     use routers_network::mock::{MockEntryId, MockNetwork};
+    use uom::si::f64::Length;
+    use uom::si::length::{centimeter, meter};
 
     /// Got caught out by nodes exceeding their memory limit,
     /// so we must ensure the cache size stays bounded.
@@ -385,5 +410,24 @@ mod tests {
         // than it advertises; `DEFAULT_CACHE_CAPACITY` has a const assert for
         // that, and this confirms the constructor honours it.
         assert_eq!(cache.0.map.capacity(), DEFAULT_CACHE_CAPACITY);
+    }
+
+    /// A cache reports the reach it was built at, whichever unit named it —
+    /// and an unconfigured one reaches the documented default.
+    #[test]
+    fn a_cache_reports_the_reach_it_was_built_at() {
+        let default = PredicateCache::<MockNetwork>::default();
+        assert_eq!(default.reach_distance(), DEFAULT_REACH_DISTANCE);
+        assert_eq!(default.reach_distance().get::<meter>(), 2_000.0);
+
+        let wide =
+            PredicateCache::<MockNetwork>::with_reach_distance(Length::new::<meter>(8_000.0));
+        assert_eq!(wide.reach_distance().get::<centimeter>(), 800_000.0);
+
+        // The unit is carried, not assumed: 800,000cm names the same reach.
+        let same = PredicateCache::<MockNetwork>::with_reach_distance(Length::new::<centimeter>(
+            800_000.0,
+        ));
+        assert_eq!(same.reach_distance(), wide.reach_distance());
     }
 }

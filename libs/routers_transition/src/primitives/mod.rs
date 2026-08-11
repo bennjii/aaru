@@ -20,7 +20,7 @@ mod resolve;
 mod routing;
 mod weight_and_distance;
 
-pub use cache::{PredicateCache, SuccessorsCache};
+pub use cache::{DEFAULT_REACH_DISTANCE, PredicateCache, SuccessorsCache};
 pub use error::{Disconnected, DisconnectedError, MatchError, Unanchored, UnanchoredError};
 pub use resolve::{Reachable, ResolutionMethod};
 pub use routing::RoutingContext;

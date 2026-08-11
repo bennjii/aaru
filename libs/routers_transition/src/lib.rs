@@ -23,7 +23,9 @@
 //!
 //! If you want to dive a little deeper, you can tune the candidate search
 //! radius, weighing strategy, and caching through [`MatchOptions`], instead
-//! of supplying the defaults.
+//! of supplying the defaults. How far the router reaches between consecutive
+//! positions is carried by the cache — see
+//! [`PredicateCache::with_reach_distance`](primitives::PredicateCache).
 //!
 //! ### Going deeper
 //!
@@ -56,3 +58,8 @@ mod r#match;
 
 // Re-exports from routers_trellis
 pub use routers_trellis::{LayerId, NodeId, Path as TrellisPath, Solved, Trellis};
+
+/// Units of measure, re-exported because distances cross this crate's public
+/// API as [`uom`] quantities. Name them through here rather than adding your
+/// own `uom` dependency: a version skew would make `Length` a different type.
+pub use uom;
