@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.9] - 2026-08-11
+
+### 🚀 Features
+
+- *(transition)* Configurable Dijkstra reach distance
+
+
+
 ## [0.1.8] - 2026-07-30
 
 ### 🚀 Features
