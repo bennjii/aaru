@@ -351,7 +351,7 @@ fn duplicate_consecutive_points() {
     assert_eq!(first, second, "duplicate-point match must be deterministic");
 }
 
-/// Two disconnected components >2 km apart (beyond the predicate bound): each
+/// Two disconnected components >1 km apart (beyond the predicate bound): each
 /// layer has candidates, but there is no route between them, so the match fails
 /// with a collapse error rather than panicking.
 #[test]

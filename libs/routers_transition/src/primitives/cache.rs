@@ -227,7 +227,7 @@ mod predicate {
 
     use super::*;
 
-    const DEFAULT_THRESHOLD: f64 = 200_000f64; // 2km in cm
+    const DEFAULT_THRESHOLD: f64 = 100_000f64; // 1km in cm
 
     #[derive(Debug)]
     pub struct PredicateMetadata<N>
