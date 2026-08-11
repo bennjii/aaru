@@ -2,19 +2,26 @@ use core::cmp::Ordering;
 use core::ops::Add;
 use pathfinding::num_traits::Zero;
 use routers_network::edge::Weight;
+use uom::si::f64::Length;
+use uom::si::length::centimeter;
 
 /// The accumulated routing cost of a candidate path.
 ///
 /// It carries a running average road-class weight — held as a separate
 /// `numerator` (sum of weights) and `denominator` (number of edges) so the
-/// average stays exact under addition — alongside the cumulative `distance`
-/// travelled, in centimeters.
+/// average stays exact under addition — alongside the cumulative distance
+/// travelled.
+///
+/// Distance crosses the API as a [`Length`], but is held in whole centimetres
+/// so accumulation over a long path stays exact where repeated
+/// floating-point addition would drift. The field names its unit because
+/// nothing in the type does.
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Copy, Clone, Hash, Debug)]
 pub struct WeightAndDistance {
     numerator: Weight,
     denominator: u32,
-    distance: u32,
+    distance_cm: u32,
 }
 
 impl WeightAndDistance {
@@ -33,7 +40,7 @@ impl WeightAndDistance {
     /// one quarter of the motorway path length.
     #[inline]
     pub fn repr(&self) -> u32 {
-        (self.squared_weight() * self.distance()) as u32
+        (self.squared_weight() * f64::from(self.distance_cm)) as u32
     }
 
     /// The running average road-class weight (numerator / denominator).
@@ -51,25 +58,20 @@ impl WeightAndDistance {
         (self.weight() as f64).powi(2)
     }
 
+    /// The cumulative distance travelled.
     #[inline]
-    const fn distance(&self) -> f64 {
-        self.distance as f64
-    }
-
-    /// The cumulative distance travelled, in centimeters.
-    #[inline]
-    pub const fn distance_cm(&self) -> u32 {
-        self.distance
+    pub fn distance(&self) -> Length {
+        Length::new::<centimeter>(f64::from(self.distance_cm))
     }
 
     /// Constructs the cost of a single edge of the given road-class `weight`
-    /// and `distance` (in centimeters).
+    /// and `distance`.
     #[inline]
-    pub const fn new(weight: Weight, distance: u32) -> Self {
+    pub fn new(weight: Weight, distance: Length) -> Self {
         Self {
             numerator: weight,
             denominator: 1,
-            distance,
+            distance_cm: distance.get::<centimeter>() as u32,
         }
     }
 }
@@ -101,7 +103,7 @@ impl Add<Self> for WeightAndDistance {
         WeightAndDistance {
             numerator: self.numerator + rhs.numerator,
             denominator: self.denominator + rhs.denominator,
-            distance: self.distance + rhs.distance,
+            distance_cm: self.distance_cm + rhs.distance_cm,
         }
     }
 }
@@ -111,7 +113,7 @@ impl Zero for WeightAndDistance {
         WeightAndDistance {
             numerator: 0,
             denominator: 0,
-            distance: 0,
+            distance_cm: 0,
         }
     }
 

@@ -30,13 +30,11 @@ pub enum SolverVariant {
 }
 
 impl SolverVariant {
-    pub(crate) fn without_cache<N: Network>(self) -> WeigherImpl<N> {
-        match self {
-            SolverVariant::Selective => WeigherImpl::Selective(Selective::default()),
-            _ => WeigherImpl::AllCompute(AllCompute::default()),
-        }
-    }
-
+    /// The chosen weigher over `cache`, adopting its `reach_distance`.
+    ///
+    /// Every variant takes a cache — a weigher always has one, so there is no
+    /// cacheless form to pick between. Callers with none of their own pass a
+    /// fresh [`PredicateCache`] aimed at the reach they want.
     pub(crate) fn instance<N: Network>(self, cache: Arc<PredicateCache<N>>) -> WeigherImpl<N> {
         match self {
             SolverVariant::Selective => {

@@ -28,6 +28,9 @@ log = { workspace = true }
 geo = { workspace = true }
 wkt = { workspace = true }
 
+# Units of measure
+uom = { workspace = true }
+
 # Tracing [Optional-"tracing"]
 tracing = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
