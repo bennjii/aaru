@@ -27,16 +27,16 @@ routers_viewer = { path = "libs/routers_viewer" }
 schema = { path = "schema", package = "routers_schema", version = "0.2.0" }
 routers_codec = { path = "libs/routers_codec", version = "0.2.0" }
 routers_geo = { path = "libs/routers_geo", version = "0.1.6" }
-routers_rpc = { path = "libs/routers_rpc", version = "0.1.10" }
+routers_rpc = { path = "libs/routers_rpc", version = "0.1.11" }
 routers_tiles = { path = "libs/routers_tiles", version = "0.1.5" }
 routers_network = { path = "libs/routers_network", version = "0.3.0" }
-routers_shard = { path = "libs/routers_shard", version = "0.2.0" }
-routers_realtime = { path = "libs/routers_realtime", version = "0.4.1" }
+routers_shard = { path = "libs/routers_shard", version = "0.2.1" }
+routers_realtime = { path = "libs/routers_realtime", version = "0.4.2" }
 routers_tz = { path = "libs/routers_tz", version = "0.1.2" }
 routers_tz_types = { path = "libs/routers_tz_types", version = "0.1.0" }
 routers_trellis = { path = "libs/routers_trellis", version = "0.2.1" }
-routers_transition = { path = "libs/routers_transition", version = "0.3.0" }
-routers = { path = ".", version = "0.3.6" }
+routers_transition = { path = "libs/routers_transition", version = "0.3.1" }
+routers = { path = ".", version = "0.3.7" }
 
 # Optimisation Crates
 rayon = "1.10.0"
@@ -164,7 +164,7 @@ opt-level = 3
 name = "routers"
 description = "Rust-Based Routing Tooling for System-Agnostic Maps."
 readme = "README.md"
-version = "0.3.6"
+version = "0.3.7"
 edition = "2024"
 license = "GPL-3.0-or-later"
 include = ["src/**/*", "readme.md"]
