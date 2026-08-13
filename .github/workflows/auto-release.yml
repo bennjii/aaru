@@ -25,8 +25,6 @@ jobs:
     permissions:
       contents: write
     outputs:
-      # The version we are on now that releasing is done. The container job
-      # builds to this tag.
       tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout repository
@@ -98,6 +96,14 @@ jobs:
       IMAGE: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/routers-${{ matrix.name }}
       TAG: ${{ needs.release-plz-release.outputs.tag }}
     steps:
+      # Must precede authentication: checkout cleans the workspace that the
+      # credential file is written into.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          lfs: true
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -109,8 +115,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # No match, or a registry we cannot read, means we build: a redundant
-          # push is cheaper than a silently missing container.
           if gcloud artifacts docker tags list "$IMAGE" --format='value(tag)' | grep -Fxq "$TAG"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "$IMAGE:$TAG already exists, nothing to do."
@@ -118,15 +122,6 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "$IMAGE:$TAG not found, building."
           fi
-
-      - name: Checkout repository
-        if: steps.check.outputs.exists == 'false'
-        uses: actions/checkout@v4
-        with:
-          # Build the tag itself, so the image contents match the version it is
-          # tagged with even when main has already moved on.
-          ref: ${{ env.TAG }}
-          lfs: true
 
       - name: Install protoc
         if: steps.check.outputs.exists == 'false'
