@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.6] - 2026-08-13
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: routers_rpc, routers_realtime
+
+
+
 ## [0.3.5] - 2026-08-11
 
 ### 🚀 Features
