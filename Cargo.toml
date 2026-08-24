@@ -192,6 +192,10 @@ routers_fixtures = { workspace = true }
 
 geo = { workspace = true }
 
+[features]
+# Overture Maps GeoParquet ingestion.
+overture = ["routers_codec/overture"]
+
 [[bench]]
 name = "map_match"
 harness = false
@@ -203,6 +207,10 @@ harness = false
 [[example]]
 name = "shard_match"
 required-features = ["shard"]
+
+[[example]]
+name = "map_match_overture"
+required-features = ["overture"]
 
 [lints]
 workspace = true
