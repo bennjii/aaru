@@ -61,6 +61,8 @@ routers_fixtures = { workspace = true }
 
 [features]
 default = []
+# Overture Maps GeoParquet ingestion (`OvertureService`).
+overture = ["routers_codec/overture"]
 server = [
     "dep:clap",
     "connectrpc/server"

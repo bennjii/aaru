@@ -23,3 +23,15 @@ impl OsmService {
         OsmNetwork::from_pbf(&file)
     }
 }
+
+#[cfg(feature = "overture")]
+pub struct OvertureService;
+
+#[cfg(feature = "overture")]
+impl OvertureService {
+    pub fn from_file(
+        file: PathBuf,
+    ) -> Result<routers_codec::overture::OvertureNetwork, Box<dyn core::error::Error>> {
+        routers_codec::overture::OvertureNetwork::from_geoparquet(&file).map_err(Into::into)
+    }
+}
