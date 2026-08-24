@@ -40,6 +40,14 @@ itertools = { workspace = true }
 # Compression
 flate2 = { version = "1.1.9", features = ["zlib-rs"] }
 
+# Overture (GeoParquet reader) — gated behind the `overture` feature so the
+# default and wasm builds do not pull in the Arrow/Parquet stack.
+arrow = { version = "59", optional = true }
+parquet = { version = "59", optional = true }
+serde_arrow = { version = "0.15", features = ["arrow-59"], optional = true }
+wkb = { version = "0.9", optional = true }
+geo-traits = { version = "0.3", optional = true }
+
 # Drop-in for `std::time::Instant`
 web-time = "1"
 
@@ -71,6 +79,9 @@ harness = false
 
 [features]
 default = ["mimalloc"]
+
+# Overture Maps GeoParquet ingestion (pulls in the Arrow/Parquet reader stack).
+overture = ["dep:arrow", "dep:parquet", "dep:serde_arrow", "dep:wkb", "dep:geo-traits"]
 
 # Alternate Allocator (Applies to #[global_allocator])
 mimalloc = ["dep:mimalloc"]
