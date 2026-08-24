@@ -10,4 +10,5 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 pub mod osm;
+pub mod overture;
 pub mod primitive;
