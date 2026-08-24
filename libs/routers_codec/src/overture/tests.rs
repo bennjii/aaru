@@ -13,7 +13,7 @@ use crate::overture::graph::OvertureNetwork;
 use crate::overture::id::{Interner, OvertureEntryId};
 use crate::overture::meta::OvertureEdgeMetadata;
 use crate::overture::parsers::{
-    AccessRestriction, AccessType, Heading, RoadClass, Speed, SpeedUnit, TravelMode,
+    AccessRestriction, AccessType, Between, Heading, RoadClass, Speed, SpeedUnit, TravelMode,
 };
 
 fn id(n: i64) -> OvertureEntryId {
@@ -74,6 +74,47 @@ fn speed_unit_conversion() {
     assert_eq!("km/h".parse(), Ok(SpeedUnit::Kmh));
     assert_eq!("mph".parse(), Ok(SpeedUnit::Mph));
     assert!("furlongs".parse::<SpeedUnit>().is_err());
+}
+
+#[test]
+fn speed_unit_aliases_and_display() {
+    // Slash-free variants seen in the wild parse to the schema unit.
+    assert_eq!("kmh".parse(), Ok(SpeedUnit::Kmh));
+    assert_eq!("kph".parse(), Ok(SpeedUnit::Kmh));
+    // Display round-trips the schema spelling.
+    assert_eq!(SpeedUnit::Kmh.to_string(), "km/h");
+    assert_eq!(SpeedUnit::Mph.to_string(), "mph");
+}
+
+#[test]
+fn travel_mode_coverage_hierarchy() {
+    use TravelMode::*;
+
+    // Grouping modes cover the concrete modes beneath them.
+    assert!(Vehicle.covers(Car));
+    assert!(Vehicle.covers(Bicycle));
+    assert!(!Vehicle.covers(Foot));
+    assert!(MotorVehicle.covers(Hgv));
+    assert!(!MotorVehicle.covers(Bicycle));
+    assert!(!MotorVehicle.covers(Foot));
+
+    // Concrete modes cover only themselves.
+    assert!(Car.covers(Car));
+    assert!(!Car.covers(Truck));
+    assert!(!Bus.covers(Car));
+}
+
+#[test]
+fn between_normalises_and_overlaps() {
+    // Endpoint order is not schema-enforced; clamp and sort defensively.
+    let reversed = Between::new(0.9, 0.2);
+    assert_eq!((reversed.start, reversed.end), (0.2, 0.9));
+
+    let clamped = Between::new(-0.5, 1.5);
+    assert_eq!((clamped.start, clamped.end), (0.0, 1.0));
+
+    assert!(Between::new(0.0, 0.5).overlaps(&Between::new(0.4, 1.0)));
+    assert!(!Between::new(0.0, 0.4).overlaps(&Between::new(0.4, 1.0)));
 }
 
 #[test]
@@ -181,6 +222,64 @@ fn oneway_segment_only_emits_one_direction() {
     assert!(net.edge(&id(1), &id(2)).is_none());
     assert!(net.edge(&id(2), &id(1)).is_some());
     assert_eq!(net.graph.edge_count(), 1);
+}
+
+#[test]
+fn conditional_oneway_keeps_both_directions() {
+    // A time-scoped directional denial (e.g. a peak-hour turn ban) must not
+    // hard-close the direction at build time; per-trip evaluation belongs to
+    // the runtime.
+    let connectors = vec![connector(1, 0.0, 0.0), connector(2, 1.0, 0.0)];
+    let access = vec![AccessRestriction {
+        access_type: AccessType::Denied,
+        heading: Some(Heading::Forward),
+        mode: Vec::new(),
+        conditional: true,
+    }];
+    let segments = vec![road_segment(
+        100,
+        vec![conn_ref(1, 0.0), conn_ref(2, 1.0)],
+        access,
+    )];
+
+    let net = OvertureNetwork::from_elements(connectors, segments);
+
+    assert!(net.edge(&id(1), &id(2)).is_some());
+    assert!(net.edge(&id(2), &id(1)).is_some());
+}
+
+#[test]
+fn interior_vertices_split_at_mid_segment_connector() {
+    // Five evenly-spaced vertices with a connector halfway: each connector
+    // pair receives only its own interior vertex, and the vertex coincident
+    // with the mid connector is excluded from both.
+    let seg = Segment::new(
+        id(100),
+        line_string![
+            (x: 0.0, y: 0.0),
+            (x: 0.25, y: 0.0),
+            (x: 0.5, y: 0.0),
+            (x: 0.75, y: 0.0),
+            (x: 1.0, y: 0.0),
+        ],
+        vec![conn_ref(1, 0.0), conn_ref(2, 0.5), conn_ref(3, 1.0)],
+        Some(RoadClass::Primary),
+        false,
+        Vec::new(),
+        Vec::new(),
+    );
+
+    let first: Vec<f64> = seg.interior_vertices(0.0, 0.5).map(|c| c.x).collect();
+    let second: Vec<f64> = seg.interior_vertices(0.5, 1.0).map(|c| c.x).collect();
+
+    assert_eq!(first, vec![0.25]);
+    assert_eq!(second, vec![0.75]);
+}
+
+#[test]
+fn interior_vertices_of_empty_geometry_are_none() {
+    let seg = road_segment(100, vec![conn_ref(1, 0.0), conn_ref(2, 1.0)], Vec::new());
+    assert_eq!(seg.interior_vertices(0.0, 1.0).count(), 0);
 }
 
 #[test]
