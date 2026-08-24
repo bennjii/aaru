@@ -49,8 +49,10 @@ impl Segment {
         speed_limits: Vec<SpeedLimit>,
         access: Vec<AccessRestriction>,
     ) -> Self {
-        connectors
-            .sort_by(|a, b| a.at.partial_cmp(&b.at).unwrap_or(core::cmp::Ordering::Equal));
+        connectors.sort_by(|a, b| {
+            a.at.partial_cmp(&b.at)
+                .unwrap_or(core::cmp::Ordering::Equal)
+        });
         Segment {
             id,
             geometry,
@@ -74,7 +76,11 @@ impl Segment {
     #[inline]
     pub fn weight(&self) -> Weight {
         let base = self.road_class.map_or(Weight::MAX, |c| c.weighting());
-        if self.is_link { base.saturating_add(1) } else { base }
+        if self.is_link {
+            base.saturating_add(1)
+        } else {
+            base
+        }
     }
 
     /// Whether driving is permitted in the given heading.

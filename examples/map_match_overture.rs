@@ -12,8 +12,8 @@ use std::time::Instant;
 use geo::{Closest, ClosestPoint, Coord, Distance, Haversine, LineString, Point};
 use routers::{
     Match, MatchError, MatchOptions, candidate::Path, codec::osm::OsmNetwork,
-    codec::overture::OvertureNetwork, primitives::PredicateCache,
-    uom::si::f64::Length, uom::si::length::kilometer,
+    codec::overture::OvertureNetwork, primitives::PredicateCache, uom::si::f64::Length,
+    uom::si::length::kilometer,
 };
 use routers_network::{Entry, Metadata, Network};
 use wkt::TryFromWkt;

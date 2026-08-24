@@ -69,7 +69,9 @@ fn builds_routable_network() {
     assert!(weight > 0);
     assert!(route.len() > 10, "route hops: {}", route.len());
 
-    let nearest = net.nearest_node(&start).expect("nearest node to trip start");
+    let nearest = net
+        .nearest_node(&start)
+        .expect("nearest node to trip start");
     let position = nearest.position;
     assert!((position.x() - start.x()).abs() < 0.01);
     assert!((position.y() - start.y()).abs() < 0.01);

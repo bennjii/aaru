@@ -130,13 +130,28 @@ fn segment_samples() -> Vec<SegOut> {
             class: Some("primary".into()),
             subclass: None,
             connectors: vec![
-                ConnOut { connector_id: "c1".into(), at: 0.0 },
-                ConnOut { connector_id: "c2".into(), at: 0.5 },
-                ConnOut { connector_id: "c3".into(), at: 1.0 },
+                ConnOut {
+                    connector_id: "c1".into(),
+                    at: 0.0,
+                },
+                ConnOut {
+                    connector_id: "c2".into(),
+                    at: 0.5,
+                },
+                ConnOut {
+                    connector_id: "c3".into(),
+                    at: 1.0,
+                },
             ],
             speed_limits: vec![SpeedLimitOut {
-                min_speed: Some(SpeedOut { value: 30, unit: "km/h".into() }),
-                max_speed: Some(SpeedOut { value: 50, unit: "km/h".into() }),
+                min_speed: Some(SpeedOut {
+                    value: 30,
+                    unit: "km/h".into(),
+                }),
+                max_speed: Some(SpeedOut {
+                    value: 50,
+                    unit: "km/h".into(),
+                }),
                 when: Some(when()),
             }],
             access_restrictions: vec![],
@@ -147,8 +162,14 @@ fn segment_samples() -> Vec<SegOut> {
             class: Some("primary".into()),
             subclass: Some("link".into()),
             connectors: vec![
-                ConnOut { connector_id: "c2".into(), at: 0.0 },
-                ConnOut { connector_id: "c3".into(), at: 1.0 },
+                ConnOut {
+                    connector_id: "c2".into(),
+                    at: 0.0,
+                },
+                ConnOut {
+                    connector_id: "c3".into(),
+                    at: 1.0,
+                },
             ],
             speed_limits: vec![],
             access_restrictions: vec![AccessOut {
@@ -163,8 +184,14 @@ fn segment_samples() -> Vec<SegOut> {
             class: None,
             subclass: None,
             connectors: vec![
-                ConnOut { connector_id: "c1".into(), at: 0.0 },
-                ConnOut { connector_id: "c3".into(), at: 1.0 },
+                ConnOut {
+                    connector_id: "c1".into(),
+                    at: 0.0,
+                },
+                ConnOut {
+                    connector_id: "c3".into(),
+                    at: 1.0,
+                },
             ],
             speed_limits: vec![],
             access_restrictions: vec![],
@@ -182,8 +209,14 @@ fn edge_case_samples() -> Vec<SegOut> {
             class: Some("residential".into()),
             subclass: None,
             connectors: vec![
-                ConnOut { connector_id: "c1".into(), at: 0.0 },
-                ConnOut { connector_id: "c2".into(), at: 1.0 },
+                ConnOut {
+                    connector_id: "c1".into(),
+                    at: 0.0,
+                },
+                ConnOut {
+                    connector_id: "c2".into(),
+                    at: 1.0,
+                },
             ],
             speed_limits: vec![],
             access_restrictions: vec![AccessOut {
@@ -206,8 +239,14 @@ fn edge_case_samples() -> Vec<SegOut> {
             class: Some("residential".into()),
             subclass: None,
             connectors: vec![
-                ConnOut { connector_id: "c2".into(), at: 0.0 },
-                ConnOut { connector_id: "c3".into(), at: 1.0 },
+                ConnOut {
+                    connector_id: "c2".into(),
+                    at: 0.0,
+                },
+                ConnOut {
+                    connector_id: "c3".into(),
+                    at: 1.0,
+                },
             ],
             speed_limits: vec![],
             access_restrictions: vec![AccessOut {
@@ -228,21 +267,36 @@ fn edge_case_samples() -> Vec<SegOut> {
             class: Some("tertiary".into()),
             subclass: None,
             connectors: vec![
-                ConnOut { connector_id: "c1".into(), at: 0.0 },
-                ConnOut { connector_id: "c3".into(), at: 1.0 },
+                ConnOut {
+                    connector_id: "c1".into(),
+                    at: 0.0,
+                },
+                ConnOut {
+                    connector_id: "c3".into(),
+                    at: 1.0,
+                },
             ],
             speed_limits: vec![
                 SpeedLimitOut {
                     min_speed: None,
-                    max_speed: Some(SpeedOut { value: 40, unit: "km/h".into() }),
+                    max_speed: Some(SpeedOut {
+                        value: 40,
+                        unit: "km/h".into(),
+                    }),
                     when: Some(WhenOut {
                         during: Some("Mo-Fr 08:00-09:30,14:30-16:00".into()),
                         ..Default::default()
                     }),
                 },
                 SpeedLimitOut {
-                    min_speed: Some(SpeedOut { value: 20, unit: "furlongs".into() }),
-                    max_speed: Some(SpeedOut { value: 60, unit: "km/h".into() }),
+                    min_speed: Some(SpeedOut {
+                        value: 20,
+                        unit: "furlongs".into(),
+                    }),
+                    max_speed: Some(SpeedOut {
+                        value: 60,
+                        unit: "km/h".into(),
+                    }),
                     when: Some(WhenOut {
                         mode: Some(vec!["car".into(), "spaceship".into()]),
                         ..Default::default()
@@ -273,8 +327,14 @@ fn edge_case_samples() -> Vec<SegOut> {
             class: Some("hyperloop".into()),
             subclass: None,
             connectors: vec![
-                ConnOut { connector_id: "c1".into(), at: 0.0 },
-                ConnOut { connector_id: "c2".into(), at: 1.0 },
+                ConnOut {
+                    connector_id: "c1".into(),
+                    at: 0.0,
+                },
+                ConnOut {
+                    connector_id: "c2".into(),
+                    at: 1.0,
+                },
             ],
             speed_limits: vec![],
             access_restrictions: vec![],
@@ -306,9 +366,17 @@ fn reads_transportation_geoparquet_into_elements() {
     let dir = fixture_dir("elements", &segment_samples());
     let transportation = read_transportation(&dir).expect("read");
 
-    assert_eq!(transportation.connectors.len(), 3, "three connectors decoded");
+    assert_eq!(
+        transportation.connectors.len(),
+        3,
+        "three connectors decoded"
+    );
     // Two road segments kept; the water segment dropped.
-    assert_eq!(transportation.segments.len(), 2, "only road segments retained");
+    assert_eq!(
+        transportation.segments.len(),
+        2,
+        "only road segments retained"
+    );
 
     // Connector geometry decoded from WKB.
     let xs: Vec<f64> = transportation

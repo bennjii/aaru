@@ -141,10 +141,7 @@ impl OvertureNetwork {
     /// Build from GeoParquet or, if a cache exists, load it; write the cache on
     /// a cold build.
     #[cfg(all(feature = "overture", not(target_arch = "wasm32")))]
-    pub fn from_geoparquet_and_save(
-        source: &Path,
-        saved_path: &PathBuf,
-    ) -> Result<Self, String> {
+    pub fn from_geoparquet_and_save(source: &Path, saved_path: &PathBuf) -> Result<Self, String> {
         if saved_path.exists() {
             match OvertureNetwork::from_saved(saved_path) {
                 Ok(g) => return Ok(g),
