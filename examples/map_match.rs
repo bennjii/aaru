@@ -22,7 +22,7 @@ use wkt::TryFromWkt;
 use routers_fixtures::SYNDEY_TRIP;
 
 /// The OSM codec: the default implementation.
-#[cfg(not(feature = "overture"))]
+#[cfg(feature = "osm")]
 mod source {
     use routers::codec::osm;
     use routers_fixtures::{SYDNEY, fixture_path};

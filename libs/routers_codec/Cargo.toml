@@ -82,6 +82,7 @@ default = ["mimalloc"]
 
 # Overture Maps GeoParquet ingestion (pulls in the Arrow/Parquet reader stack).
 overture = ["dep:arrow", "dep:parquet", "dep:serde_arrow", "dep:wkb", "dep:geo-traits"]
+osm = []
 
 # Alternate Allocator (Applies to #[global_allocator])
 mimalloc = ["dep:mimalloc"]

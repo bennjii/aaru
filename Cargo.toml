@@ -195,6 +195,9 @@ geo = { workspace = true }
 [features]
 # Overture Maps GeoParquet ingestion.
 overture = ["routers_codec/overture"]
+osm = ["routers_codec/osm"]
+
+default = ["osm"]
 
 [[bench]]
 name = "map_match"
