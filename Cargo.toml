@@ -208,9 +208,5 @@ harness = false
 name = "shard_match"
 required-features = ["shard"]
 
-[[example]]
-name = "map_match_overture"
-required-features = ["overture"]
-
 [lints]
 workspace = true
