@@ -17,15 +17,11 @@ bench = false
 routers_network = { workspace = true }
 schema = { workspace = true }
 
-# Schema
-bytes = { workspace = true }
-serde = { workspace = true }
-buffa = { workspace = true }
-
 # GeoRust
 geo = { workspace = true, features = ["serde"] }
 petgraph = { workspace = true, features = ["serde"] }
 
+serde = { workspace = true }
 rayon = { workspace = true }
 log = { workspace = true }
 postcard = { workspace = true }
@@ -37,11 +33,12 @@ tracing-subscriber = { workspace = true, optional = true }
 strum = { workspace = true }
 itertools = { workspace = true }
 
-# Compression
-flate2 = { version = "1.1.9", features = ["zlib-rs"] }
+# OSM Reader
+flate2 = { version = "1.1.9", features = ["zlib-rs"], optional = true }
+bytes = { workspace = true, optional = true }
+buffa = { workspace = true, optional = true }
 
-# Overture (GeoParquet reader) — gated behind the `overture` feature so the
-# default and wasm builds do not pull in the Arrow/Parquet stack.
+# Overture / GeoParquet reader
 arrow = { version = "59", optional = true }
 parquet = { version = "59", optional = true }
 serde_arrow = { version = "0.15", features = ["arrow-59"], optional = true }
@@ -82,7 +79,9 @@ default = ["mimalloc"]
 
 # Overture Maps GeoParquet ingestion (pulls in the Arrow/Parquet reader stack).
 overture = ["dep:arrow", "dep:parquet", "dep:serde_arrow", "dep:wkb", "dep:geo-traits"]
-osm = []
+
+# Open Street Maps (via. OSM-Protobuf files)
+osm = ["dep:flate2", "dep:bytes", "dep:buffa"]
 
 # Alternate Allocator (Applies to #[global_allocator])
 mimalloc = ["dep:mimalloc"]

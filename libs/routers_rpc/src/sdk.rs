@@ -20,8 +20,12 @@ pub mod optimise {
 pub mod r#match {
     use buffa::RepeatedView;
     use geo::{Coord, LineString};
-    use routers_codec::osm::speed_limit::{SpeedLimitConditions, SpeedLimitExt};
-    use routers_codec::osm::{OsmEdgeMetadata, OsmTripConfiguration};
+    #[cfg(feature = "osm")]
+    use routers_codec::osm::{
+        OsmEdgeMetadata, OsmTripConfiguration,
+        speed_limit::{SpeedLimitConditions, SpeedLimitExt},
+    };
+    #[cfg(feature = "overture")]
     use routers_codec::overture::{OvertureEdgeMetadata, OvertureTripConfiguration};
     use routers_codec::primitive::context::TripContext;
     use routers_codec::primitive::transport::{TransportMode, TruckCosting, VehicleCosting};
@@ -89,28 +93,6 @@ pub mod r#match {
         Some(TripContext { transport_mode })
     }
 
-    /// Build an [`EdgeMetadata`] view from an OSM edge's intrinsic metadata
-    /// and the trip's runtime configuration.
-    pub fn osm_edge_metadata(
-        meta: &OsmEdgeMetadata,
-        runtime: &OsmTripConfiguration,
-    ) -> EdgeMetadata {
-        let speed_limit = meta
-            .speed_limit
-            .as_ref()
-            .map(|v| v.relevant_limits(runtime, SpeedLimitConditions::default()))
-            .and_then(|v| v.first().map(|elem| elem.speed.clone()))
-            .and_then(|v| v.in_kmh())
-            .map(|speed| speed.get() as u32);
-
-        EdgeMetadata {
-            lane_count: meta.lane_count.map(|v| v.get() as u32),
-            speed_limit,
-            names: ::buffa::alloc::vec::Vec::new(),
-            ..Default::default()
-        }
-    }
-
     /// Generic glue for [`MatchService`] handlers: lifts the OSM-specific
     /// conversions into a trait so the handler can stay generic over the
     /// network's [`Metadata`] implementation. Implement for new metadata
@@ -120,48 +102,54 @@ pub mod r#match {
         fn edge_metadata(meta: &Self, runtime: &Self::Runtime) -> EdgeMetadata;
     }
 
+    #[cfg(feature = "osm")]
     impl MatchSdk for OsmEdgeMetadata {
         fn trip_context(costing: &Costing) -> Option<TripContext> {
             trip_context(costing)
         }
 
         fn edge_metadata(meta: &Self, runtime: &OsmTripConfiguration) -> EdgeMetadata {
-            osm_edge_metadata(meta, runtime)
+            let speed_limit = meta
+                .speed_limit
+                .as_ref()
+                .map(|v| v.relevant_limits(runtime, SpeedLimitConditions::default()))
+                .and_then(|v| v.first().map(|elem| elem.speed.clone()))
+                .and_then(|v| v.in_kmh())
+                .map(|speed| speed.get() as u32);
+
+            EdgeMetadata {
+                lane_count: meta.lane_count.map(|v| v.get() as u32),
+                speed_limit,
+                names: ::buffa::alloc::vec::Vec::new(),
+                ..Default::default()
+            }
         }
     }
 
-    /// Build an [`EdgeMetadata`] view from an Overture edge's intrinsic
-    /// metadata and the trip's runtime configuration.
-    pub fn overture_edge_metadata(
-        meta: &OvertureEdgeMetadata,
-        runtime: &OvertureTripConfiguration,
-    ) -> EdgeMetadata {
-        let speed_limit = meta
-            .speed_limits
-            .iter()
-            .filter(|limit| {
-                !limit.conditional
-                    && (limit.mode.is_empty()
-                        || limit.mode.iter().any(|m| m.covers(runtime.travel_mode)))
-            })
-            .find_map(|limit| limit.max_speed)
-            .map(|speed| speed.in_kmh());
-
-        EdgeMetadata {
-            lane_count: meta.lane_count.map(|v| v.get() as u32),
-            speed_limit,
-            names: ::buffa::alloc::vec::Vec::new(),
-            ..Default::default()
-        }
-    }
-
+    #[cfg(feature = "overture")]
     impl MatchSdk for OvertureEdgeMetadata {
         fn trip_context(costing: &Costing) -> Option<TripContext> {
             trip_context(costing)
         }
 
         fn edge_metadata(meta: &Self, runtime: &OvertureTripConfiguration) -> EdgeMetadata {
-            overture_edge_metadata(meta, runtime)
+            let speed_limit = meta
+                .speed_limits
+                .iter()
+                .filter(|limit| {
+                    !limit.conditional
+                        && (limit.mode.is_empty()
+                            || limit.mode.iter().any(|m| m.covers(runtime.travel_mode)))
+                })
+                .find_map(|limit| limit.max_speed)
+                .map(|speed| speed.in_kmh());
+
+            EdgeMetadata {
+                lane_count: meta.lane_count.map(|v| v.get() as u32),
+                speed_limit,
+                names: ::buffa::alloc::vec::Vec::new(),
+                ..Default::default()
+            }
         }
     }
 
