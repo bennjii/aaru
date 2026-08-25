@@ -16,7 +16,7 @@ use std::time::Instant;
 use geo::{LineString, Point};
 use routers::uom::si::f64::Length;
 use routers::uom::si::length::kilometer;
-use routers::{Match, MatchOptions, candidate::Path, primitives::PredicateCache};
+use routers::{Match, MatchOptions, primitives::PredicateCache};
 use wkt::TryFromWkt;
 
 use routers_fixtures::SYNDEY_TRIP;
@@ -27,8 +27,6 @@ mod source {
     use routers::codec::osm;
     use routers_fixtures::{SYDNEY, fixture_path};
 
-    pub type E = osm::OsmEntryId;
-    pub type M = osm::OsmEdgeMetadata;
     pub type Net = osm::OsmNetwork;
 
     pub fn network() -> Net {
@@ -42,8 +40,6 @@ mod source {
     use routers::codec::overture;
     use routers_fixtures::{SYDNEY_OVERTURE, fixture_path};
 
-    pub type E = overture::OvertureEntryId;
-    pub type M = overture::OvertureEdgeMetadata;
     pub type Net = overture::OvertureNetwork;
 
     pub fn network() -> Net {
@@ -51,11 +47,7 @@ mod source {
     }
 }
 
-use source::{E, M, Net};
-
-fn as_line(path: &Path<E, M>) -> LineString {
-    path.iter().map(|v| Point(v.point)).collect()
-}
+use source::Net;
 
 fn main() {
     let coordinates: LineString<f64> =
@@ -76,6 +68,12 @@ fn main() {
         .r#match(coordinates, MatchOptions::new().with_cache(cache))
         .expect("match must complete successfully");
 
-    println!("Matched Route: {:?}", as_line(&route.interpolated));
+    let linestring = route
+        .interpolated
+        .iter()
+        .map(|v| Point(v.point))
+        .collect::<LineString<_>>();
+
+    println!("Matched Route: {linestring:?}");
     println!("Time taken: {:?}", now.elapsed());
 }
