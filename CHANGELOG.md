@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.8] - 2026-08-26
+
+### 🚀 Features
+
+- *(examples)* Compare map matching across osm and overture
+
+### 🐛 Bug Fixes
+
+- *(codec)* Fully feature-gate the downstream implementation
+
+### 🚜 Refactor
+
+- *(examples)* Unify map matching across codecs
+
+
+
 ## [0.3.7] - 2026-08-13
 
 ### ⚙️ Miscellaneous Tasks

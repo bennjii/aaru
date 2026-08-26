@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-08-26
+
+### 🚀 Features
+
+- *(codec)* Add overture maps codec
+- *(codec)* Add overture geoparquet reader
+
+### 🐛 Bug Fixes
+
+- *(codec)* Fully feature-gate the downstream implementation
+- *(codec)* Discrinimated feature union feature flags
+- *(codec)* Cleanup doc items
+
+### 🎨 Styling
+
+- *(codec)* Apply rustfmt to overture additions
+
+### 🧪 Testing
+
+- *(codec)* Validate overture ingestion against the sydney extract
+- *(codec)* Cover conditional restriction and parsing edge cases
+
+
+
 ## [0.2.0] - 2026-08-11
 
 ### 🚀 Features
