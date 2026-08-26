@@ -9,6 +9,16 @@ members = [
     "conformance", "schema"
 ]
 
+default-members = [
+    ".",
+    "libs/routers_codec", "libs/routers_geo",
+    "libs/routers_shard", "libs/routers_fixtures",
+    "libs/routers_network",
+    "libs/routers_tz", "libs/routers_tz_types",
+    "libs/routers_trellis", "libs/routers_transition",
+    "schema"
+]
+
 [workspace.lints.rust]
 unsafe_code = "deny"
 

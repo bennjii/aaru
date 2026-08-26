@@ -1,3 +1,4 @@
+#[cfg(feature = "connect")]
 #[path = "rpc/mod.rs"]
 #[rustfmt::skip]
 pub mod connect;
