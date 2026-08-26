@@ -52,7 +52,7 @@ web-sys = { version = "0.3", features = [
 
 [features]
 default = ["osm"]
-osm = ["dep:routers_codec"]
+osm = ["routers_codec/osm"]
 
 [dev-dependencies]
 routers_fixtures = { workspace = true }
@@ -65,6 +65,7 @@ tokio = { workspace = true }
 [[bin]]
 name = "generate-shards"
 path = "bin/generate-shards.rs"
+required-features = ["osm"]
 
 [lints]
 workspace = true
