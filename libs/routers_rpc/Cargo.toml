@@ -15,7 +15,7 @@ routers_transition = { workspace = true }
 routers_codec = { workspace = true }
 routers_network = { workspace = true }
 routers_tz = { workspace = true }
-schema = { workspace = true }
+schema = { workspace = true, features = ["connect"] }
 
 time-tz = { workspace = true }
 

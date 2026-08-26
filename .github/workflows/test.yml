@@ -71,4 +71,11 @@ jobs:
           buf generate
 
       - name: 🧪 Test
-        run: cargo nextest run --workspace
+        # Excluded crates have no tests; remove from this list when they gain some.
+        run: >
+          cargo nextest run --workspace
+          --exclude routers-conformance
+          --exclude routers_tiles
+          --exclude routers_rpc
+          --exclude routers_geo
+          --exclude routers_tz_types

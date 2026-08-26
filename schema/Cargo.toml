@@ -12,11 +12,15 @@ buffa = { workspace = true }
 buffa-types = { workspace = true }
 buffa-descriptor = { workspace = true }
 
-connectrpc = { workspace = true }
+connectrpc = { workspace = true, optional = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
-http-body = { workspace = true }
+http-body = { workspace = true, optional = true }
+
+[features]
+default = []
+connect = ["dep:connectrpc", "dep:http-body"]
 
 [lib]
 path = "src/mod.rs"

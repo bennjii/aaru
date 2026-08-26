@@ -40,9 +40,9 @@ tower-http = { workspace = true }
 prost-build = { workspace = true }
 
 [features]
-default = ["bigtable"]
+default = []
 # The example service
-example = []
+example = ["bigtable"]
 
 # Tracing
 tracing = ["dep:tracing"]

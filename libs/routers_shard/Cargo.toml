@@ -57,7 +57,6 @@ osm = ["routers_codec/osm"]
 [dev-dependencies]
 routers_fixtures = { workspace = true }
 routers_codec = { workspace = true }
-criterion = { workspace = true }
 
 wkt = { workspace = true }
 tokio = { workspace = true }

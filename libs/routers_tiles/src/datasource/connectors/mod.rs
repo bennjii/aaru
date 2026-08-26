@@ -1,4 +1,5 @@
 pub mod repositories {
+    #[cfg(feature = "bigtable")]
     pub mod big_table {
         use bigtable_rs::bigtable::BigTableConnection;
         use core::time::Duration;
@@ -14,4 +15,5 @@ pub mod repositories {
     }
 }
 
+#[cfg(feature = "bigtable")]
 pub mod bigtable;
