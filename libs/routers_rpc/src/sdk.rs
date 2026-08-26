@@ -154,6 +154,7 @@ pub mod r#match {
     }
 
     #[cfg(test)]
+    #[cfg(feature = "overture")]
     mod tests {
         use super::*;
         use routers_codec::overture::{Speed, SpeedLimit, SpeedUnit, TravelMode};
