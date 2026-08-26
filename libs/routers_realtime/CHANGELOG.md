@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2026-08-26
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: routers_codec, routers_shard, routers_transition
+
+
+
 ## [0.4.2] - 2026-08-13
 
 ### ⚙️ Miscellaneous Tasks
