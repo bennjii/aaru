@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![allow(dead_code)]
 
+#[cfg(all(feature = "osm", feature = "overture"))]
+compile_error!("cannot enable multiple data sources at the same time, pick one of 'osm, overture'");
+
 extern crate alloc;
 
 pub use routers_transition::*;

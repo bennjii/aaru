@@ -10,6 +10,8 @@ pub const ZURICH: &str = "zurich-minified.osm.pbf";
 pub const LOS_ANGELES_SAVED: &str = "los-angeles-minified.rt";
 pub const SYDNEY_SAVED: &str = "sydney-minified.rt";
 
+pub const SYDNEY_OVERTURE: &str = "sydney-overture";
+
 pub mod macros {
     #[macro_export]
     macro_rules! fixture {

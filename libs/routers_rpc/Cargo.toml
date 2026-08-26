@@ -61,6 +61,8 @@ routers_fixtures = { workspace = true }
 
 [features]
 default = []
+osm = ["routers_codec/osm"]
+overture = ["routers_codec/overture"]
 server = [
     "dep:clap",
     "connectrpc/server"
@@ -82,11 +84,12 @@ required-features = ["server"]
 [[example]]
 name = "client"
 path = "examples/client.rs"
+required-features = ["osm"]
 
 [[example]]
 name = "server"
 path = "examples/server.rs"
-required-features = ["telemetry"]
+required-features = ["telemetry", "osm"]
 
 [lints]
 workspace = true

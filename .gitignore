@@ -16,6 +16,7 @@ libs/routers_fixtures/resources/*
 !los-angeles-minified.osm.pbf
 !zurich-minified.osm.pbf
 !sydney-minified.osm.pbf
+!sydney-overture
 
 .work
 conformance/external
