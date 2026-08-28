@@ -8,10 +8,11 @@ repository = "https://github.com/routers-org/routers"
 
 [dependencies]
 routers_network = { workspace = true }
-routers_codec = { workspace = true, optional = true }
+# Path dep (not `workspace = true`) so `default-features = false` is allowed —
+# lets a wasm build drop codec's `parallel`/`mimalloc`. Re-enabled via features.
+routers_codec = { path = "../routers_codec", version = "0.2.1", default-features = false, optional = true }
 
 # Logging
-env_logger = { workspace = true }
 log = { workspace = true }
 
 # Error Handling
@@ -24,26 +25,29 @@ petgraph = { workspace = true }
 
 # Utilities
 rustc-hash = { workspace = true }
-rayon = { workspace = true }
+rayon = { workspace = true, optional = true }
 itertools = { workspace = true }
-clap = { workspace = true, features = ["derive", "env"] }
+
+# CLI, for the `generate-shards` binary only (native).
+clap = { workspace = true, features = ["derive", "env"], optional = true }
+env_logger = { workspace = true, optional = true }
 
 # Serialization
 serde = { workspace = true }
 postcard = { workspace = true }
 
-# `web_time::Instant` is a drop-in replacement for `std::time::Instant` that
-# works on `wasm32-unknown-unknown` (where `std::time` panics). On native
-# it just re-exports the std type, so there's no cost.
+# `web_time::Instant` is a `std::time::Instant` drop-in; std on every target
+# except `wasm32-unknown-unknown` (browser), where it uses the JS clock.
 web-time = "1"
 
-# The browser fetcher uses `web-sys::fetch` directly so we don't drag in a
-# heavy HTTP client just for `Vec<u8>` blob retrieval. Wasm-only.
+# The browser fetcher (`WebFetcher`) uses `web-sys::fetch`. Behind the `web`
+# feature so a component build (which drives fetching from the host) doesn't
+# drag wasm-bindgen JS imports in.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
-web-sys = { version = "0.3", features = [
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
     "Request",
     "RequestInit",
     "Response",
@@ -51,12 +55,23 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [features]
-default = ["osm"]
-osm = ["routers_codec/osm"]
+default = ["osm", "parallel"]
+osm = ["dep:routers_codec", "routers_codec/osm"]
+
+# Rebuild spatial indices across a rayon pool; off for single-threaded targets
+# (wasm), where the two trees build in sequence.
+parallel = ["dep:rayon", "routers_codec?/parallel"]
+
+# The browser `window.fetch` shard fetcher (wasm-bindgen). Off for component
+# builds, which take shard bytes from the host instead.
+web = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
+
+# The `generate-shards` binary.
+cli = ["dep:clap", "dep:env_logger"]
 
 [dev-dependencies]
 routers_fixtures = { workspace = true }
-routers_codec = { workspace = true }
+routers_codec = { path = "../routers_codec", version = "0.2.1", features = ["osm"] }
 
 wkt = { workspace = true }
 tokio = { workspace = true }
@@ -64,7 +79,7 @@ tokio = { workspace = true }
 [[bin]]
 name = "generate-shards"
 path = "bin/generate-shards.rs"
-required-features = ["osm"]
+required-features = ["osm", "cli"]
 
 [lints]
 workspace = true

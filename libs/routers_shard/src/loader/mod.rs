@@ -20,9 +20,9 @@ mod file;
 #[cfg(not(target_arch = "wasm32"))]
 pub use file::FileFetcher;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "web"))]
 mod web;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "web"))]
 pub use web::WebFetcher;
 
 use core::fmt::Debug;

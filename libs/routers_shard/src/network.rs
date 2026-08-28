@@ -179,19 +179,24 @@ where
             .collect();
 
         let hash = &self.hash;
-        let (node_index, edge_index) = rayon::join(
-            || {
-                RowIndex::build(nodes, |id| {
-                    let p = hash[id].position;
-                    (p, p)
-                })
-            },
-            || {
-                RowIndex::build(edges, |&(s, t)| {
-                    envelope_of(hash[&s].position, hash[&t].position)
-                })
-            },
-        );
+        let build_nodes = || {
+            RowIndex::build(nodes, |id| {
+                let p = hash[id].position;
+                (p, p)
+            })
+        };
+        let build_edges = || {
+            RowIndex::build(edges, |&(s, t)| {
+                envelope_of(hash[&s].position, hash[&t].position)
+            })
+        };
+
+        // On the pool when `parallel` is set; sequential otherwise (wasm can't
+        // spawn a rayon pool).
+        #[cfg(feature = "parallel")]
+        let (node_index, edge_index) = rayon::join(build_nodes, build_edges);
+        #[cfg(not(feature = "parallel"))]
+        let (node_index, edge_index) = (build_nodes(), build_edges());
 
         self.index = node_index;
         self.index_edge = edge_index;

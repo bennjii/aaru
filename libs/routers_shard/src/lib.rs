@@ -29,5 +29,5 @@ pub use strategy::{
 #[cfg(not(target_arch = "wasm32"))]
 pub use loader::FileFetcher;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "web"))]
 pub use loader::WebFetcher;

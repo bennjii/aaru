@@ -6,6 +6,7 @@ members = [
     "libs/routers_network", "libs/routers_viewer", "libs/routers_realtime",
     "libs/routers_tz", "libs/routers_tz_types",
     "libs/routers_trellis", "libs/routers_transition",
+    "libs/routers_wasm",
     "conformance", "schema"
 ]
 
@@ -16,6 +17,7 @@ default-members = [
     "libs/routers_network",
     "libs/routers_tz", "libs/routers_tz_types",
     "libs/routers_trellis", "libs/routers_transition",
+    "libs/routers_wasm",
     "schema"
 ]
 

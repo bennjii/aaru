@@ -6,7 +6,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, Response};
 
-use super::fetcher::ShardFetcher;
+use super::fetcher::Fetcher;
 
 #[derive(Debug, Clone)]
 pub struct WebFetcher {
@@ -43,7 +43,7 @@ fn js_value_to_string(v: &JsValue) -> String {
         .unwrap_or_else(|| "<unprintable JsValue>".to_string())
 }
 
-impl ShardFetcher for WebFetcher {
+impl Fetcher for WebFetcher {
     type Error = WebFetchError;
 
     async fn fetch(&self, key: &str) -> Result<Vec<u8>, Self::Error> {

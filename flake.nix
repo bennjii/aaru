@@ -9,13 +9,34 @@
     inputs.systems.follows = "systems";
   };
 
+  # Rust toolchain with the wasm targets needed to build the routers_wasm
+  # component; nixpkgs' `rustc` ships no wasm std.
+  inputs.fenix = {
+    url = "github:nix-community/fenix";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
   outputs =
-    { nixpkgs, flake-utils, ... }:
+    { nixpkgs, flake-utils, fenix, ... }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         inherit (pkgs) lib;
+
+        # A single stable toolchain carrying rust-src plus the wasm targets the
+        # component build and its `-Z build-std` fallback need.
+        fenixPkgs = fenix.packages.${system};
+        rustToolchain = fenixPkgs.combine [
+          fenixPkgs.stable.rustc
+          fenixPkgs.stable.cargo
+          fenixPkgs.stable.clippy
+          fenixPkgs.stable.rustfmt
+          fenixPkgs.stable.rust-src
+          fenixPkgs.targets.wasm32-unknown-unknown.stable.rust-std
+          fenixPkgs.targets.wasm32-wasip1.stable.rust-std
+          fenixPkgs.targets.wasm32-wasip2.stable.rust-std
+        ];
 
         # Linked by openssl-sys/aws-lc-sys, dlopen'd by eframe in routers_viewer.
         libs =
@@ -48,11 +69,18 @@
           packages = with pkgs; [
             bashInteractive
 
-            rustc
-            cargo
-            clippy
-            rustfmt
+            # Rust toolchain (rustc/cargo/clippy/rustfmt + wasm targets).
+            rustToolchain
             rust-analyzer
+
+            # WebAssembly component toolchain (libs/routers_wasm): build the
+            # component, transpile consumers with jco (via npx), run it under
+            # wasmtime, optimise with wasm-opt.
+            wasm-tools
+            cargo-component
+            wasmtime
+            binaryen
+            nodejs_22
 
             protobuf
             buf
@@ -87,7 +115,8 @@
           env = {
             PROTOC = lib.getExe' pkgs.protobuf "protoc";
             OPENSSL_NO_VENDOR = "1";
-            RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
+            # Matches the toolchain above (rust-analyzer + `-Z build-std`).
+            RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
           };
 
           shellHook = ''
