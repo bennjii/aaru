@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.12] - 2026-08-26
+
+### 🚀 Features
+
+- *(rpc)* Support overture metadata in the match sdk
+
+### 🐛 Bug Fixes
+
+- *(codec)* Discrinimated feature union feature flags
+- *(codec)* Cleanup doc items
+
+
+
+## [0.1.11] - 2026-08-13
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: routers_transition
+
+
+
+## [0.1.10] - 2026-08-13
+
+### ⚙️ Miscellaneous Tasks
+
+- Update Cargo.lock dependencies
+
+
+
+## [0.1.9] - 2026-08-11
+
+### 🚀 Features
+
+- *(transition)* Configurable Dijkstra reach distance
+
+
+
 ## [0.1.8] - 2026-07-30
 
 ### 🚀 Features

@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
   PROTOC_VERSION: 3.20.3
@@ -24,9 +25,7 @@ jobs:
     permissions:
       contents: write
     outputs:
-      # Expose these variables so the matrix job can read them
-      did_release: ${{ steps.parse_tag.outputs.is_released }}
-      tag: ${{ steps.parse_tag.outputs.tag }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -64,31 +63,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Parse new tag
-        id: parse_tag
-        if: steps.release.outputs.releases != '[]' && steps.release.outputs.releases != ''
-        env:
-          RELEASES_JSON: ${{ steps.release.outputs.releases }}
+      - name: Resolve current version
+        id: version
         run: |
-          # https://release-plz.dev/docs/usage/release#json-output
-          RELEASED=$(echo "$RELEASES_JSON" | jq -r 'any(.[]; .package_name == "routers")')
-          TAG=$(echo "$RELEASES_JSON" | jq -r '.[] | select(.package_name == "routers") | .tag')
+          set -euo pipefail
 
-          if [ "$RELEASED" = "true" ]; then
-            echo "is_released=true" >> "$GITHUB_OUTPUT"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          git fetch --tags --force --quiet
+          TAG=$(git tag --list 'routers-v*' --sort=-v:refname | head -n1)
 
-            echo "Successfully released and tagged: $TAG"
-          else
-            echo "is_released=false" >> "$GITHUB_OUTPUT"
-            echo "Did not release package: $RELEASES_JSON"
-          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Current version: ${TAG:-none}"
 
   build-containers:
     name: Build and push containers
     runs-on: ubuntu-latest
     needs: release-plz-release
-    if: needs.release-plz-release.outputs.did_release == 'true'
+    if: needs.release-plz-release.outputs.tag != ''
     permissions:
       contents: read
       id-token: write
@@ -99,32 +89,20 @@ jobs:
             file: infrastructure/orchestrator/Dockerfile
           - name: matcher
             file: infrastructure/matcher/Dockerfile
-          - name: historian
-            file: infrastructure/historian/Dockerfile
           - name: timezone
             file: infrastructure/timezone/Dockerfile
-      fail-fast: true
+      fail-fast: false
+    env:
+      IMAGE: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/routers-${{ matrix.name }}
+      TAG: ${{ needs.release-plz-release.outputs.tag }}
     steps:
+      # Must precede authentication: checkout cleans the workspace that the
+      # credential file is written into.
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.TAG }}
           lfs: true
-
-      - name: Install protoc
-        uses: taiki-e/install-action@v2
-        with:
-          tool: protoc@${{ env.PROTOC_VERSION }}
-
-      - name: Install Buf
-        uses: bufbuild/buf-action@v1
-        with:
-          setup_only: true
-
-      - name: Install Packager
-        run: cargo install --locked protoc-gen-buffa-packaging
-
-      - name: Generate Schema
-        run: buf generate
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -132,18 +110,53 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
 
+      - name: Check whether ${{ matrix.name }} exists at ${{ needs.release-plz-release.outputs.tag }}
+        id: check
+        run: |
+          set -euo pipefail
+
+          if gcloud artifacts docker tags list "$IMAGE" --format='value(tag)' | grep -Fxq "$TAG"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$TAG already exists, nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$TAG not found, building."
+          fi
+
+      - name: Install protoc
+        if: steps.check.outputs.exists == 'false'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: protoc@${{ env.PROTOC_VERSION }}
+
+      - name: Install Buf
+        if: steps.check.outputs.exists == 'false'
+        uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+
+      - name: Install Packager
+        if: steps.check.outputs.exists == 'false'
+        run: cargo install --locked protoc-gen-buffa-packaging
+
+      - name: Generate Schema
+        if: steps.check.outputs.exists == 'false'
+        run: buf generate
+
       - name: Configure Docker for Artifact Registry
+        if: steps.check.outputs.exists == 'false'
         run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
 
       - name: Build and push ${{ matrix.name }}
+        if: steps.check.outputs.exists == 'false'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.file }}
           push: true
           tags: |
-            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/routers-${{ matrix.name }}:latest
-            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/routers-${{ matrix.name }}:${{ needs.release-plz-release.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ env.TAG }}
 
   # Create a PR with the new versions and changelog, preparing the next release.
   release-plz-pr:

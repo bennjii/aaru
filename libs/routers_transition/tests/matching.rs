@@ -1,11 +1,17 @@
 //! End-to-end map-matching tests over the `routers_network` `MockNetwork`
 //! harness (enabled via its `testing` feature).
 
+extern crate alloc;
+
+use alloc::sync::Arc;
 use geo::{LineString, point, wkt};
 use routers_network::mock::{MockMetadata, MockNetwork, MockNetworkBuilder};
 use routers_network::{DataPlane, Direction, Metadata};
+use routers_transition::primitives::PredicateCache;
 use routers_transition::weigh::SolverVariant;
 use routers_transition::{Match, MatchOptions, MatchSimpleExt};
+use uom::si::f64::Length;
+use uom::si::length::meter;
 
 /// Tiny straight road: 1 -> 2 -> 3 along lat = 34.15.
 fn straight_road() -> MockNetwork {
@@ -351,7 +357,7 @@ fn duplicate_consecutive_points() {
     assert_eq!(first, second, "duplicate-point match must be deterministic");
 }
 
-/// Two disconnected components >2 km apart (beyond the predicate bound): each
+/// Two disconnected components >1 km apart (beyond the predicate bound): each
 /// layer has candidates, but there is no route between them, so the match fails
 /// with a collapse error rather than panicking.
 #[test]
@@ -403,4 +409,102 @@ fn mock_metadata_accessible() {
     let meta = MockMetadata;
     assert!(meta.accessible(&(), Direction::Outgoing));
     assert!(meta.accessible(&(), Direction::Incoming));
+}
+
+// ── Reach distance ────────────────────────────────────────────────────────────
+
+/// A straight road of six ~920 m edges, so consecutive nodes are far enough
+/// apart that the reach distance decides whether the ends can be linked.
+fn long_road() -> MockNetwork {
+    MockNetworkBuilder::new()
+        .node(1, point!(x: -118.10, y: 34.15))
+        .node(2, point!(x: -118.11, y: 34.15))
+        .node(3, point!(x: -118.12, y: 34.15))
+        .node(4, point!(x: -118.13, y: 34.15))
+        .node(5, point!(x: -118.14, y: 34.15))
+        .node(6, point!(x: -118.15, y: 34.15))
+        .node(7, point!(x: -118.16, y: 34.15))
+        .edge(1, 2)
+        .edge(2, 3)
+        .edge(3, 4)
+        .edge(4, 5)
+        .edge(5, 6)
+        .edge(6, 7)
+        .build()
+}
+
+/// The two ends of [`long_road`], ~5.5 km apart along the road.
+fn long_road_ends() -> LineString {
+    wkt! { LINESTRING(-118.101 34.1503, -118.159 34.1503) }
+}
+
+/// The nodes of the interpolated path, or `None` if the match did not resolve.
+fn interpolated_nodes(net: &MockNetwork, opts: MatchOptions<MockNetwork>) -> Option<Vec<i64>> {
+    net.r#match(long_road_ends(), opts).ok().map(|result| {
+        result
+            .interpolated
+            .elements
+            .iter()
+            .flat_map(|e| [e.edge.source.id.0, e.edge.target.id.0])
+            .collect()
+    })
+}
+
+/// Options matching against a cache built at `reach`.
+fn reaching(reach: Length) -> MatchOptions<MockNetwork> {
+    MatchOptions::new().with_cache(Arc::new(PredicateCache::with_reach_distance(reach)))
+}
+
+/// `metres` as a [`Length`], for brevity at the call sites below.
+fn m(metres: f64) -> Length {
+    Length::new::<meter>(metres)
+}
+
+/// The reach must actually bound the search: a span the reach does not cover
+/// cannot be linked, and the same span becomes linkable once it does.
+#[test]
+fn reach_distance_bounds_the_search() {
+    let net = long_road();
+
+    assert!(
+        interpolated_nodes(&net, reaching(m(1_000.0))).is_none(),
+        "a 1km reach must not bridge a 5.5km span"
+    );
+
+    let far = interpolated_nodes(&net, reaching(m(8_000.0)))
+        .expect("an 8km reach must bridge a 5.5km span");
+    for node in 1..=7 {
+        assert!(
+            far.contains(&node),
+            "node {node} must appear in the interpolated path once the reach covers the span"
+        );
+    }
+}
+
+/// No cache means a fresh one at the 1km default — not enough for a 5.5km span.
+#[test]
+fn no_cache_matches_at_the_default_reach() {
+    let net = long_road();
+
+    assert_eq!(
+        interpolated_nodes(&net, MatchOptions::new()),
+        interpolated_nodes(&net, reaching(m(1_000.0))),
+        "an absent cache must behave as one built at the default reach"
+    );
+}
+
+/// A shared cache must stay warm and give the same answer on every match, so
+/// long as the reach it was built at is the one being used.
+#[test]
+fn shared_cache_is_reused_across_matches() {
+    let net = long_road();
+    let cache = Arc::new(PredicateCache::<MockNetwork>::with_reach_distance(m(
+        8_000.0,
+    )));
+
+    let first = interpolated_nodes(&net, MatchOptions::new().with_cache(Arc::clone(&cache)));
+    let second = interpolated_nodes(&net, MatchOptions::new().with_cache(Arc::clone(&cache)));
+
+    assert!(first.is_some(), "8km reach must bridge 5.5km");
+    assert_eq!(first, second, "a warm cache changed the answer");
 }

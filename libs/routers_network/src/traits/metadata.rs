@@ -9,8 +9,9 @@ pub trait Metadata: Clone + Debug + Serialize + Send + Sync {
     where
         Self: 'a;
 
-    /// TODO: Describe
-    type Runtime: Clone + Debug + Send + Sync;
+    /// The routing configuration [`accessible`](Self::accessible) is evaluated
+    /// against.
+    type Runtime: Clone + Debug + Send + Sync + PartialEq;
 
     /// TODO: Describe
     type TripContext;

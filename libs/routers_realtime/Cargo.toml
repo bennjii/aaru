@@ -1,6 +1,6 @@
 [package]
 name = "routers_realtime"
-version = "0.3.2"
+version = "0.4.3"
 edition = "2024"
 description = "A Demonstration for Real-Time Map Matching"
 license = "GPL-3.0-or-later"
@@ -37,7 +37,7 @@ scc = { workspace = true }
 fnv_rs = "0.4.4"
 futures = "0.3.32"
 tokio = { workspace = true }
-itertools = "0.12"
+itertools = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
 url = { workspace = true }
 geo = { workspace = true, features = ["serde"] }

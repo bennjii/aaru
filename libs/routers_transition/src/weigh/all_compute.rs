@@ -36,6 +36,9 @@ impl<N> AllCompute<N>
 where
     N: Network,
 {
+    /// Weigh against `cache`, adopting its `reach_distance`. To weigh at a
+    /// different reach, pass a cache built by
+    /// `PredicateCache::with_reach_distance`.
     pub fn use_cache(self, cache: Arc<PredicateCache<N>>) -> Self {
         Self {
             predicate: cache,

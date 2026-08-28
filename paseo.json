@@ -1,0 +1,16 @@
+{
+  "worktree": {
+    "setup": [
+      "# Nix flake toolchain (go, gcc, golangci-lint, gstreamer) via direnv",
+      "direnv allow && eval \"$(direnv hook bash)\""
+    ]
+  },
+  "metadataGeneration": {
+    "branchName": {
+      "instructions": "prefix with feat- or fix- and use kebab case"
+    },
+    "commitMessage": {
+      "instructions": "Use conventional commits, in the form \"<fix/feat/..>(<scope>): <description>\", i.e. fix(camera-process): use shorter polling policy\"."
+    }
+  }
+}

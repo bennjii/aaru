@@ -38,7 +38,9 @@ pub trait Weigher<N>
 where
     N: Network,
 {
-    /// The predicate cache backing this weigher's reachability queries.
+    /// The predicate cache backing this weigher's reachability queries. Its
+    /// `reach_distance` is how far a query searches from a candidate before
+    /// giving up.
     fn cache(&self) -> &PredicateCache<N>;
 
     /// Which next-layer candidates to weigh for `source`, as positions within

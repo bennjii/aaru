@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-08-11
+
+### 🚀 Features
+
+- *(realtime)* [**breaking**] Widen vehicle id to u64 and retire trip id
+- *(transition)* Configurable Dijkstra reach distance
+
+
+
 ## [0.1.2] - 2026-07-30
 
 ### 🚀 Features

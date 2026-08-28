@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-08-26
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: routers_codec, routers_shard
+
+
+
+## [0.3.1] - 2026-08-13
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: routers_shard
+
+
+
+## [0.3.0] - 2026-08-11
+
+### 🚀 Features
+
+- *(transition)* Carry observation timestamps through the trip
+- *(realtime)* [**breaking**] Emit convergence diffs and cut the trip behind them
+- *(realtime)* Route requests by geography and degrade foreign resumes
+
+### 🐛 Bug Fixes
+
+- Reduce default reach distance to 1km
+- *(fixtures)* Interpolate trip fixtures for the 1km reach
+- Reduce Default Reach Distance ([#231](https://github.com/routers-org/routers/pull/231))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(deps)* Drop rstar from remaining manifests and refresh lockfile
+
+
+
 ## [0.2.2] - 2026-07-30
 
 ### 🚀 Features

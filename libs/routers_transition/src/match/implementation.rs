@@ -28,10 +28,7 @@ where
         let generator = StandardGenerator::new(self, &costing.emission)
             .with_search_distance(opts.search_distance);
 
-        let weigher = match opts.cache {
-            Some(cache) => opts.solver.instance(cache),
-            None => opts.solver.without_cache(),
-        };
+        let weigher = opts.solver.instance(opts.cache.unwrap_or_default());
 
         Matcher::new(self, &costing, generator, weigher, &opts.runtime)
             .r#match(linestring)

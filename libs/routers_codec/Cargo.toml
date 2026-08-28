@@ -1,6 +1,6 @@
 [package]
 name = "routers_codec"
-version = "0.1.8"
+version = "0.2.1"
 edition = "2024"
 include = ["docs/**", "build.rs", "proto/**", "src/**"]
 description = "Encoding and Decoding Primitives for Routers"
@@ -17,15 +17,11 @@ bench = false
 routers_network = { workspace = true }
 schema = { workspace = true }
 
-# Schema
-bytes = { workspace = true }
-serde = { workspace = true }
-buffa = { workspace = true }
-
 # GeoRust
 geo = { workspace = true, features = ["serde"] }
 petgraph = { workspace = true, features = ["serde"] }
 
+serde = { workspace = true }
 rayon = { workspace = true }
 log = { workspace = true }
 postcard = { workspace = true }
@@ -37,8 +33,17 @@ tracing-subscriber = { workspace = true, optional = true }
 strum = { workspace = true }
 itertools = { workspace = true }
 
-# Compression
-flate2 = { version = "1.1.9", features = ["zlib-rs"] }
+# OSM Reader
+flate2 = { version = "1.1.9", features = ["zlib-rs"], optional = true }
+bytes = { workspace = true, optional = true }
+buffa = { workspace = true, optional = true }
+
+# Overture / GeoParquet reader
+arrow = { version = "59", optional = true }
+parquet = { version = "59", optional = true }
+serde_arrow = { version = "0.15", features = ["arrow-59"], optional = true }
+wkb = { version = "0.9", optional = true }
+geo-traits = { version = "0.3", optional = true }
 
 # Drop-in for `std::time::Instant`
 web-time = "1"
@@ -71,6 +76,12 @@ harness = false
 
 [features]
 default = ["mimalloc", "parallel"]
+
+# Overture Maps GeoParquet ingestion (pulls in the Arrow/Parquet reader stack).
+overture = ["dep:arrow", "dep:parquet", "dep:serde_arrow", "dep:wkb", "dep:geo-traits"]
+
+# Open Street Maps (via. OSM-Protobuf files)
+osm = ["dep:flate2", "dep:bytes", "dep:buffa"]
 
 # Alternate Allocator (Applies to #[global_allocator])
 mimalloc = ["dep:mimalloc"]

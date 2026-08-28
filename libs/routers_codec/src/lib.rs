@@ -9,5 +9,9 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
+#[cfg(feature = "osm")]
 pub mod osm;
+#[cfg(feature = "overture")]
+pub mod overture;
+
 pub mod primitive;

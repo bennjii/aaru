@@ -14,10 +14,14 @@ use schema::proto::routers::model::v1::{
     Edge, EdgeIdentifier, MatchedRoute, NodeIdentifier, RouteEdge, RouteElement,
 };
 
+use alloc::sync::Arc;
 use routers_network::{Entry, Metadata};
+use routers_transition::primitives::{DEFAULT_REACH_DISTANCE, PredicateCache};
 use routers_transition::{Match, MatchOptions};
 #[cfg(feature = "telemetry")]
 use tracing::Level;
+use uom::si::f64::Length;
+use uom::si::length::meter;
 
 use crate::sdk::r#match::{MatchSdk, as_linestring, coordinate};
 use crate::sdk::optimise::optimise_for;
@@ -118,10 +122,18 @@ where
         );
         let runtime = <T::Meta>::runtime(context);
 
+        // The reach is carried by the predicate cache, so a per-request reach
+        // means a per-request cache. No sharing is lost: each request builds
+        // its own either way.
+        let reach = owned
+            .reach_distance
+            .map_or(DEFAULT_REACH_DISTANCE, Length::new::<meter>);
+
         let opts = MatchOptions::new()
             .with_runtime(runtime.clone())
             .with_solver(solver)
-            .with_search_distance(owned.search_distance);
+            .with_search_distance(owned.search_distance)
+            .with_cache(Arc::new(PredicateCache::with_reach_distance(reach)));
 
         let result = self
             .inner

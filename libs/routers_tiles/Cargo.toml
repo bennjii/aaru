@@ -1,6 +1,6 @@
 [package]
 name = "routers_tiles"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Utilities to create tiles"
@@ -40,9 +40,9 @@ tower-http = { workspace = true }
 prost-build = { workspace = true }
 
 [features]
-default = ["bigtable"]
+default = []
 # The example service
-example = []
+example = ["bigtable"]
 
 # Tracing
 tracing = ["dep:tracing"]

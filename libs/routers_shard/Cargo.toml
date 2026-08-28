@@ -1,6 +1,6 @@
 [package]
 name = "routers_shard"
-version = "0.1.4"
+version = "0.2.2"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Sharding Primitives for Routers"
@@ -52,12 +52,11 @@ web-sys = { version = "0.3", features = [
 
 [features]
 default = ["osm"]
-osm = ["dep:routers_codec"]
+osm = ["routers_codec/osm"]
 
 [dev-dependencies]
 routers_fixtures = { workspace = true }
 routers_codec = { workspace = true }
-criterion = { workspace = true }
 
 wkt = { workspace = true }
 tokio = { workspace = true }
@@ -65,6 +64,7 @@ tokio = { workspace = true }
 [[bin]]
 name = "generate-shards"
 path = "bin/generate-shards.rs"
+required-features = ["osm"]
 
 [lints]
 workspace = true

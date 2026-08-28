@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.8] - 2026-08-26
+
+### 🚀 Features
+
+- *(examples)* Compare map matching across osm and overture
+
+### 🐛 Bug Fixes
+
+- *(codec)* Fully feature-gate the downstream implementation
+
+### 🚜 Refactor
+
+- *(examples)* Unify map matching across codecs
+
+
+
+## [0.3.7] - 2026-08-13
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: routers_shard, routers_shard, routers_transition, routers_transition, routers_rpc, routers_realtime
+
+
+
+## [0.3.6] - 2026-08-13
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: routers_rpc, routers_realtime
+
+
+
+## [0.3.5] - 2026-08-11
+
+### 🚀 Features
+
+- Include licensing section in README
+
+
+
 ## [0.3.4] - 2026-07-30
 
 ### ⚙️ Miscellaneous Tasks

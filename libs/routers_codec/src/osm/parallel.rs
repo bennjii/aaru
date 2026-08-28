@@ -31,10 +31,11 @@ pub trait Parallel {
     ///
     /// ```rust
     /// use std::path::PathBuf;
-    /// use routers_routers_codec::osm::element::item::ProcessedElement;
-    /// use routers_routers_codec::osm::{Parallel, ProcessedElementIterator};
+    /// use routers_fixtures::{fixture, DISTRICT_OF_COLUMBIA};
+    /// use routers_codec::osm::element::item::ProcessedElement;
+    /// use routers_codec::osm::{Parallel, ProcessedElementIterator};
     ///
-    /// let path = fixture_path(DISTRICT_OF_COLUMBIA);
+    /// let path = fixture!(DISTRICT_OF_COLUMBIA);
     /// let nodes = ProcessedElementIterator::new(path)
     ///     .expect("!")
     ///     .map_red(|item| {
@@ -69,10 +70,11 @@ pub trait Parallel {
     /// ```rust
     /// use std::collections::BTreeMap;
     /// use std::path::PathBuf;
-    /// use routers_routers_codec::osm::element::item::ProcessedElement;
-    /// use routers_routers_codec::osm::{Parallel, ProcessedElementIterator};
+    /// use routers_codec::osm::element::item::ProcessedElement;
+    /// use routers_codec::osm::{Parallel, ProcessedElementIterator};
+    /// use routers_fixtures::fixture;
     ///
-    /// let path = fixture_path(DISTRICT_OF_COLUMBIA);
+    /// let path = fixture!(DISTRICT_OF_COLUMBIA);
     /// let nodes = ProcessedElementIterator::new(path)
     ///     .expect("!")
     ///     .par_red(|tree, item| {

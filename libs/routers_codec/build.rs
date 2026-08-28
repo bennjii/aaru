@@ -29,6 +29,17 @@ fn main() {
         "src/osm/element/variants/way.rs",
         "src/osm/element/variants/node.rs",
         "src/osm/element/variants/relation.rs",
+        // Overture — types appearing in the serialised `OvertureNetwork`.
+        "src/overture/graph.rs",
+        "src/overture/id.rs",
+        "src/overture/meta.rs",
+        "src/overture/element/connector.rs",
+        "src/overture/element/segment.rs",
+        "src/overture/parsers/road_class.rs",
+        "src/overture/parsers/speed.rs",
+        "src/overture/parsers/access.rs",
+        "src/overture/parsers/travel_mode.rs",
+        "src/overture/parsers/heading.rs",
     ];
 
     let mut h: u64 = HASH_SEED;
