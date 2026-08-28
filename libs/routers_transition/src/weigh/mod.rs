@@ -140,10 +140,13 @@ where
             if #[cfg(feature = "parallel")] {
                 from_layer
                     .par_iter()
-                    .flat_map(|source| self.weigh_source(ctx, costing, source, to_layer))
+                    .with_min_len(8)
+                    .map(|source| self.weigh_source(ctx, costing, source, to_layer))
+                    .flatten_iter()
                     .collect()
             } else {
-                sources
+                from_layer
+                    .iter()
                     .flat_map(|source| self.weigh_source(ctx, costing, source, to_layer))
                     .collect()
             }
