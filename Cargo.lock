@@ -6603,7 +6603,6 @@ dependencies = [
  "routers_transition",
  "scc",
  "serde",
- "stream-partition",
  "thiserror 2.0.19",
  "tokio",
  "tracing",
@@ -6714,6 +6713,7 @@ name = "routers_transition"
 version = "0.2.2"
 dependencies = [
  "approx 0.5.1",
+ "cfg-if",
  "codspeed-criterion-compat",
  "geo",
  "indexmap 2.14.0",
@@ -7675,16 +7675,6 @@ checksum = "2a3fe7c28c6512e766b0874335db33c94ad7b8f9054228ae1c2abd47ce7d335e"
 dependencies = [
  "approx 0.5.1",
  "num-traits",
-]
-
-[[package]]
-name = "stream-partition"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4707315829201ca2d8d6a7c6c888b217ab222a644b5c06bef15af3ab93ace7e"
-dependencies = [
- "futures",
- "pin-project-lite",
 ]
 
 [[package]]
