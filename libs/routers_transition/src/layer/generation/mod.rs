@@ -10,9 +10,11 @@
 
 mod impls;
 
+use cfg_if::cfg_if;
 pub use impls::StandardGenerator;
 
 use geo::Point;
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use routers_network::Entry;
 use routers_trellis::LayerId;
@@ -31,11 +33,19 @@ pub trait LayerGeneration<E: Entry>: Send + Sync {
 
     /// Generates all candidates, one set per input point, starting from `first_layer`.
     fn generate(&self, input: &[Point], first_layer: LayerId) -> Vec<Vec<Candidate<E>>> {
-        input
-            .into_par_iter()
-            .enumerate()
-            .map(|(offset, origin)| self.candidates(origin, LayerId(first_layer.0 + offset as u32)))
-            .collect()
+        cfg_if! {
+            if #[cfg(feature = "parallel")] {
+                input.into_par_iter()
+                    .enumerate()
+                    .map(|(offset, origin)| self.candidates(origin, LayerId(first_layer.0 + offset as u32)))
+                    .collect()
+            } else {
+                input.iter()
+                    .enumerate()
+                    .map(|(offset, origin)| self.candidates(origin, LayerId(first_layer.0 + offset as u32)))
+                    .collect()
+            }
+        }
     }
 
     /// Generates the candidates for all input points, starting from the first layer.

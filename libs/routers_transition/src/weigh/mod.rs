@@ -11,6 +11,7 @@ mod selective;
 mod variant;
 
 pub use all_compute::AllCompute;
+use cfg_if::cfg_if;
 pub use selective::{DEFAULT_FANOUT, Selective};
 pub use variant::SolverVariant;
 
@@ -23,6 +24,7 @@ use crate::{
     weigh::expansion::Expansion,
 };
 use itertools::Itertools;
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use routers_network::Network;
 use routers_trellis::{LayerId, MAX_WEIGHT, NO_EDGE, NodeId, Trellis};
@@ -134,12 +136,21 @@ where
             return Vec::new();
         };
 
-        from_layer
-            .par_iter()
-            .with_min_len(8)
-            .map(|source| self.weigh_source(ctx, costing, source, to_layer))
-            .flatten_iter()
-            .collect()
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "parallel")] {
+                from_layer
+                    .par_iter()
+                    .with_min_len(8)
+                    .map(|source| self.weigh_source(ctx, costing, source, to_layer))
+                    .flatten_iter()
+                    .collect()
+            } else {
+                from_layer
+                    .iter()
+                    .flat_map(|source| self.weigh_source(ctx, costing, source, to_layer))
+                    .collect()
+            }
+        }
     }
 
     /// Weigh every **pending** boundary of `trellis` (resolved boundaries are
@@ -164,10 +175,19 @@ where
             .filter(|&boundary| !trellis.is_resolved(boundary))
             .collect::<Vec<_>>();
 
-        let weighed = pending
-            .into_par_iter()
-            .map(|boundary| (boundary, self.weigh_boundary(ctx, costing, boundary)))
-            .collect::<Vec<_>>();
+        let weighed = {
+            cfg_if! {
+                if #[cfg(feature = "parallel")] {
+                    pending.into_par_iter()
+                        .map(|boundary| (boundary, self.weigh_boundary(ctx, costing, boundary)))
+                        .collect::<Vec<_>>()
+                } else {
+                    pending.into_iter()
+                        .map(|boundary| (boundary, self.weigh_boundary(ctx, costing, boundary)))
+                        .collect::<Vec<_>>()
+                }
+            }
+        };
 
         for (boundary, matrix) in weighed {
             if matrix.iter().all(|&w| w == NO_EDGE) {

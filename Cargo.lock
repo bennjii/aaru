@@ -7180,6 +7180,7 @@ name = "routers_transition"
 version = "0.3.2"
 dependencies = [
  "approx 0.5.1",
+ "cfg-if",
  "codspeed-criterion-compat",
  "geo",
  "indexmap 2.14.0",
