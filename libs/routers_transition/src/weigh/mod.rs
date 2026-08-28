@@ -23,6 +23,7 @@ use crate::{
     weigh::expansion::Expansion,
 };
 use itertools::Itertools;
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use routers_network::Network;
 use routers_trellis::{LayerId, MAX_WEIGHT, NO_EDGE, NodeId, Trellis};
@@ -132,11 +133,13 @@ where
             return Vec::new();
         };
 
-        from_layer
-            .par_iter()
-            .with_min_len(8)
-            .map(|source| self.weigh_source(ctx, costing, source, to_layer))
-            .flatten_iter()
+        #[cfg(feature = "parallel")]
+        let sources = from_layer.par_iter().with_min_len(8);
+        #[cfg(not(feature = "parallel"))]
+        let sources = from_layer.iter();
+
+        sources
+            .flat_map(|source| self.weigh_source(ctx, costing, source, to_layer))
             .collect()
     }
 
@@ -162,8 +165,12 @@ where
             .filter(|&boundary| !trellis.is_resolved(boundary))
             .collect::<Vec<_>>();
 
-        let weighed = pending
-            .into_par_iter()
+        #[cfg(feature = "parallel")]
+        let boundaries = pending.into_par_iter();
+        #[cfg(not(feature = "parallel"))]
+        let boundaries = pending.into_iter();
+
+        let weighed = boundaries
             .map(|boundary| (boundary, self.weigh_boundary(ctx, costing, boundary)))
             .collect::<Vec<_>>();
 

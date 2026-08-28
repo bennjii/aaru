@@ -70,10 +70,13 @@ name = "codec_target"
 harness = false
 
 [features]
-default = ["mimalloc"]
+default = ["mimalloc", "parallel"]
 
 # Alternate Allocator (Applies to #[global_allocator])
 mimalloc = ["dep:mimalloc"]
+
+# rayon for the index rebuild; off = single-threaded (e.g. wasm32). PBF ingest always uses rayon.
+parallel = []
 
 # Tracing (For Debugging & Logging)
 tracing = ["dep:tracing", "dep:tracing-subscriber"]

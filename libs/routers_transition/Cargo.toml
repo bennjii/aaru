@@ -37,7 +37,7 @@ tracing-opentelemetry = { workspace = true, optional = true }
 opentelemetry-otlp = { workspace = true, optional = true }
 
 # Optimisations and Compression
-rayon = { workspace = true }
+rayon = { workspace = true, optional = true }
 scc = { workspace = true }
 itertools = { workspace = true }
 indexmap = { workspace = true }
@@ -56,6 +56,12 @@ routers_network = { workspace = true, features = ["testing"] }
 [[bench]]
 name = "matching"
 harness = false
+
+[features]
+default = ["parallel"]
+
+# rayon on the matching hot path; off = single-threaded (e.g. wasm32).
+parallel = ["dep:rayon"]
 
 [lints]
 workspace = true
