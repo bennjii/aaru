@@ -93,6 +93,13 @@
           shellHook = ''
             export LD_LIBRARY_PATH="${lib.makeLibraryPath libs}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
+            # Isolate gcloud state to this project directory
+            export CLOUDSDK_CONFIG="$PWD/.gcloud"
+            mkdir -p "$CLOUDSDK_CONFIG"
+
+            # Point Application Default Credentials (ADC) inside the isolated directory
+            export GOOGLE_APPLICATION_CREDENTIALS="$CLOUDSDK_CONFIG/application_default_credentials.json"
+
             # `buf generate` needs this plugin and nixpkgs has no derivation for
             # it. Pinned to the workspace's `buffa` version.
             export PATH="$PWD/.cargo-tools/bin:$PATH"

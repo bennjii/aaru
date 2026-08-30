@@ -8,6 +8,7 @@
 *.geojson
 *.rt
 
+.gcloud/
 todo.md
 
 libs/routers_fixtures/resources/*
