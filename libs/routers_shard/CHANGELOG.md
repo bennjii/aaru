@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2026-08-30
+
+### 🚀 Features
+
+- *(wasm)* Shard-loaded map-matching + routing WebAssembly component
+
+### 💼 Other
+
+- Isolate heavy dependency trees from everyday builds
+
+
+
 ## [0.2.2] - 2026-08-26
 
 ### ⚙️ Miscellaneous Tasks
