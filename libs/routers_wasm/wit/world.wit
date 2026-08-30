@@ -1,0 +1,179 @@
+package routers:routing@0.1.0;
+
+/// The routing engine surface. Records mirror `routers.model.v1` from the proto
+/// schema so the two describe the same data.
+interface router {
+  /// A WGS84 position. Mirrors `model.v1.Coordinate`.
+  record coordinate {
+    latitude: f64,
+    longitude: f64,
+  }
+
+  /// The objective the solver optimises for. Mirrors `model.v1.OptimiseFor`.
+  enum optimise-for {
+    speed,
+    consistency,
+    parallelism,
+  }
+
+  /// Dimensions shared by all vehicles. Mirrors `Costing.CarModel`/`BusModel`.
+  record vehicle-costing {
+    /// Metres.
+    height: f32,
+    /// Metres.
+    width: f32,
+  }
+
+  /// Truck dimensions and load. Mirrors `Costing.TruckModel`.
+  record truck-costing {
+    height: f32,
+    width: f32,
+    length: f32,
+    /// Tonnes per axle.
+    axle-load: f32,
+    axle-count: u32,
+    hazardous-load: bool,
+  }
+
+  /// The vehicle to cost the route for. Mirrors `Costing.variation`.
+  variant transport {
+    car(vehicle-costing),
+    bus(vehicle-costing),
+    truck(truck-costing),
+  }
+
+  /// Map-match tuning. Mirrors `api.match.v1.MatchRequest` options; every field
+  /// is optional and defaults to a road-vehicle GPS profile.
+  record match-options {
+    /// Metres; candidate search radius around each input point (default 50).
+    search-distance: option<f64>,
+    /// Metres; how far the router reaches between consecutive points
+    /// (default 1000). Raise for sparse traces or motorway gaps.
+    reach-distance: option<f64>,
+    /// Solver objective (default `speed`).
+    optimise-for: option<optimise-for>,
+    /// Vehicle type + dimensions that shape edge costs (default: an unconstrained car).
+    transport: option<transport>,
+  }
+
+  /// Per-edge metadata. Mirrors `model.v1.EdgeMetadata`.
+  record edge-metadata {
+    lane-count: option<u32>,
+    /// km/h.
+    speed-limit: option<u32>,
+    names: list<string>,
+  }
+
+  /// A network node. Mirrors `model.v1.NodeIdentifier`.
+  record node-identifier {
+    id: s64,
+    coordinate: coordinate,
+  }
+
+  /// A network edge. Mirrors `model.v1.Edge`.
+  record edge {
+    id: s64,
+    source: node-identifier,
+    target: node-identifier,
+    /// Metres, geodesic length of the segment.
+    length: f64,
+    metadata: edge-metadata,
+  }
+
+  /// A routed edge segment. Mirrors `model.v1.RouteEdge`.
+  record route-edge {
+    edge: edge,
+    join-percent: u32,
+    depart-percent: u32,
+    /// Metres.
+    routed-length: u32,
+  }
+
+  /// One position along a matched route. Mirrors `model.v1.RouteElement`.
+  record route-element {
+    coordinate: coordinate,
+    edge: route-edge,
+  }
+
+  /// A matched route. Mirrors `model.v1.MatchedRoute`.
+  record matched-route {
+    /// One element per input point, snapped to the road.
+    discretized: list<route-element>,
+    /// The full driven path between the matched points.
+    interpolated: list<route-element>,
+    cost: u32,
+  }
+
+  /// A point-to-point route. Mirrors `api.optimise.v1.RouteResponse`.
+  record route {
+    /// The path geometry, start to end.
+    shape: list<coordinate>,
+    cost: u32,
+  }
+
+  /// Why a query failed.
+  variant error {
+    /// Map-match: these input-point indices had no road within the search radius.
+    unanchored(list<u32>),
+    /// Map-match: the route broke at these input-point indices.
+    disconnected(list<u32>),
+    /// No result (no route between the points, or no node within range).
+    not-found(string),
+    /// A shard blob could not be decoded.
+    invalid-network(string),
+    /// A shard id was not a valid geohash.
+    invalid-shard(string),
+    /// The solver failed.
+    solve-failed(string),
+  }
+
+  /// A routing engine over a dynamic set of loaded shards. Construct empty,
+  /// load the shards a viewport needs, evict the ones it doesn't; queries run
+  /// over whatever is currently resident (stitched across shard boundaries).
+  resource engine {
+    /// An engine with no shards loaded.
+    constructor();
+
+    /// Load a shard's bytes (a `.shard.rt` blob) under `id`, replacing any
+    /// existing shard with that id. A whole small region is just one shard.
+    load-shard: func(id: string, bytes: list<u8>) -> result<_, error>;
+
+    /// Evict a shard to free memory (no-op if it wasn't loaded).
+    unload-shard: func(id: string);
+
+    /// The ids of the currently-resident shards.
+    loaded-shards: func() -> list<string>;
+
+    /// The shard id covering a point — what a viewport should fetch.
+    shard-of: static func(point: coordinate) -> string;
+
+    /// The edge-adjacent shard ids of `id`; load these for seamless matching
+    /// near a shard's edges.
+    shard-neighbours: static func(id: string) -> result<list<string>, error>;
+
+    /// Map-match a trajectory against the loaded shards.
+    match: func(
+      trace: list<coordinate>,
+      options: match-options,
+    ) -> result<matched-route, error>;
+
+    /// Least-cost route between two points (snapped to the nearest nodes).
+    route: func(start: coordinate, end: coordinate) -> result<route, error>;
+
+    /// The nearest network node to a point.
+    nearest: func(point: coordinate) -> result<coordinate, error>;
+
+    /// The nearest point *on an edge* within `radius` metres (a snapped point).
+    snap: func(point: coordinate, radius: f64) -> result<coordinate, error>;
+
+    /// The network edges within `radius` metres of a point. Mirrors
+    /// `api.scan.v1.ScanService.Edge`.
+    nearest-edges: func(point: coordinate, radius: f64) -> result<list<edge>, error>;
+  }
+}
+
+/// The Routers engine: load the shards a viewport needs, then match / route /
+/// query across them; evict shards to bound memory.
+world routers {
+  export router;
+}
