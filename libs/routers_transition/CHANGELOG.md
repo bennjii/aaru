@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3] - 2026-08-30
+
+### 🚀 Features
+
+- *(transition,codec)* Gate rayon behind a parallel feature
+
+### 🐛 Bug Fixes
+
+- *(transition)* Use cfg-if to feature-gate
+- *(transition)* Restore weigh_boundary parallel pipeline
+
+
+
 ## [0.3.2] - 2026-08-26
 
 ### ⚙️ Miscellaneous Tasks

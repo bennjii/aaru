@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.9] - 2026-08-30
+
+### 🚀 Features
+
+- *(wasm)* Shard-loaded map-matching + routing WebAssembly component
+
+### 🐛 Bug Fixes
+
+- *(transition)* Use cfg-if to feature-gate
+- *(transition)* Restore weigh_boundary parallel pipeline
+- *(wasm)* Re-write documentation
+
+### ⚙️ Miscellaneous Tasks
+
+- *(wasm)* Publish the component as a release artifact
+
+
+
 ## [0.3.8] - 2026-08-26
 
 ### 🚀 Features
