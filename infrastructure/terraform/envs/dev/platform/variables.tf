@@ -142,6 +142,21 @@ variable "machines" {
   }
 }
 
+variable "workers_enabled" {
+  description = <<-EOT
+    Whether to create node pools. False leaves the cluster, network, NAT,
+    registry and bucket standing with zero node VMs — the cheap idle state to
+    sit in between test runs (free-tier eligible once the cluster is zonal).
+    True builds the capacity-sized fleet.
+
+    Toggle without editing code:
+      tofu apply -var-file=ephemeral.tfvars                        # idle, no nodes
+      tofu apply -var-file=ephemeral.tfvars -var workers_enabled=true   # boot nodes
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "deletion_protection" {
   type    = bool
   default = true

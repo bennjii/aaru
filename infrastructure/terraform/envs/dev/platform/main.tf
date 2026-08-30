@@ -41,7 +41,12 @@ module "platform" {
 
   # Straight from the sizing model, so the fleet that gets built is the fleet
   # that was sized. Taints keep each pool for its own workload.
-  node_pools = {
+  #
+  # Gated on workers_enabled: false hands the platform module an empty map, so
+  # every google_container_node_pool is destroyed and only the cluster and its
+  # surrounding infra remain. Flipping back to true recreates the pools; nothing
+  # else in this root has a diff.
+  node_pools = var.workers_enabled ? {
     for name, pool in module.capacity.pools : name => {
       machine_type   = pool.machine_type
       min_node_count = pool.min_node_count
@@ -52,7 +57,7 @@ module "platform" {
         effect = "NO_SCHEDULE"
       }]
     }
-  }
+  } : {}
 
   shard_bucket_name   = var.shard_bucket_name
   deletion_protection = var.deletion_protection

@@ -11,7 +11,7 @@ locals {
 
   # The autoscaler ceiling across every pool. This, not the steady state, is
   # what the pod range has to survive: the range is exhausted at the peak.
-  max_nodes = sum([for name, pool in var.node_pools : pool.max_node_count])
+  max_nodes = length(var.node_pools) == 0 ? 0 : sum([for name, pool in var.node_pools : pool.max_node_count])
 
   # GKE reserves a fixed pod slice per node. The slice holds twice
   # max_pods_per_node addresses, rounded up to a power of two, which gives the

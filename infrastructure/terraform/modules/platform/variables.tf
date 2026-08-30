@@ -149,16 +149,20 @@ variable "node_pools" {
     spot            = optional(bool, false)
   }))
 
-  validation {
-    condition     = length(var.node_pools) > 0
-    error_message = "At least one node pool is required."
-  }
+  # An empty map is legal: the cluster is allowed to exist with zero pools. That
+  # is the idle state a free-tier zonal cluster sits in between test runs — the
+  # control plane stays up (its management fee is the part the free tier waives)
+  # while no node VMs are billed. The env root gates this on `workers_enabled`.
 
   validation {
+    # min 0, not 1: a pool may be pinned to zero and left to the autoscaler to
+    # grow from empty when a tolerating pod goes Pending, and drain back to
+    # empty when the work leaves. GKE's per-pool autoscaler learns a zero-sized
+    # pool's taints and labels, so scale-from-zero works despite the taints.
     condition = alltrue([
-      for name, pool in var.node_pools : pool.min_node_count >= 1 && pool.max_node_count >= pool.min_node_count
+      for name, pool in var.node_pools : pool.min_node_count >= 0 && pool.max_node_count >= pool.min_node_count
     ])
-    error_message = "Every pool needs min_node_count >= 1 and max_node_count >= min_node_count."
+    error_message = "Every pool needs min_node_count >= 0 and max_node_count >= min_node_count."
   }
 
   validation {
