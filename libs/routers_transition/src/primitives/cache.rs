@@ -6,21 +6,11 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use backing::Backing;
 
-/// The cache's backing store: [`scc::HashCache`] natively, a mutexed map on
-/// wasm32.
+// Compatability layer for WASM
 mod backing {
-    /// 32-way associative, evicting a bucket's least recently used entry once
-    /// the bucket fills, so eviction is O(1) and bucket-local.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) type Backing<K, V> = scc::HashCache<K, V, rustc_hash::FxBuildHasher>;
 
-    /// Why not `scc` here too: its epoch reclamation (`sdd`) registers a
-    /// thread-local destructor on first use, and TLS-destructor registration
-    /// live-locks on `wasm32-wasip2` — wasi-libc's single-threaded pthread
-    /// stubs leave `std`'s `LazyKey::lazy_init` spinning in
-    /// `pthread_key_create`/`pthread_key_delete`, hanging the first cache
-    /// insert (and with it the whole match). A mutexed map — uncontended,
-    /// wasm is single-threaded — keeps the read-through surface with no TLS.
     #[cfg(target_arch = "wasm32")]
     pub(crate) struct Backing<K, V> {
         map: std::sync::Mutex<rustc_hash::FxHashMap<K, V>>,
@@ -29,7 +19,6 @@ mod backing {
 
     #[cfg(target_arch = "wasm32")]
     impl<K: core::hash::Hash + Eq, V> Backing<K, V> {
-        /// Signature parity with [`scc::HashCache`]; `minimum` is ignored.
         pub(crate) fn with_capacity_and_hasher(
             _minimum: usize,
             capacity: usize,
@@ -60,29 +49,15 @@ mod backing {
 }
 
 /// Entries retained before the cache starts evicting.
-///
-/// A bound rather than a hint. The matcher is long-lived and every distinct
-/// routing query inserts an entry, so an unbounded cache grows until the pod is
-/// OOM-killed — which takes its shard offline until it reschedules and reloads
-/// the shard file.
-///
-/// Keep this a power of two. `scc::HashCache` rounds its maximum capacity up
-/// to one, so 10,000 would silently become 16,384 and cost 64% more memory
-/// than the number suggests.
 pub const DEFAULT_CACHE_CAPACITY: usize = 8_192;
 
-// Enforced here rather than in a test, because the cost of getting it wrong is
-// silent: `HashCache` would round up and allocate more than the constant says.
+/// `HashCache` would round up and allocate too much, so enforced explicitly.
 const _: () = assert!(
     DEFAULT_CACHE_CAPACITY.is_power_of_two(),
     "DEFAULT_CACHE_CAPACITY must be a power of two, or HashCache rounds it up"
 );
 
 /// A generic read-through cache for a hashmap-backed data structure.
-///
-/// Backed by [`Backing`]: natively `scc::HashCache`, whose eviction is O(1)
-/// and bucket-local — the cache can evict a little before it is globally
-/// full, which is the price of not scanning.
 ///
 /// Anything the value varies with beyond its key belongs in `Meta`, and caches
 /// whose metadata disagrees must stay separate maps.

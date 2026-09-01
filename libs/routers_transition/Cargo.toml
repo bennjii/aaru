@@ -46,9 +46,6 @@ indexmap = { workspace = true }
 thiserror = { workspace = true }
 cfg-if = "1.0.4"
 
-# The cache backing. Not on wasm32: `scc`'s epoch reclamation registers a TLS
-# destructor, and TLS-destructor registration live-locks on wasm32-wasip2 (see
-# `primitives::cache::backing`); wasm uses a mutexed map instead.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 scc = { workspace = true }
 

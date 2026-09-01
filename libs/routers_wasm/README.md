@@ -33,13 +33,9 @@ Queries run over the **composite** of resident shards (`MultiShardNetwork`, a
 unified `Network`), so matching and routing stitch across shard boundaries. A
 whole small region is simply one shard.
 
-**Browser / Node** — published as
-[`@routers-org/wasm`](https://www.npmjs.com/package/@routers-org/wasm): the
-component transpiled to typed ES modules with
-[`jco`](https://github.com/bytecodealliance/jco), core wasm optimised with
-`wasm-opt -Oz`. Works in bundlers (Vite, webpack) and plain Node; the WASI
-surface is the `@bytecodealliance/preview2-shim` dependency, which carries
-both browser and Node backends.
+First-class **npm** package published as
+[`@routers-org/wasm`](https://www.npmjs.com/package/@routers-org/wasm), transpiled via
+[`jco`](https://github.com/bytecodealliance/jco).
 
 ```sh
 pnpm add @routers-org/wasm

@@ -13,33 +13,22 @@ name = "routers_wasm"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# The map-matching core, single-threaded: rayon can't spawn a pool on wasm, so
-# `parallel` is off; `osm` for OsmNetwork::from_bytes. Path deps because Cargo
-# forbids overriding an inherited dependency's default-features.
 routers_transition = { path = "../routers_transition", version = "0.3.2", default-features = false }
 routers_codec = { path = "../routers_codec", version = "0.2.1", default-features = false, features = ["osm"] }
-# Shards + the composite network; `osm` types, no `parallel`/`web` on wasm.
 routers_shard = { path = "../routers_shard", version = "0.2.2", default-features = false, features = ["osm"] }
 routers_network = { workspace = true }
 
 geo = { workspace = true }
-# Generates the Rust bindings (types + `Guest`/resource traits) from wit/world.wit.
 wit-bindgen = "0.46"
 
 [dev-dependencies]
-# Native end-to-end test of the pure core: build a real network from a fixture
-# PBF, then match.
 routers_fixtures = { workspace = true }
 wkt = { workspace = true }
-# `wasmtime_host` example: drive the built component from a native host. The
-# component imports the wasi:cli world (std's stdio plumbing), so the host
-# links wasmtime-wasi's implementations.
 wasmtime = "36"
 wasmtime-wasi = "36"
 
 [[example]]
 name = "wasmtime_host"
-# Pulls the wasmtime runtime; build explicitly, not part of the default set.
 required-features = []
 
 [lints]
