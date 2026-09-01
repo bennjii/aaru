@@ -158,8 +158,6 @@ jobs:
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ env.TAG }}
 
-  # Build the WebAssembly component, attach it to the release alongside the
-  # containers, and publish the transpiled JS as @routers-org/wasm on npm.
   build-wasm:
     name: Build wasm component artifact
     runs-on: ubuntu-latest
@@ -167,12 +165,9 @@ jobs:
     if: needs.release-plz-release.outputs.tag != ''
     permissions:
       contents: write
-      # npm --provenance attests the package build on Sigstore.
       id-token: write
     env:
       TAG: ${{ needs.release-plz-release.outputs.tag }}
-      # Keep in step with the Justfile's `jco`; jco pairs with a preview2-shim
-      # minor (package.json's dependency), so bump the two together.
       JCO: pnpm dlx @bytecodealliance/jco@1.32
     steps:
       - name: Checkout repository
@@ -190,21 +185,16 @@ jobs:
         with:
           setup_only: true
 
-      # `wasm32-wasip2` ships a prebuilt std + `wasm-component-ld`, so
-      # `cargo build --target wasm32-wasip2` emits a component directly.
       - name: Install Rust toolchain (wasm32-wasip2)
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip2
 
-      # Version comes from package.json's `packageManager`.
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           package_json_file: libs/routers_wasm/package.json
 
-      # Writes the registry + NODE_AUTH_TOKEN wiring into ~/.npmrc, which pnpm
-      # reads for publish.
       - name: Install Node
         uses: actions/setup-node@v4
         with:
@@ -214,15 +204,12 @@ jobs:
       - name: Install Packager
         run: cargo install --locked protoc-gen-buffa-packaging
 
-      # routers_codec depends on the generated schema.
       - name: Generate Schema
         run: buf generate
 
       - name: Build component
         run: cargo build --release -p routers_wasm --target wasm32-wasip2
 
-      # `jco opt` unbundles the component, runs wasm-opt -Oz over each core
-      # module, and rebundles; wasm-opt alone can't read component binaries.
       - name: Optimise component (wasm-opt -Oz)
         run: |
           $JCO opt target/wasm32-wasip2/release/routers_wasm.wasm \
@@ -233,49 +220,34 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$TAG" "routers_wasm-${TAG}.component.wasm" --clobber
 
-      # The npm package payload: typed ES modules around the optimised core.
       - name: Transpile to JS
         run: |
           $JCO transpile "routers_wasm-${TAG}.component.wasm" \
             --name routers_wasm -o libs/routers_wasm/dist/transpiled
 
-      # Instantiates the transpiled module in Node and queries it — gates the
-      # publish on the artifact actually running.
       - name: Smoke-test package
         working-directory: libs/routers_wasm
         run: |
           pnpm install --frozen-lockfile
           pnpm test
 
-      # The npm version is the crate's; a routers_wasm version bump is what
-      # publishes a new package. Re-runs at an already-published version no-op.
+      - name: Get Package Version
+        id: versioning
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "routers_wasm") | .version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update Package Version
+        working-directory: libs/routers_wasm
+        env:
+          VERSION: ${{ steps.versioning.outputs.version }}
+        run: npm pkg set version="$VERSION"
+
       - name: Publish @routers-org/wasm
         working-directory: libs/routers_wasm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::warning::NPM_TOKEN is not configured; skipping the npm publish."
-            exit 0
-          fi
-
-          VERSION=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "routers_wasm") | .version')
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = process.argv[1];
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          " "$VERSION"
-
-          if pnpm view "@routers-org/wasm@$VERSION" version >/dev/null 2>&1; then
-            echo "@routers-org/wasm@$VERSION already published, nothing to do."
-          else
-            # --no-git-checks: the version rewrite above dirties the checkout.
-            pnpm publish --provenance --no-git-checks
-          fi
+        run: pnpm publish --provenance --no-git-checks
 
   # Create a PR with the new versions and changelog, preparing the next release.
   release-plz-pr:
