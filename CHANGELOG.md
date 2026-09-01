@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.10] - 2026-09-01
+
+### 🚀 Features
+
+- *(wasm)* Publish @routers-org/wasm with a wasm-opt -Oz core
+
+### 🐛 Bug Fixes
+
+- *(shard)* Honour --output in generate-shards
+- *(transition)* Swap the match cache to a TLS-free backing on wasm32
+- *(wasm)* Link WASI into the wasmtime host example
+- *(deploy)* Use managed versioning workflow
+- *(deploy)* Simplify docs
+- Merge
+
+
+
 ## [0.3.9] - 2026-08-30
 
 ### 🚀 Features
