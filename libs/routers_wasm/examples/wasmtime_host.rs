@@ -9,12 +9,28 @@ use std::fs;
 
 use wasmtime::component::{Component, Linker, ResourceAny};
 use wasmtime::{Engine, Store};
+use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
 mod bindings {
     wasmtime::component::bindgen!({ world: "routers", path: "wit" });
 }
 
 use bindings::exports::routers::routing::router::{Coordinate, MatchOptions};
+
+/// Store data carrying the WASI context the component's std imports run on.
+struct Host {
+    ctx: WasiCtx,
+    table: ResourceTable,
+}
+
+impl WasiView for Host {
+    fn ctx(&mut self) -> WasiCtxView<'_> {
+        WasiCtxView {
+            ctx: &mut self.ctx,
+            table: &mut self.table,
+        }
+    }
+}
 
 fn coord(longitude: f64, latitude: f64) -> Coordinate {
     Coordinate {
@@ -34,8 +50,15 @@ fn main() -> wasmtime::Result<()> {
 
     let engine = Engine::default();
     let component = Component::from_file(&engine, &component_path)?;
-    let linker = Linker::new(&engine);
-    let mut store = Store::new(&engine, ());
+    let mut linker = Linker::new(&engine);
+    wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+    let mut store = Store::new(
+        &engine,
+        Host {
+            ctx: WasiCtxBuilder::new().inherit_stdio().build(),
+            table: ResourceTable::new(),
+        },
+    );
 
     let world = bindings::Routers::instantiate(&mut store, &component, &linker)?;
     let router = world.routers_routing_router();

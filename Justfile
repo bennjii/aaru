@@ -18,9 +18,16 @@ bench-review:
 
 # === WebAssembly component (libs/routers_wasm) ===
 
+jco := "pnpm dlx @bytecodealliance/jco@1.32"
+
 # Build the map-matching component (needs the wasm32-wasip2 toolchain from the flake).
 wasm-build:
     cargo build -p routers_wasm --target wasm32-wasip2 --release
+
+# Optimise the WASM build using binaryen.
+wasm-opt: wasm-build
+    {{ jco }} opt target/wasm32-wasip2/release/routers_wasm.wasm \
+      -o target/wasm32-wasip2/release/routers_wasm.opt.wasm -- -Oz
 
 # Split the Sydney fixture into shard blobs the demos load on demand.
 wasm-shards:
@@ -29,12 +36,18 @@ wasm-shards:
       --pbf libs/routers_fixtures/resources/sydney-minified.osm.pbf \
       --precision 6 --output libs/routers_wasm/dist/shards
 
-# Transpile the component to typed JS/TS for browser + Node consumers.
-wasm-transpile: wasm-build
-    npx --yes @bytecodealliance/jco transpile target/wasm32-wasip2/release/routers_wasm.wasm -o libs/routers_wasm/dist/transpiled
+# Transpile the optimised component to typed JS/TS.
+wasm-transpile: wasm-opt
+    {{ jco }} transpile target/wasm32-wasip2/release/routers_wasm.opt.wasm \
+      --name routers_wasm -o libs/routers_wasm/dist/transpiled
+
+# Stage the @routers-org/wasm npm tarball (what CI publishes on release).
+wasm-npm: wasm-transpile
+    cd libs/routers_wasm && pnpm install && pnpm test && pnpm pack
 
 # E2E in Node: simulate map navigation, loading/evicting shards, then match.
 wasm-e2e-node: wasm-shards wasm-transpile
+    cd libs/routers_wasm && pnpm install && pnpm test
     node libs/routers_wasm/js/e2e.mjs
 
 # E2E from a native Wasmtime host: load the shard set, then match.

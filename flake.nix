@@ -74,13 +74,14 @@
             rust-analyzer
 
             # WebAssembly component toolchain (libs/routers_wasm): build the
-            # component, transpile consumers with jco (via npx), run it under
-            # wasmtime, optimise with wasm-opt.
+            # component, transpile consumers with jco (via pnpm dlx), run it
+            # under wasmtime, optimise with wasm-opt.
             wasm-tools
             cargo-component
             wasmtime
             binaryen
             nodejs_22
+            pnpm
 
             protobuf
             buf

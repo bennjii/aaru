@@ -158,8 +158,6 @@ jobs:
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ env.TAG }}
 
-  # Build the WebAssembly component and attach it to the release, alongside the
-  # containers.
   build-wasm:
     name: Build wasm component artifact
     runs-on: ubuntu-latest
@@ -167,8 +165,10 @@ jobs:
     if: needs.release-plz-release.outputs.tag != ''
     permissions:
       contents: write
+      id-token: write
     env:
       TAG: ${{ needs.release-plz-release.outputs.tag }}
+      JCO: pnpm dlx @bytecodealliance/jco@1.32
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -185,30 +185,69 @@ jobs:
         with:
           setup_only: true
 
-      # `wasm32-wasip2` ships a prebuilt std + `wasm-component-ld`, so
-      # `cargo build --target wasm32-wasip2` emits a component directly.
       - name: Install Rust toolchain (wasm32-wasip2)
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip2
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: libs/routers_wasm/package.json
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
       - name: Install Packager
         run: cargo install --locked protoc-gen-buffa-packaging
 
-      # routers_codec depends on the generated schema.
       - name: Generate Schema
         run: buf generate
 
       - name: Build component
         run: cargo build --release -p routers_wasm --target wasm32-wasip2
 
-      - name: Stage artifact
-        run: cp target/wasm32-wasip2/release/routers_wasm.wasm "routers_wasm-${TAG}.component.wasm"
+      - name: Optimise component (wasm-opt -Oz)
+        run: |
+          $JCO opt target/wasm32-wasip2/release/routers_wasm.wasm \
+            -o "routers_wasm-${TAG}.component.wasm" -- -Oz
 
       - name: Attach to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$TAG" "routers_wasm-${TAG}.component.wasm" --clobber
+
+      - name: Transpile to JS
+        run: |
+          $JCO transpile "routers_wasm-${TAG}.component.wasm" \
+            --name routers_wasm -o libs/routers_wasm/dist/transpiled
+
+      - name: Smoke-test package
+        working-directory: libs/routers_wasm
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test
+
+      - name: Get Package Version
+        id: versioning
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "routers_wasm") | .version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update Package Version
+        working-directory: libs/routers_wasm
+        env:
+          VERSION: ${{ steps.versioning.outputs.version }}
+        run: npm pkg set version="$VERSION"
+
+      - name: Publish @routers-org/wasm
+        working-directory: libs/routers_wasm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --provenance --no-git-checks
 
   # Create a PR with the new versions and changelog, preparing the next release.
   release-plz-pr:
