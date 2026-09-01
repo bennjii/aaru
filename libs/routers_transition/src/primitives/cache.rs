@@ -3,7 +3,61 @@ use core::fmt::Debug;
 use geo::Distance;
 use routers_network::{DataPlane, Metadata, Network};
 use rustc_hash::{FxBuildHasher, FxHashMap};
-use scc::HashCache;
+
+use backing::Backing;
+
+/// The cache's backing store: [`scc::HashCache`] natively, a mutexed map on
+/// wasm32.
+mod backing {
+    /// 32-way associative, evicting a bucket's least recently used entry once
+    /// the bucket fills, so eviction is O(1) and bucket-local.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) type Backing<K, V> = scc::HashCache<K, V, rustc_hash::FxBuildHasher>;
+
+    /// Why not `scc` here too: its epoch reclamation (`sdd`) registers a
+    /// thread-local destructor on first use, and TLS-destructor registration
+    /// live-locks on `wasm32-wasip2` — wasi-libc's single-threaded pthread
+    /// stubs leave `std`'s `LazyKey::lazy_init` spinning in
+    /// `pthread_key_create`/`pthread_key_delete`, hanging the first cache
+    /// insert (and with it the whole match). A mutexed map — uncontended,
+    /// wasm is single-threaded — keeps the read-through surface with no TLS.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) struct Backing<K, V> {
+        map: std::sync::Mutex<rustc_hash::FxHashMap<K, V>>,
+        capacity: usize,
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    impl<K: core::hash::Hash + Eq, V> Backing<K, V> {
+        /// Signature parity with [`scc::HashCache`]; `minimum` is ignored.
+        pub(crate) fn with_capacity_and_hasher(
+            _minimum: usize,
+            capacity: usize,
+            hasher: rustc_hash::FxBuildHasher,
+        ) -> Self {
+            Self {
+                map: std::sync::Mutex::new(std::collections::HashMap::with_hasher(hasher)),
+                capacity,
+            }
+        }
+
+        pub(crate) fn read<R>(&self, key: &K, reader: impl FnOnce(&K, &V) -> R) -> Option<R> {
+            let map = self.map.lock().expect("cache lock");
+            map.get_key_value(key).map(|(k, v)| reader(k, v))
+        }
+
+        /// Wholesale eviction at the bound — cruder than the native LRU, but
+        /// bounded, and refill is just cache misses.
+        pub(crate) fn put(&self, key: K, value: V) -> Result<(), (K, V)> {
+            let mut map = self.map.lock().expect("cache lock");
+            if map.len() >= self.capacity {
+                map.clear();
+            }
+            map.insert(key, value);
+            Ok(())
+        }
+    }
+}
 
 /// Entries retained before the cache starts evicting.
 ///
@@ -12,9 +66,9 @@ use scc::HashCache;
 /// OOM-killed — which takes its shard offline until it reschedules and reloads
 /// the shard file.
 ///
-/// Keep this a power of two. [`HashCache`] rounds its maximum capacity up to
-/// one, so 10,000 would silently become 16,384 and cost 64% more memory than
-/// the number suggests.
+/// Keep this a power of two. `scc::HashCache` rounds its maximum capacity up
+/// to one, so 10,000 would silently become 16,384 and cost 64% more memory
+/// than the number suggests.
 pub const DEFAULT_CACHE_CAPACITY: usize = 8_192;
 
 // Enforced here rather than in a test, because the cost of getting it wrong is
@@ -26,10 +80,9 @@ const _: () = assert!(
 
 /// A generic read-through cache for a hashmap-backed data structure.
 ///
-/// Backed by [`HashCache`], which is 32-way associative and evicts the least
-/// recently used entry of a bucket once that bucket is full. Eviction is
-/// therefore O(1) and bucket-local: the cache can evict a little before it is
-/// globally full, which is the price of not scanning.
+/// Backed by [`Backing`]: natively `scc::HashCache`, whose eviction is O(1)
+/// and bucket-local — the cache can evict a little before it is globally
+/// full, which is the price of not scanning.
 ///
 /// Anything the value varies with beyond its key belongs in `Meta`, and caches
 /// whose metadata disagrees must stay separate maps.
@@ -39,7 +92,7 @@ where
     Meta: Debug,
     N: Network,
 {
-    pub(crate) map: HashCache<N::Entry, Arc<V>, FxBuildHasher>,
+    pub(crate) map: Backing<N::Entry, Arc<V>>,
     pub(crate) metadata: Meta,
 }
 
@@ -134,7 +187,7 @@ where
     /// reintroduce an unbounded map — which is how the bound was lost before.
     pub(crate) fn with_metadata(metadata: Meta) -> Self {
         Self {
-            map: HashCache::with_capacity_and_hasher(
+            map: Backing::with_capacity_and_hasher(
                 0,
                 DEFAULT_CACHE_CAPACITY,
                 FxBuildHasher::default(),
