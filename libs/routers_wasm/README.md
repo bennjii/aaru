@@ -33,10 +33,20 @@ Queries run over the **composite** of resident shards (`MultiShardNetwork`, a
 unified `Network`), so matching and routing stitch across shard boundaries. A
 whole small region is simply one shard.
 
-**Browser / Node** (via [`jco`](https://github.com/bytecodealliance/jco)):
+**Browser / Node** — published as
+[`@routers-org/wasm`](https://www.npmjs.com/package/@routers-org/wasm): the
+component transpiled to typed ES modules with
+[`jco`](https://github.com/bytecodealliance/jco), core wasm optimised with
+`wasm-opt -Oz`. Works in bundlers (Vite, webpack) and plain Node; the WASI
+surface is the `@bytecodealliance/preview2-shim` dependency, which carries
+both browser and Node backends.
+
+```sh
+pnpm add @routers-org/wasm
+```
 
 ```js
-import { router } from "./dist/transpiled/routers_wasm.component.js";
+import { router } from "@routers-org/wasm";
 const engine = new router.Engine();
 const at = (lng, lat) => ({ latitude: lat, longitude: lng });
 
@@ -72,14 +82,21 @@ client stream only the regions it visits.
 ## Build & run (E2E)
 
 The devShell provides the `wasm32-wasip2` toolchain, `wasm-tools`, `wasmtime`,
-and `nodejs` (for `npx jco`). From the repo root:
+`nodejs`, and `pnpm` (jco runs via `pnpm dlx`). From the repo root:
 
 ```sh
 just wasm-build          # → a component (wasm32-wasip2)
+just wasm-opt            # → the component shrunk with wasm-opt -Oz (via `jco opt`)
+just wasm-transpile      # → typed ES modules in dist/transpiled (the npm payload)
+just wasm-npm            # → the @routers-org/wasm tarball, smoke-tested
 just wasm-e2e-node       # generate Sydney shards, transpile, simulate navigation + match in Node
 just wasm-e2e-wasmtime   # load the shard set from a native Wasmtime host + match
 just wasm-e2e            # both
 ```
+
+On release, CI runs the same pipeline: the optimised component is attached to
+the GitHub release, and `@routers-org/wasm` is published to npm at the crate's
+version (bump `routers_wasm` to publish).
 
 Single-threaded on wasm (rayon can't spawn a pool there), so
 `routers_transition`/`routers_codec`/`routers_shard` are pulled with `parallel`
@@ -90,6 +107,9 @@ off.
 - `src/engine.rs` — the core: shard load/unload + `match`/`route`/`nearest`/`snap`/`nearest-edges` over the composite (host-tested with a cross-shard match: `cargo test -p routers_wasm`).
 - `src/bindings.rs` — the WIT guest mapping the interface onto the core.
 - `wit/world.wit` — the interface definition.
+- `package.json` — the `@routers-org/wasm` npm package (ships `dist/transpiled`).
+- `js/smoke.mjs` — the publish gate: instantiate the transpiled module, query it.
+- `js/e2e.mjs` — the navigation E2E: load/evict shards while matching.
 
 ## Status
 

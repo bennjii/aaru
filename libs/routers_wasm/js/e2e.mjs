@@ -9,7 +9,7 @@
 // pan-and-match. Same code a browser runs (the component is portable).
 
 import { readFileSync } from "node:fs";
-import { router } from "../dist/transpiled/routers_wasm.component.js";
+import { router } from "../dist/transpiled/routers_wasm.js";
 
 const SHARD_DIR = "libs/routers_wasm/dist/shards";
 const at = (lng, lat) => ({ latitude: lat, longitude: lng });

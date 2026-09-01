@@ -3,3 +3,10 @@ changelog_config = "cliff.toml"
 repo_url = "https://github.com/routers-org/routers"
 dependencies_update = true
 publish_allow_dirty = true
+
+# Ships to npm (@routers-org/wasm), not crates.io. Keep release-plz bumping the
+# version — auto-release keys the npm publish off it — but skip cargo publish.
+[[package]]
+name = "routers_wasm"
+release = true
+publish = false

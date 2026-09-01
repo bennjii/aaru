@@ -1,0 +1,47 @@
+{
+  "name": "@routers-org/wasm",
+  "version": "0.1.0",
+  "description": "Map-match, route, and run proximity queries in the browser or Node: the Routers engine as a WebAssembly component, transpiled to typed ES modules.",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/routers-org/routers.git",
+    "directory": "libs/routers_wasm"
+  },
+  "homepage": "https://github.com/routers-org/routers/tree/main/libs/routers_wasm",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/transpiled/routers_wasm.js",
+  "types": "./dist/transpiled/routers_wasm.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/transpiled/routers_wasm.d.ts",
+      "default": "./dist/transpiled/routers_wasm.js"
+    }
+  },
+  "files": [
+    "dist/transpiled"
+  ],
+  "scripts": {
+    "test": "node js/smoke.mjs"
+  },
+  "keywords": [
+    "map-matching",
+    "routing",
+    "openstreetmap",
+    "gis",
+    "wasm",
+    "webassembly",
+    "component-model"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@11.9.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@bytecodealliance/preview2-shim": "^0.23.0"
+  }
+}
