@@ -3691,9 +3691,9 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hermit-abi"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
+checksum = "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
 
 [[package]]
 name = "hex"
@@ -7429,7 +7429,7 @@ dependencies = [
 
 [[package]]
 name = "routers"
-version = "0.3.9"
+version = "0.3.10"
 dependencies = [
  "codspeed-criterion-compat",
  "geo",
@@ -7528,7 +7528,7 @@ dependencies = [
 
 [[package]]
 name = "routers_realtime"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -7569,7 +7569,7 @@ dependencies = [
 
 [[package]]
 name = "routers_rpc"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "buffa",
  "clap",
@@ -7611,7 +7611,7 @@ dependencies = [
 
 [[package]]
 name = "routers_shard"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -7665,7 +7665,7 @@ dependencies = [
 
 [[package]]
 name = "routers_transition"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "approx 0.5.1",
  "cfg-if",

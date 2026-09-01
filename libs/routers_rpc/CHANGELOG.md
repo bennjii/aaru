@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.14] - 2026-09-01
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: routers_transition
+
+
+
 ## [0.1.13] - 2026-08-30
 
 ### 💼 Other

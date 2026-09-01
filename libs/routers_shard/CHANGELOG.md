@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.4] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- *(shard)* Honour --output in generate-shards
+- Merge
+
+
+
 ## [0.2.3] - 2026-08-30
 
 ### 🚀 Features
