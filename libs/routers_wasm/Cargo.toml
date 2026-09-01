@@ -31,8 +31,11 @@ wit-bindgen = "0.46"
 # PBF, then match.
 routers_fixtures = { workspace = true }
 wkt = { workspace = true }
-# `wasmtime_host` example: drive the built component from a native host.
+# `wasmtime_host` example: drive the built component from a native host. The
+# component imports the wasi:cli world (std's stdio plumbing), so the host
+# links wasmtime-wasi's implementations.
 wasmtime = "36"
+wasmtime-wasi = "36"
 
 [[example]]
 name = "wasmtime_host"
