@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.13] - 2026-08-30
+
+### 💼 Other
+
+- Isolate heavy dependency trees from everyday builds
+
+
+
 ## [0.1.12] - 2026-08-26
 
 ### 🚀 Features

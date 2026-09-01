@@ -23,7 +23,7 @@
     "dist/transpiled"
   ],
   "scripts": {
-    "test": "node js/smoke.mjs"
+    "test": "node examples/js/smoke.mjs"
   },
   "keywords": [
     "map-matching",
