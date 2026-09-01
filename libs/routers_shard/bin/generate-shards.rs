@@ -24,9 +24,10 @@ struct Args {
     #[arg(short, long, env, default_value = "4")]
     precision: u8,
 
-    /// The output directory to write shard files to.
-    #[arg(short, long, env = "CARGO_MANIFEST_DIR")]
-    output: PathBuf,
+    /// The output directory to write shard files to. Defaults to the
+    /// workspace's `target/shard_cache` (what the chart mounts).
+    #[arg(short, long, env = "SHARD_OUTPUT_DIR")]
+    output: Option<PathBuf>,
 
     /// The name of the manifest file to write.
     #[arg(short, long, env = "MANIFEST_FILENAME", default_value = "manifest.txt")]
@@ -51,8 +52,13 @@ fn main() {
     let args = Args::parse();
     info!("generate-shards starting: {:?}", args);
 
-    let out_dir = args.output.join("../../target/shard_cache");
-    std::fs::create_dir_all(&out_dir).expect("create shard_cache dir");
+    let out_dir = args.output.unwrap_or_else(|| {
+        // `cargo run` sets CARGO_MANIFEST_DIR to libs/routers_shard, so the
+        // fallback lands in the workspace's target/shard_cache.
+        PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap_or_default())
+            .join("../../target/shard_cache")
+    });
+    std::fs::create_dir_all(&out_dir).expect("create output dir");
 
     let network = match (args.file.pbf, args.file.rt) {
         (Some(pbf), None) => {
