@@ -1,7 +1,7 @@
 // Navigation E2E for the transpiled component. Run after:
 //   just wasm-shards      # writes libs/routers_wasm/dist/shards/*.shard.rt
 //   just wasm-transpile   # writes libs/routers_wasm/dist/transpiled/
-//   node libs/routers_wasm/js/e2e.mjs
+//   node libs/routers_wasm/examples/js/e2e.mjs
 //
 // Simulates panning a map along a route: at each viewport it loads the covering
 // shard + neighbours (a browser would `fetch()` these), evicts what's no longer
@@ -9,20 +9,20 @@
 // pan-and-match. Same code a browser runs (the component is portable).
 
 import { readFileSync } from "node:fs";
-import { router } from "../dist/transpiled/routers_wasm.js";
+import { Engine } from "../../index.js";
 
 const SHARD_DIR = "libs/routers_wasm/dist/shards";
 const at = (lng, lat) => ({ latitude: lat, longitude: lng });
 
-const engine = new router.Engine();
+const engine = new Engine();
 const resident = new Set();
 
 // Load the shard covering `center` plus its neighbours; evict everything else.
 // In a browser, `readFileSync` is `await fetch(url)`.
 function recenter(center) {
   const needed = new Set([
-    router.Engine.shardOf(center),
-    ...router.Engine.shardNeighbours(router.Engine.shardOf(center)),
+    Engine.shardOf(center),
+    ...Engine.shardNeighbours(Engine.shardOf(center)),
   ]);
   for (const id of needed) {
     if (resident.has(id)) continue;

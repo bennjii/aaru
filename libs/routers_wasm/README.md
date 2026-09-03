@@ -42,14 +42,14 @@ pnpm add @routers-org/wasm
 ```
 
 ```js
-import { router } from "@routers-org/wasm";
-const engine = new router.Engine();
+import { Engine } from "@routers-org/wasm";
+const engine = new Engine();
 const at = (lng, lat) => ({ latitude: lat, longitude: lng });
 
 // As the viewport moves, load what it covers and evict the rest:
 function recenter(center) {
-  const id = router.Engine.shardOf(center);
-  const needed = new Set([id, ...router.Engine.shardNeighbours(id)]);
+  const id = Engine.shardOf(center);
+  const needed = new Set([id, ...Engine.shardNeighbours(id)]);
   for (const s of needed) if (!resident.has(s)) engine.loadShard(s, await fetchShard(s));
   for (const s of resident)  if (!needed.has(s)) engine.unloadShard(s);
 }

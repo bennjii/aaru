@@ -48,7 +48,7 @@ wasm-npm: wasm-transpile
 # E2E in Node: simulate map navigation, loading/evicting shards, then match.
 wasm-e2e-node: wasm-shards wasm-transpile
     cd libs/routers_wasm && pnpm install && pnpm test
-    node libs/routers_wasm/js/e2e.mjs
+    node libs/routers_wasm/examples/js/e2e.mjs
 
 # E2E from a native Wasmtime host: load the shard set, then match.
 wasm-e2e-wasmtime: wasm-build wasm-shards
