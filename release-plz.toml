@@ -4,10 +4,6 @@ repo_url = "https://github.com/routers-org/routers"
 dependencies_update = true
 publish_allow_dirty = true
 
-# routers_wasm is not on crates.io, but the opt-out must live here: Cargo's
-# `publish = false` makes release-plz skip the crate entirely (no version bump,
-# changelog, or tag). auto-release.yml publishes the npm package with the
-# version release-plz sets in Cargo.toml.
 [[package]]
 name = "routers_wasm"
 release = true
