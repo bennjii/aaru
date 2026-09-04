@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.11] - 2026-09-04
+
+### 🚀 Features
+
+- *(wasm)* Flat entry point for @routers-org/wasm
+
+### 🐛 Bug Fixes
+
+- *(release)* Let release-plz version routers_wasm
+- *(release)* Drop release-plz.toml comment
+
+### ⚙️ Miscellaneous Tasks
+
+- *(wasm)* Trim index.js comment
+
+
+
 ## [0.3.10] - 2026-09-01
 
 ### 🚀 Features
