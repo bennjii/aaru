@@ -53,11 +53,8 @@
             wayland
           ];
 
-        # `gcloud` supplies the credentials the google provider reads, through
-        # `gcloud auth application-default login`. The GKE component is for
-        # `kubectl` and `helm`, which call it as an exec credential plugin; the
-        # terraform roots do not need it, because they take a token from
-        # `google_client_config` instead.
+        # The GKE component is for `kubectl` and `helm`, which call it as an
+        # exec credential plugin.
         gcloud = pkgs.google-cloud-sdk.withExtraComponents [
           pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
         ];
@@ -100,16 +97,8 @@
             kubectl
             kubernetes-helm
 
-            # `infrastructure/terraform` runs on OpenTofu, not Terraform: the
-            # Justfile calls `tofu`, and the lock files record provider hashes
-            # from the OpenTofu registry. Terragrunt drives the per-environment
-            # tree under live/, tflint lints the modules, Infracost prices the
-            # plan and jq builds its usage file.
-            opentofu
-            terragrunt
-            tflint
-            infracost
-            jq
+            # The infrastructure itself lives in routers-org/infrastructure;
+            # gcloud here is for kubectl, helm and pushing to Artifact Registry.
             gcloud
 
             pkg-config

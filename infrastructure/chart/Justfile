@@ -56,3 +56,15 @@ use-shard-cache cache-dir="": install
 
 lint:
     helm lint .
+
+# Package and push the chart to Artifact Registry as an OCI artifact, which is
+# where routers-org/infrastructure's realtime unit installs it from. The
+# release workflow does this for every `routers-v*` tag; this is for a manual
+# push. `registry` is the image registry prefix, e.g.
+# australia-southeast1-docker.pkg.dev/<project>/routers.
+publish registry version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir=$(mktemp -d)
+    helm package . --version {{ version }} --app-version {{ version }} -d "$dir" > /dev/null
+    helm push "$dir/routers-realtime-{{ version }}.tgz" "oci://{{ registry }}/charts"

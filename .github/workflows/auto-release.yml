@@ -236,3 +236,44 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # The chart is versioned with the release and pushed beside the images, so
+  # routers-org/infrastructure pins one tag for both.
+  publish-chart:
+    name: Publish the Helm chart
+    runs-on: ubuntu-latest
+    needs: release-plz-release
+    if: needs.release-plz-release.outputs.tag != ''
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ needs.release-plz-release.outputs.tag }}
+      CHART: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/charts/routers-realtime
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      # Immutable tags: a version that exists is left alone rather than re-pushed.
+      - name: Package and push
+        run: |
+          set -euo pipefail
+
+          VERSION="${TAG#routers-v}"
+          if gcloud artifacts docker tags list "$CHART" --format='value(tag)' 2>/dev/null | grep -Fxq "$VERSION"; then
+            echo "$CHART:$VERSION already exists, nothing to do."
+            exit 0
+          fi
+
+          gcloud auth print-access-token \
+            | helm registry login -u oauth2accesstoken --password-stdin "$GAR_LOCATION-docker.pkg.dev"
+          helm package infrastructure/chart --version "$VERSION" --app-version "$VERSION" -d /tmp
+          helm push "/tmp/routers-realtime-$VERSION.tgz" "oci://$GAR_LOCATION-docker.pkg.dev/$GCP_PROJECT_ID/$GAR_REPOSITORY/charts"
