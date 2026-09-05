@@ -102,8 +102,14 @@
 
             # `infrastructure/terraform` runs on OpenTofu, not Terraform: the
             # Justfile calls `tofu`, and the lock files record provider hashes
-            # from the OpenTofu registry.
+            # from the OpenTofu registry. Terragrunt drives the per-environment
+            # tree under live/, tflint lints the modules, Infracost prices the
+            # plan and jq builds its usage file.
             opentofu
+            terragrunt
+            tflint
+            infracost
+            jq
             gcloud
 
             pkg-config

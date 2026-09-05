@@ -33,3 +33,9 @@ conformance/external
 *.tfstate
 *.tfstate.*
 *.tfplan
+# Terragrunt copies each unit here before running it.
+.terragrunt-cache/
+# Modules are not roots; only units carry a lock file.
+infrastructure/terraform/modules/*/.terraform.lock.hcl
+# Infracost plans and estimates from `just terraform::cost`.
+infrastructure/terraform/.cost/

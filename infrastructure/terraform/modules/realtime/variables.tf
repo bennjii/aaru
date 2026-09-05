@@ -1,5 +1,5 @@
 variable "chart_path" {
-  description = "Path to the routers-realtime chart, normally ../../../chart relative to the env root."
+  description = "Path to the routers-realtime chart. Absolute in practice: Terragrunt passes `<repo>/infrastructure/chart`, because the unit runs from a cache directory."
   type        = string
 }
 
@@ -107,7 +107,7 @@ variable "nats_url" {
 
 variable "valkey_urls" {
   description = <<-EOT
-    The Valkey fleet, from the devstack module. Rendered as a comma-separated
+    The Valkey fleet, from the dependencies unit. Rendered as a comma-separated
     REDIS value. Placement is a rendezvous hash over the URLs, so order does
     not matter and a resize moves about 1/N of vehicles.
   EOT

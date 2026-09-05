@@ -217,31 +217,16 @@ variable "node_disk_type" {
   }
 }
 
-variable "artifact_repository_id" {
-  description = "Name of the Docker repository that holds the matcher and orchestrator images."
-  type        = string
-  default     = "routers"
+variable "image_repository" {
+  description = "The Artifact Registry repository the nodes pull from, from the registry module. The nodes get reader on it and nothing else."
+  type = object({
+    location = string
+    name     = string
+  })
 }
 
-variable "immutable_image_tags" {
-  description = "Refuse to move a tag that already exists. Worth leaving on: with one replica per shard, a bad image takes that shard offline and a moved tag leaves nothing to roll back to."
-  type        = bool
-  default     = true
-}
-
-variable "shard_bucket_keep_versions" {
-  description = "Noncurrent shard file versions retained before deletion."
-  type        = number
-  default     = 3
-
-  validation {
-    condition     = var.shard_bucket_keep_versions >= 1
-    error_message = "shard_bucket_keep_versions must be at least 1."
-  }
-}
-
-variable "shard_bucket_name" {
-  description = "Bucket holding the `<shard>.shard.rt` files. Bucket names are global, so this needs a project or organisation prefix to be unique."
+variable "shard_cache_service_account_id" {
+  description = "Full resource name (`projects/../serviceAccounts/..`) of the shard cache reader, from the shard-cache module. The workloads impersonate it through Workload Identity."
   type        = string
 }
 

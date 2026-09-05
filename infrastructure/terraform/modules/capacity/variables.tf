@@ -458,21 +458,6 @@ variable "profiles" {
   }
 }
 
-variable "max_shards_per_release" {
-  description = <<-EOT
-    Guard on Helm release size. Every shard renders a Deployment and an HPA
-    into one release, whose manifests live in a single Kubernetes Secret, and a
-    Secret holds 1 MiB.
-
-    The whole deployment is one release: the orchestrator fleet is a single
-    StatefulSet over the vehicle partition space, so it must be rendered
-    exactly once, and splitting matchers into their own releases would put the
-    two halves of one system behind two apply paths.
-  EOT
-  type        = number
-  default     = 512
-}
-
 # --- NATS -------------------------------------------------------------------
 
 variable "nats_min_replicas" {
@@ -781,109 +766,6 @@ variable "collector_memory_mib" {
   default     = 2048
 }
 
-# --- Cost -------------------------------------------------------------------
-
-variable "pricing_commitment" {
-  description = <<-EOT
-    Which rate to cost the compute at.
-
-    Commitments apply to the nodes only; disk and the cluster fee are charged
-    the same either way. Spot is priced here for comparison and is not a
-    configuration this deployment should adopt wholesale — an orchestrator's
-    partitions have no other owner while it reschedules.
-  EOT
-  type        = string
-  default     = "on_demand"
-
-  validation {
-    condition     = contains(["on_demand", "cud_1y", "cud_3y", "spot"], var.pricing_commitment)
-    error_message = "pricing_commitment must be on_demand, cud_1y, cud_3y or spot."
-  }
-}
-
-variable "boot_disk_gib" {
-  description = "Boot disk per node, matching the platform module's `node_disk_size_gb`. Image layers under streaming, so it holds little and is priced at the class baseline."
-  type        = number
-  default     = 100
-}
-
-variable "provisioned_iops" {
-  description = "IOPS provisioned per file store volume, matching the devstack. Only what exceeds the class baseline is billable."
-  type        = number
-  default     = 30000
-}
-
-variable "provisioned_throughput_mib" {
-  description = "MiB/s provisioned per file store volume, matching the devstack. Only what exceeds the class baseline is billable."
-  type        = number
-  default     = 750
-}
-
-variable "prices" {
-  description = <<-EOT
-    Monthly rates, in USD.
-
-    Read for australia-southeast1 (Sydney) on 2026-08-05. Sydney is well above
-    the US regions — roughly 1.35x — so these do not transfer to another
-    region by inspection.
-
-    The machine rates are per node per month at 730 hours, taken from the
-    published per-region tables. The Hyperdisk figures are the weaker set: the
-    per-GiB Sydney rate was not published in a form that could be read
-    directly and is extrapolated from the Sydney/US ratio on pd-balanced,
-    while the IOPS and throughput rates are the published US figures and are
-    probably understated for Sydney. Treat the storage lines as an estimate
-    and the compute lines as quotes.
-
-    Confirm against the billing account before anything depends on the total.
-  EOT
-
-  type = object({
-    machines = map(object({
-      on_demand = number
-      cud_1y    = number
-      cud_3y    = number
-      spot      = number
-    }))
-
-    hyperdisk_balanced_gib = number
-    hyperdisk_iops         = number
-    hyperdisk_mib          = number
-    hyperdisk_free_iops    = number
-    hyperdisk_free_mib     = number
-
-    gke_cluster_hour = number
-  })
-
-  default = {
-    # Per node per month at 730 hours. Spot is the hourly rate scaled the same
-    # way, for comparison rather than for use.
-    machines = {
-      "c4-highcpu-32"  = { on_demand = 1241.76, cud_1y = 782.33, cud_3y = 558.80, spot = 548.52 }
-      "c4-highcpu-16"  = { on_demand = 620.88, cud_1y = 391.16, cud_3y = 279.40, spot = 274.26 }
-      "c4-standard-16" = { on_demand = 721.50, cud_1y = 454.55, cud_3y = 324.67, spot = 318.72 }
-      "c4-standard-8"  = { on_demand = 360.75, cud_1y = 227.28, cud_3y = 162.34, spot = 159.36 }
-    }
-
-    # Estimated from the Sydney/US ratio on pd-balanced, which is published at
-    # $0.135/GB there against $0.10 in the US.
-    hyperdisk_balanced_gib = 0.147
-
-    # Published US rates for provisioning above the baseline. Sydney is
-    # probably higher, so these understate the storage line.
-    hyperdisk_iops = 0.005
-    hyperdisk_mib  = 0.040
-
-    # The baseline every Hyperdisk Balanced volume includes at no charge.
-    hyperdisk_free_iops = 3000
-    hyperdisk_free_mib  = 140
-
-    # One regional cluster. A billing account gets one zonal cluster free,
-    # which a regional cluster is not.
-    gke_cluster_hour = 0.10
-  }
-}
-
 # --- Nodes ------------------------------------------------------------------
 
 variable "machines" {
@@ -927,8 +809,8 @@ variable "pool_layout" {
 
 variable "observability_enabled" {
   description = <<-EOT
-    Whether kube-prometheus-stack is installed, mirroring the devstack flag of
-    the same name.
+    Whether kube-prometheus-stack is installed, mirroring the observability module's
+    `prometheus_enabled`.
 
     Its allowance is 6 pods, 4 cores and 16 GiB, which is a rounding error
     against a production fleet and the largest single shape in a test one — it

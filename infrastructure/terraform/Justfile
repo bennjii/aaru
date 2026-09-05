@@ -1,20 +1,64 @@
-# OpenTofu is assumed on PATH. The capacity module needs no credentials at all;
-# the others use mock providers in their tests, so nothing here reaches GCP.
+# OpenTofu, Terragrunt, tflint, Infracost and jq are assumed on PATH; the nix
+# devShell provides all five. Nothing under `default` reaches GCP: the capacity
+# module needs no credentials at all, and the units test with mock providers.
 
 tofu := env("TOFU", "tofu")
+tg := env("TG", "terragrunt")
 
-modules := "modules/capacity modules/platform"
-roots := "envs/dev/platform envs/dev/workloads"
-validate-only := "modules/devstack modules/realtime"
+modules := "modules/capacity modules/registry modules/shard-cache modules/shard-cdn modules/platform modules/nats modules/valkey modules/observability modules/realtime"
+
+# Cluster-free units first, then the cluster, then what runs on it.
+units := "units/registry units/shard-cache units/platform units/dependencies units/realtime"
+
+# The units that run the sizing model and must share one sizing.tf.
+sized_units := "units/platform units/dependencies units/realtime"
 
 # Everything that can be checked without a cloud account.
-default: fmt-check validate test
+default: fmt-check validate lint test
 
-# The sizing model plus the mock-provider suites.
+# --- Static checks ----------------------------------------------------------
+
+fmt:
+    {{ tofu }} fmt -recursive .
+    {{ tg }} hcl fmt --working-dir live
+
+fmt-check:
+    {{ tofu }} fmt -recursive -check .
+    {{ tg }} hcl fmt --check --working-dir live
+
+# `tofu validate` on every module and unit, `terragrunt hcl validate` on live/, and the shared sizing file is identical.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for d in {{ modules }} {{ units }}; do
+        echo "==> $d"
+        {{ tofu }} -chdir="$d" init -backend=false -input=false > /dev/null
+        {{ tofu }} -chdir="$d" validate
+    done
+    echo "==> live"
+    {{ tg }} hcl validate --working-dir live
+    echo "==> units/*/sizing.tf are identical"
+    for u in {{ sized_units }}; do
+        cmp -s units/platform/sizing.tf "$u/sizing.tf" \
+            || { echo "$u/sizing.tf differs from units/platform/sizing.tf; every unit must run the same model" >&2; exit 1; }
+    done
+
+# tflint on every module and unit. The first run downloads the google ruleset.
+lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config="$PWD/.tflint.hcl"
+    tflint --init --config "$config" > /dev/null
+    for d in {{ modules }} {{ units }}; do
+        echo "==> $d"
+        tflint --chdir "$d" --config "$config"
+    done
+
+# The sizing model's own suite plus the mock-provider suites.
 test:
     #!/usr/bin/env bash
     set -euo pipefail
-    for d in {{ modules }} {{ roots }}; do
+    for d in {{ modules }} {{ units }}; do
         if compgen -G "$d/tests/*.tftest.hcl" > /dev/null; then
             echo "==> $d"
             {{ tofu }} -chdir="$d" init -backend=false -input=false > /dev/null
@@ -22,50 +66,80 @@ test:
         fi
     done
 
-validate:
+# --- Terragrunt -------------------------------------------------------------
+#
+# A unit is `live/<env>/<unit>`. registry and shard-cache need no cluster and
+# apply on their own; platform needs both; dependencies and realtime need the
+# cluster. `run --all` from `live/<env>` does the ordering itself.
+
+# Create the state bucket for an environment. Once, before the first apply.
+bootstrap env="dev":
+    {{ tg }} --working-dir live/{{ env }} backend bootstrap --all
+
+# One unit, e.g. `just terraform::plan dev platform`. Extra arguments go to tofu.
+plan env unit *args:
+    {{ tg }} --working-dir live/{{ env }}/{{ unit }} plan {{ args }}
+
+apply env unit *args:
+    {{ tg }} --working-dir live/{{ env }}/{{ unit }} apply {{ args }}
+
+destroy env unit *args:
+    {{ tg }} --working-dir live/{{ env }}/{{ unit }} destroy {{ args }}
+
+output env unit *args:
+    {{ tg }} --working-dir live/{{ env }}/{{ unit }} output {{ args }}
+
+# Every unit in an environment, in dependency order.
+plan-all env="dev" *args:
+    {{ tg }} --working-dir live/{{ env }} run --all -- plan {{ args }}
+
+apply-all env="dev" *args:
+    {{ tg }} --working-dir live/{{ env }} run --all -- apply {{ args }}
+
+# The sizing report. Read it before an apply: the model reports shortfalls as
+# warnings rather than errors, so a plan succeeds while telling you it will not
+# reach the target.
+
+# The sizing report for a unit.
+summary env="dev" unit="platform":
+    {{ tg }} --working-dir live/{{ env }}/{{ unit }} output -raw capacity_summary
+
+# --- Cost -------------------------------------------------------------------
+#
+# Infracost prices the platform unit's plan. Needs INFRACOST_API_KEY (free at
+# infracost.io) and GCP credentials for the plan.
+#
+# Node counts need a hand: Infracost reads `initial_node_count`, which the
+# autoscaler overrides the moment a pool exists. The fleet that is actually
+# bought is the autoscaler floor the capacity model produced, so a usage file
+# is generated from the plan carrying that floor per pool. The JetStream file
+# store volumes are created by the CSI driver, not by OpenTofu, so they are not
+# in this figure. Change sizing.hcl and re-run to see what a target costs.
+
+# Infracost estimate for the platform unit. Needs INFRACOST_API_KEY and GCP credentials.
+cost env="dev":
     #!/usr/bin/env bash
     set -euo pipefail
-    for d in {{ modules }} {{ roots }} {{ validate-only }}; do
-        echo "==> $d"
-        {{ tofu }} -chdir="$d" init -backend=false -input=false > /dev/null
-        {{ tofu }} -chdir="$d" validate
-    done
+    out=".cost/{{ env }}"
+    mkdir -p "$out"
+    {{ tg }} --working-dir live/{{ env }}/platform plan -out=tfplan.bin > /dev/null
+    {{ tg }} --working-dir live/{{ env }}/platform show -json tfplan.bin > "$out/plan.json"
+    jq '{
+        version: "0.1",
+        resource_usage: ([
+            .. | objects | select(.type? == "google_container_node_pool")
+            | { (.address): { nodes: .values.autoscaling[0].total_min_node_count } }
+        ] | add)
+    }' "$out/plan.json" > "$out/usage.yml"
+    infracost breakdown --path "$out/plan.json" --usage-file "$out/usage.yml" \
+        --format json --out-file "$out/current.json" > /dev/null
+    infracost output --path "$out/current.json" --format table
 
-fmt:
-    {{ tofu }} fmt -recursive .
+# Keep the current estimate to compare the next one against.
+cost-baseline env="dev": (cost env)
+    cp .cost/{{ env }}/current.json .cost/{{ env }}/baseline.json
 
-fmt-check:
-    {{ tofu }} fmt -recursive -check .
-
-# The sizing report for an environment, e.g. `just summary envs/dev/platform`.
-# Read this before an apply: the model reports shortfalls as warnings rather
-# than errors, so a plan succeeds while telling you it will not reach the
-# target.
-summary root="envs/dev/platform":
-    {{ tofu }} -chdir="{{ root }}" output -raw capacity_summary
-
-# The sizing report without applying anything, straight from the model. Useful
-# for asking "what would 5M need" by overriding the target.
-plan-summary root="envs/dev/platform" *args:
-    {{ tofu }} -chdir="{{ root }}" init -backend=false -input=false > /dev/null
-    {{ tofu }} -chdir="{{ root }}" plan {{ args }}
-
-# Estimated monthly spend for the applied fleet, by node pool and by service.
-# The rates are inputs carrying the region and the date they were read, so
-# confirm against the billing account before anything depends on the total.
-cost root="envs/dev/platform":
-    {{ tofu }} -chdir="{{ root }}" output -raw cost_report
-
-# The same estimate at another commitment tier or target, without applying:
-#
-#   just terraform::cost-what-if 'pricing_commitment=cud_3y'
-#   just terraform::cost-what-if 'throughput_target_eps=5000000'
-#
-# `output` reads state, so an override has to be evaluated rather than read
-# back — which also makes this work before the first apply.
-cost-what-if override root="envs/dev/platform":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    {{ tofu }} -chdir="{{ root }}" init -backend=false -input=false > /dev/null
-    echo 'module.capacity.cost_report' \
-        | {{ tofu }} -chdir="{{ root }}" console -var '{{ override }}'
+# The change against the saved baseline, e.g. after editing sizing.hcl.
+cost-diff env="dev": (cost env)
+    infracost diff --path .cost/{{ env }}/plan.json --usage-file .cost/{{ env }}/usage.yml \
+        --compare-to .cost/{{ env }}/baseline.json

@@ -729,55 +729,6 @@ run "the_file_store_is_sized_for_rate_as_well_as_volume" {
   }
 }
 
-# Cost is derived from the same pod shapes as the node counts, so it cannot
-# describe a fleet other than the one that would be built. These pin the
-# arithmetic, not the rates — a price change moves the totals and should.
-run "cost_follows_the_fleet_that_would_be_built" {
-  command = plan
-
-  variables {
-    shards                = ["r3gq", "r3gr", "r3gw", "r3gx", "r652", "r658"]
-    throughput_target_eps = 800000
-  }
-
-  # Nodes are bought whole, so the pool total is count times rate.
-  assert {
-    condition = (
-      output.cost.by_pool["matcher"]
-      == output.pools["matcher"].min_node_count * var.prices.machines["c4-highcpu-32"].on_demand
-    )
-    error_message = "The matcher pool's cost must be its node count at its machine's rate."
-  }
-
-  # Attribution splits the pools without inventing or losing money.
-  assert {
-    condition     = abs(sum(values(output.cost.by_service)) - output.cost.compute) < 1
-    error_message = "Per-service attribution (${sum(values(output.cost.by_service))}) must reconcile with compute (${output.cost.compute})."
-  }
-
-  assert {
-    condition = abs(
-      output.cost.total - (output.cost.compute + output.cost.storage.total + output.cost.cluster_fee)
-    ) < 1
-    error_message = "The total must be compute plus storage plus the cluster fee."
-  }
-
-  # Only what exceeds the class baseline is billable, and the brokers are well
-  # past it — so most of the file store's cost is performance, not capacity.
-  assert {
-    condition     = output.cost.storage.jetstream_performance > output.cost.storage.jetstream_capacity
-    error_message = "Provisioned performance should dominate the file store's cost at this write rate."
-  }
-
-  # Committing buys nothing on disk or the cluster fee, so the saving is
-  # bounded by the compute share and a three-year term cannot halve the bill
-  # without also being most of it.
-  assert {
-    condition     = output.cost.compute / output.cost.total > 0.9
-    error_message = "Compute should dominate; if it does not, the storage model has drifted."
-  }
-}
-
 # A test environment is all floors and no throughput: one matcher per shard
 # whatever the load, an availability floor on the brokers, and a fixed
 # observability allowance. Under the dedicated layout each of those is a node
@@ -797,7 +748,6 @@ run "the_shared_layout_collapses_the_per_shape_node_floor" {
     design_target_eps      = 1000
     vertical_profile       = "small"
     largest_shard_file_mib = 413
-    pricing_commitment     = "spot"
 
     nats_min_replicas           = 1
     nats_cpu_millis             = 1000
@@ -805,8 +755,6 @@ run "the_shared_layout_collapses_the_per_shape_node_floor" {
     valkey_replicas_per_primary = 0
     valkey_cpu_millis           = 1000
     valkey_memory_mib           = 2048
-    provisioned_iops            = 3000
-    provisioned_throughput_mib  = 140
     collector_cpu_millis        = 500
     collector_memory_mib        = 1024
     matcher_working_set_mib     = 256
@@ -834,18 +782,6 @@ run "the_shared_layout_collapses_the_per_shape_node_floor" {
   assert {
     condition     = output.pools["shared"].cpu_utilisation < 1
     error_message = "The shared pool is over-committed at ${output.pools["shared"].cpu_utilisation}."
-  }
-
-  # The budget this layout exists to hit. The cluster fee is nearly a third of
-  # it, which is why a test environment wants a zonal cluster.
-  assert {
-    condition     = output.cost.total < 250
-    error_message = "Expected the test tier under $250/month, got ${output.cost.total}."
-  }
-
-  assert {
-    condition     = output.cost.cluster_fee > output.cost.storage.total
-    error_message = "At this size the cluster fee outweighs all storage, which is worth knowing before optimising disks."
   }
 }
 

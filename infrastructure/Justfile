@@ -3,6 +3,7 @@ mod orchestrator "orchestrator"
 
 mod chart "chart"
 mod dev "dev"
+mod terraform "terraform"
 
 build: matcher::build orchestrator::build
 

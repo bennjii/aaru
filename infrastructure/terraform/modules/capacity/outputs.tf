@@ -261,7 +261,7 @@ output "jetstream_disk" {
     hold. Capacity and performance are separate constraints here, and a pd-*
     class conflates them: its throughput scales with size, so the broker's
     write ceiling would depend on the retention window rather than on traffic.
-    The devstack provisions both explicitly from these figures.
+    The nats module provisions both explicitly from these figures.
 
     Throughput usually binds before IOPS — JetStream appends sequentially — and
     the matched stream is most of the bytes, because an emission carries the
@@ -374,76 +374,6 @@ output "totals" {
     pods             = local.total_pods
     pod_ips_required = local.pod_ips_required
   }
-}
-
-output "cost" {
-  description = <<-EOT
-    Estimated monthly spend in USD, at the autoscaler floor.
-
-    `by_pool` is what is actually bought — nodes come whole. `by_service`
-    attributes those nodes by CPU share, which is exact for the three pools
-    carrying one service each and a split only for `infra`, between the
-    brokers and the keyspace.
-
-    `compute_max` is the matcher HPA's ceiling rather than a forecast: it is
-    what a sustained fleet-wide burst would cost, and it is paid only while
-    the burst lasts.
-  EOT
-  value = {
-    currency   = "USD"
-    region     = "australia-southeast1"
-    commitment = var.pricing_commitment
-
-    by_pool    = local.pool_monthly
-    by_service = local.service_monthly
-
-    compute     = local.compute_monthly
-    compute_max = local.compute_monthly_max
-
-    storage = {
-      boot_disks            = local.boot_disk_monthly
-      jetstream_capacity    = local.jetstream_capacity_monthly
-      jetstream_performance = local.jetstream_performance_monthly
-      total                 = local.storage_monthly
-    }
-
-    cluster_fee = local.cluster_monthly
-
-    total     = local.total_monthly
-    total_max = local.total_monthly_max
-
-    per_million_events = local.cost_per_million_events
-  }
-}
-
-output "cost_report" {
-  description = "The cost breakdown as a table. `tofu output -raw cost_report` in an env root."
-  value = <<-EOT
-    ${var.pricing_commitment} rates, australia-southeast1, USD/month at ${local.hours_per_month}h
-
-    by node pool
-    ${join("\n    ", [
-  for p, v in local.pool_monthly :
-  format("%-10s %3d x %-16s %10s", p, local.node_counts[p], var.machines[p].machine_type, format("$%.0f", v))
-  ])}
-    ${format("%-32s %10s", "compute subtotal", format("$%.0f", local.compute_monthly))}
-
-    by service (nodes attributed by cpu share)
-    ${join("\n    ", [
-  for s, v in local.service_monthly :
-  format("%-32s %10s", s, format("$%.0f", v + local.service_storage_monthly[s]))
-])}
-
-    storage
-    ${format("%-32s %10s", "boot disks (${local.total_nodes} x ${var.boot_disk_gib}GiB)", format("$%.0f", local.boot_disk_monthly))}
-    ${format("%-32s %10s", "jetstream capacity (${local.nats_replicas_total} x ${local.file_store_gib_server}GiB)", format("$%.0f", local.jetstream_capacity_monthly))}
-    ${format("%-32s %10s", "jetstream iops + throughput", format("$%.0f", local.jetstream_performance_monthly))}
-
-    ${format("%-32s %10s", "gke cluster fee", format("$%.0f", local.cluster_monthly))}
-    ${format("%-32s %10s", "TOTAL", format("$%.0f", local.total_monthly))}
-    ${format("%-32s %10s", "at the matcher HPA ceiling", format("$%.0f", local.total_monthly_max))}
-    ${format("%-32s %10s", "per million events", format("$%.4f", local.cost_per_million_events))}
-  EOT
 }
 
 output "summary" {

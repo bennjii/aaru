@@ -2,27 +2,25 @@
 # root. Mock providers stand in for GCP, so this runs without credentials.
 
 mock_provider "google" {
+  # Mocks invent random strings for computed attributes, and the IAM members
+  # validate their `member` with a regexp. Shape the node account like the real
+  # thing so the test fails on wiring rather than on the mock.
   mock_resource "google_service_account" {
     defaults = {
-      name  = "projects/routers-test/serviceAccounts/dev-shard-cache@routers-test.iam.gserviceaccount.com"
-      email = "dev-shard-cache@routers-test.iam.gserviceaccount.com"
-    }
-  }
-
-  mock_resource "google_artifact_registry_repository" {
-    defaults = {
-      name = "routers"
+      name  = "projects/routers-test/serviceAccounts/dev-gke-nodes@routers-test.iam.gserviceaccount.com"
+      email = "dev-gke-nodes@routers-test.iam.gserviceaccount.com"
     }
   }
 }
 
 variables {
-  project_id        = "routers-test"
-  region            = "australia-southeast1"
-  env               = "dev"
-  cluster_name      = "routers"
-  network_name      = "routers"
-  shard_bucket_name = "routers-test-shards"
+  project_id                     = "routers-test"
+  region                         = "australia-southeast1"
+  env                            = "dev"
+  cluster_name                   = "routers"
+  network_name                   = "routers"
+  image_repository               = { location = "australia-southeast1", name = "routers" }
+  shard_cache_service_account_id = "projects/routers-test/serviceAccounts/dev-shard-cache@routers-test.iam.gserviceaccount.com"
 
   subnet_cidr             = "10.0.0.0/20"
   pods_secondary_cidr     = "10.16.0.0/16"

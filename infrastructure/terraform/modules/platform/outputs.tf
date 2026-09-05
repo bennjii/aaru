@@ -39,20 +39,6 @@ output "pool_tolerations" {
   value       = local.pool_tolerations
 }
 
-output "image_registry" {
-  description = "Registry prefix for the chart's image.registry."
-  value       = "${google_artifact_registry_repository.images.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.images.repository_id}"
-}
-
-output "shard_bucket" {
-  value = google_storage_bucket.shards.name
-}
-
-output "shard_cache_service_account_email" {
-  description = "Google service account the matcher's Kubernetes service account impersonates. Becomes the chart's iam.gke.io/gcp-service-account annotation."
-  value       = google_service_account.shard_cache.email
-}
-
 output "node_service_account_email" {
   value = google_service_account.nodes.email
 }
