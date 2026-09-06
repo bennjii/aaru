@@ -231,19 +231,34 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm test
 
-      - name: Get Package Version
+      - name: Resolve package version
         id: versioning
+        working-directory: libs/routers_wasm
         run: |
-          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "routers_wasm") | .version')
+          set -euo pipefail
+
+          VERSION="${TAG#routers-v}"
+          NAME=$(npm pkg get name | tr -d '"')
+
+          if npm view "$NAME@$VERSION" version --json >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$NAME@$VERSION already published, nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "$NAME@$VERSION not found, publishing."
+          fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Update Package Version
+        if: steps.versioning.outputs.exists == 'false'
         working-directory: libs/routers_wasm
         env:
           VERSION: ${{ steps.versioning.outputs.version }}
         run: npm pkg set version="$VERSION"
 
       - name: Publish @routers-org/wasm
+        if: steps.versioning.outputs.exists == 'false'
         working-directory: libs/routers_wasm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
