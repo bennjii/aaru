@@ -41,10 +41,9 @@ pub trait ShardSource<E: Entry, M: Metadata> {
     fn edges<'a>(&'a self) -> Box<dyn Iterator<Item = (E, E, Weight, M)> + 'a>;
 }
 
-/// Magic header + format fingerprint prepended to every shard cache file.
-///
-/// `CACHE_VERSION` is computed at build time (see `build.rs`), to prevent
-/// files from being reused across incompatible code versions.
+/// Magic header + schema fingerprint prepended to every shard cache file.
+/// `CACHE_VERSION` is derived in `build.rs` from the serialised type
+/// declarations, so only wire-incompatible revisions invalidate a cache.
 const CACHE_MAGIC: &[u8; 4] = b"SHRD";
 
 include!(concat!(env!("OUT_DIR"), "/format_hash.rs"));
