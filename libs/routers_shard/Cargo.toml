@@ -81,5 +81,9 @@ name = "generate-shards"
 path = "bin/generate-shards.rs"
 required-features = ["osm", "cli"]
 
+[build-dependencies]
+syn = { version = "2", default-features = false, features = ["full", "parsing", "printing", "clone-impls"] }
+quote = "1"
+
 [lints]
 workspace = true
