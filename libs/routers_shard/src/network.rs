@@ -41,10 +41,9 @@ pub trait ShardSource<E: Entry, M: Metadata> {
     fn edges<'a>(&'a self) -> Box<dyn Iterator<Item = (E, E, Weight, M)> + 'a>;
 }
 
-/// Magic header + format fingerprint prepended to every shard cache file.
-///
-/// `CACHE_VERSION` is computed at build time (see `build.rs`), to prevent
-/// files from being reused across incompatible code versions.
+/// Magic header + schema fingerprint prepended to every shard cache file.
+/// `CACHE_VERSION` is derived in `build.rs` from the serialised type
+/// declarations, so only wire-incompatible revisions invalidate a cache.
 const CACHE_MAGIC: &[u8; 4] = b"SHRD";
 
 include!(concat!(env!("OUT_DIR"), "/format_hash.rs"));
@@ -229,11 +228,16 @@ where
         S: serde::de::DeserializeOwned,
     {
         const HEADER_LEN: usize = CACHE_MAGIC.len() + 8;
+        if bytes.len() < HEADER_LEN {
+            return Err("fingerprint hash missing".to_string());
+        }
+
         if bytes.len() < HEADER_LEN || &bytes[..CACHE_MAGIC.len()] != CACHE_MAGIC {
             return Err(
-                "shard cache bytes are missing the SHRD magic header — likely from a previous format. Rebuild the cache.".to_string()
+                "mismatching fingerprint, cache was generated using a different schema".to_string(),
             );
         }
+
         let version = u64::from_le_bytes(
             bytes[CACHE_MAGIC.len()..HEADER_LEN]
                 .try_into()
