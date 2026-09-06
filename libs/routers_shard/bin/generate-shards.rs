@@ -1,17 +1,11 @@
 use clap::{Args as ClapArgs, Parser};
 use geo::Point;
-use itertools::Itertools;
-use log::{debug, error, info, trace};
-use std::{collections::HashSet, path::PathBuf};
+use log::{debug, error, info};
+use std::path::PathBuf;
 
 use routers_codec::osm::{OsmEdgeMetadata, OsmEntryId, OsmNetwork};
 use routers_network::edge::Weight;
-use routers_shard::{
-    Geohash, GeohashStrategy, Selection, SelectionMode, ShardId, ShardSource, ShardedNetwork,
-    ShardingStrategy,
-};
-
-const PADDING_DISTANCE: f64 = 1000.0;
+use routers_shard::{GeohashStrategy, ShardSource, ShardedNetwork};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -23,6 +17,10 @@ struct Args {
     /// The precision of the geohash strategy to use.
     #[arg(short, long, env, default_value = "4")]
     precision: u8,
+
+    /// Metres of cross-boundary buffer admitted around each shard.
+    #[arg(long, env = "PADDING_DISTANCE", default_value = "1000.0")]
+    padding: f64,
 
     /// The output directory to write shard files to. Defaults to the
     /// workspace's `target/shard_cache` (what the chart mounts).
@@ -80,71 +78,38 @@ fn main() {
     );
 
     let strategy = GeohashStrategy::with_precision(args.precision);
+    let source = OsmSource(&network);
 
-    let mut cells: HashSet<Geohash> = HashSet::new();
-    for node in network.hash.values() {
-        cells.insert(strategy.locate(node.position));
+    let partition = ShardedNetwork::<OsmEntryId, OsmEdgeMetadata, _>::partition(
+        &source,
+        &strategy,
+        args.padding,
+    );
+    let total = partition.len();
+    info!("dealt into {total} shards, writing to {out_dir:?}");
+
+    let mut built = Vec::with_capacity(total);
+    let mut failed = Vec::new();
+    for (i, net) in partition.enumerate() {
+        let name = format!("{}.shard.rt", net.owned);
+        debug!("[{} / {total}] {net:?}", i + 1);
+        match net.save_to_file(&out_dir.join(&name)) {
+            Ok(()) => built.push(name),
+            Err(e) => {
+                error!("[{} / {total}] failed to save {name}: {e}", i + 1);
+                failed.push((name, e));
+            }
+        }
     }
 
-    debug!("contains {} unique geohash cells", cells.len());
-    trace!("contains cells={cells:?}");
-
-    let (built, failed): (Vec<_>, Vec<_>) = cells
-        .into_iter()
-        .map(|cell| {
-            sharded_network(&network, strategy.clone(), cell).and_then(|net| {
-                let path = out_dir.join(format!("{}.shard.rt", net.owned));
-                if let Err(e) = net.save_to_file(&path) {
-                    error!("failed to save file: {e}");
-                    return Err(e);
-                }
-
-                Ok(net.owned)
-            })
-        })
-        .partition_result();
-
-    // Write manifest
     let manifest = out_dir.join(args.manifest_filename);
-    let names = built
-        .iter()
-        .map(|shard| format!("{shard}.shard.rt"))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    std::fs::write(&manifest, names).expect("write manifest");
-
-    // Log failed shard reasons
-    for (i, failure) in failed.iter().enumerate() {
-        error!(
-            "[{} / {}] failed to build shard: {failure:?}",
-            i + 1,
-            failed.len()
-        );
-    }
+    std::fs::write(&manifest, built.join("\n")).expect("write manifest");
 
     info!(
         "{} failed, {} shards built into {out_dir:?}",
         failed.len(),
         built.len()
     );
-}
-
-fn sharded_network<'a, S: ShardId, St: ShardingStrategy<Id = S>>(
-    network: &'a OsmNetwork,
-    strategy: St,
-    cell: S,
-) -> Result<ShardedNetwork<OsmEntryId, OsmEdgeMetadata, S>, String> {
-    let selection = Selection::new(
-        &strategy,
-        cell,
-        SelectionMode::OwnedAndPadded {
-            padding_distance: PADDING_DISTANCE,
-        },
-    );
-
-    let source = OsmSource(&network);
-    ShardedNetwork::<OsmEntryId, OsmEdgeMetadata, S>::from_source(&source, &strategy, &selection)
 }
 
 // Thin wrapper around the network to allow iterating over the values
