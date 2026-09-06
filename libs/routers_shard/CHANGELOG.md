@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.5] - 2026-09-06
+
+### 🚀 Features
+
+- *(shard)* Implement partitioning
+- S2 Cell Sharding Strategy ([#256](https://github.com/routers-org/routers/pull/256))
+- Schema-Hash Fingerprinting ([#258](https://github.com/routers-org/routers/pull/258))
+
+
+
 ## [0.2.4] - 2026-09-01
 
 ### 🐛 Bug Fixes

@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.12] - 2026-09-06
+
+### 🚀 Features
+
+- *(terraform)* Terragrunt units, cluster-free registry and shard cache, infracost
+- *(shard)* Implement partitioning
+- S2 Cell Sharding Strategy ([#256](https://github.com/routers-org/routers/pull/256))
+- *(release)* Workflow should inherit version from `routers` root-crate
+- Schema-Hash Fingerprinting ([#258](https://github.com/routers-org/routers/pull/258))
+
+### 🐛 Bug Fixes
+
+- Remove `infrastructure` module ([#254](https://github.com/routers-org/routers/pull/254))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(infra)* Move terraform to routers-org/infrastructure
+
+
+
 ## [0.3.11] - 2026-09-04
 
 ### 🚀 Features
