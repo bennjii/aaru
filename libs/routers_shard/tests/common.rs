@@ -14,7 +14,7 @@ pub struct MemSource {
 }
 
 impl MemSource {
-    /// Build a `cols × rows` grid whose south-west corner is at `origin` and
+    /// Build a `cols x rows` grid whose south-west corner is at `origin` and
     /// whose cells are `step` degrees apart on each axis.
     pub fn grid(origin: Point, cols: u32, rows: u32, step: f64) -> Self {
         let mut nodes = Vec::new();
@@ -31,18 +31,34 @@ impl MemSource {
             }
         }
 
+        // Each edge carries a distinct-ish lane count so tests can tell
+        // which edge's metadata a shard kept.
+        let mut lanes = (1u8..=u8::MAX).cycle();
+        let mut tagged = |from, to| {
+            let lane_count = std::num::NonZeroU8::new(lanes.next().unwrap());
+            (
+                from,
+                to,
+                1000,
+                OsmEdgeMetadata {
+                    lane_count,
+                    ..OsmEdgeMetadata::default()
+                },
+            )
+        };
+
         for row in 0..rows {
             for col in 0..cols {
                 let from = OsmEntryId::node((row * cols + col + 1) as i64);
                 if col + 1 < cols {
                     let to = OsmEntryId::node((row * cols + col + 2) as i64);
-                    edges.push((from, to, 1000, OsmEdgeMetadata::default()));
-                    edges.push((to, from, 1000, OsmEdgeMetadata::default()));
+                    edges.push(tagged(from, to));
+                    edges.push(tagged(to, from));
                 }
                 if row + 1 < rows {
                     let to = OsmEntryId::node(((row + 1) * cols + col + 1) as i64);
-                    edges.push((from, to, 1000, OsmEdgeMetadata::default()));
-                    edges.push((to, from, 1000, OsmEdgeMetadata::default()));
+                    edges.push(tagged(from, to));
+                    edges.push(tagged(to, from));
                 }
             }
         }

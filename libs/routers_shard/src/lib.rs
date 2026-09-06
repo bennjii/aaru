@@ -13,12 +13,14 @@
 pub mod composite;
 pub mod loader;
 pub mod network;
+pub mod partition;
 pub mod selection;
 pub mod strategy;
 
 pub use composite::MultiShardNetwork;
 pub use loader::{Fetcher, LoadError, ShardCache, ShardLoader, ShardMoveDelta, ShardWindow};
 pub use network::{ShardSource, ShardedNetwork};
+pub use partition::Partition;
 pub use selection::{Selection, SelectionMode};
 pub use strategy::{
     ShardId, ShardingStrategy,
