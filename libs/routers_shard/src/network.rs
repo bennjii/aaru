@@ -228,11 +228,16 @@ where
         S: serde::de::DeserializeOwned,
     {
         const HEADER_LEN: usize = CACHE_MAGIC.len() + 8;
+        if bytes.len() < HEADER_LEN {
+            return Err("fingerprint hash missing".to_string());
+        }
+
         if bytes.len() < HEADER_LEN || &bytes[..CACHE_MAGIC.len()] != CACHE_MAGIC {
             return Err(
-                "shard cache bytes are missing the SHRD magic header — likely from a previous format. Rebuild the cache.".to_string()
+                "mismatching fingerprint, cache was generated using a different schema".to_string(),
             );
         }
+
         let version = u64::from_le_bytes(
             bytes[CACHE_MAGIC.len()..HEADER_LEN]
                 .try_into()
