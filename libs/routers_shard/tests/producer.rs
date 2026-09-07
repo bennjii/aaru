@@ -122,3 +122,53 @@ fn matches_from_source_with_zero_padding() {
     let source = MemSource::grid(Point::new(13.4, 52.5), 40, 40, 0.0001);
     assert_equivalent(&source, 7, 0.0);
 }
+
+#[test]
+fn retain_keeps_only_matching_shards_in_order() {
+    let source = MemSource::grid(Point::new(13.4, 52.5), 60, 60, 0.0001);
+    let strategy = GeohashStrategy::with_precision(7);
+    let all: Vec<_> =
+        ShardedNetwork::<OsmEntryId, OsmEdgeMetadata, _>::partition(&source, &strategy, 50.0)
+            .map(|net| net.owned)
+            .collect();
+    let prefix = all[0].to_string()[..6].to_owned();
+    let expected: Vec<_> = all
+        .iter()
+        .copied()
+        .filter(|id| id.to_string().starts_with(&prefix))
+        .collect();
+    assert!(!expected.is_empty() && expected.len() < all.len());
+
+    let mut partition =
+        ShardedNetwork::<OsmEntryId, OsmEdgeMetadata, _>::partition(&source, &strategy, 50.0);
+    partition.retain(|id| id.to_string().starts_with(&prefix));
+    assert_eq!(partition.len(), expected.len());
+    let kept: Vec<_> = partition.map(|net| net.owned).collect();
+    assert_eq!(kept, expected);
+}
+
+#[test]
+fn without_indices_yields_identical_content_and_empty_indices() {
+    let source = MemSource::grid(Point::new(13.4, 52.5), 40, 40, 0.0001);
+    let strategy = GeohashStrategy::with_precision(7);
+    let indexed: Vec<_> =
+        ShardedNetwork::<OsmEntryId, OsmEdgeMetadata, _>::partition(&source, &strategy, 50.0)
+            .collect();
+    let bare: Vec<_> =
+        ShardedNetwork::<OsmEntryId, OsmEdgeMetadata, _>::partition(&source, &strategy, 50.0)
+            .without_indices()
+            .collect();
+    assert_eq!(indexed.len(), bare.len());
+    for (a, b) in indexed.iter().zip(&bare) {
+        assert_eq!(a.owned, b.owned);
+        assert_eq!(fingerprint(a), fingerprint(b));
+        assert!(a.index.len() > 0);
+        assert_eq!(b.index.len(), 0);
+        assert_eq!(b.index_edge.len(), 0);
+    }
+    // A bare shard round-trips through the cache format to a fully indexed one.
+    let bytes = bare[0].to_cache_bytes().expect("encode");
+    let loaded: ShardedNetwork<OsmEntryId, OsmEdgeMetadata, routers_shard::Geohash> =
+        ShardedNetwork::from_cached_bytes(&bytes).expect("decode");
+    assert_eq!(loaded.index.len(), indexed[0].index.len());
+}

@@ -101,6 +101,8 @@
             # The infrastructure itself lives in routers-org/infrastructure;
             # gcloud here is for kubectl, helm and pushing to Artifact Registry.
             gcloud
+            rclone
+            osmium-tool
 
             pkg-config
             cmake
