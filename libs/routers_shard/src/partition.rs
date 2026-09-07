@@ -107,6 +107,7 @@ impl<St: ShardingStrategy> Dealer<'_, St> {
 
 /// A source dealt into per-shard buckets, yielded shard by shard.
 pub struct Partition<E: Entry, M: Metadata, S: ShardId> {
+    build_indices: bool,
     positions: FxHashMap<E, Point>,
     metas: Vec<M>,
     buckets: alloc::vec::IntoIter<(S, Bucket<E>)>,
@@ -219,11 +220,30 @@ where
         );
 
         Self {
+            build_indices: true,
             positions,
             metas,
             remaining: buckets.len(),
             buckets: buckets.into_iter(),
         }
+    }
+
+    /// Yield shards without spatial indices. They are rebuilt on load
+    /// anyway (`from_cached_bytes`), so a producer that only writes shards
+    /// to disk saves two R-tree builds per shard.
+    pub fn without_indices(mut self) -> Self {
+        self.build_indices = false;
+        self
+    }
+
+    /// Drop every shard whose id fails `keep` before it is built. Used to
+    /// produce only the shards a chunk of a larger extract is responsible
+    /// for, without paying for the ones its buffer zone would also yield.
+    pub fn retain(&mut self, mut keep: impl FnMut(&S) -> bool) {
+        let buckets = core::mem::replace(&mut self.buckets, Vec::new().into_iter());
+        let kept: Vec<_> = buckets.filter(|(id, _)| keep(id)).collect();
+        self.remaining = kept.len();
+        self.buckets = kept.into_iter();
     }
 
     /// Shards still to be yielded.
@@ -266,7 +286,9 @@ where
             owned,
             loaded,
         };
-        net.rebuild_indices();
+        if self.build_indices {
+            net.rebuild_indices();
+        }
         net
     }
 }
